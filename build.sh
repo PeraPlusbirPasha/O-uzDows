@@ -305,6 +305,66 @@ mkdir -p /usr/share/backgrounds
   || magick -size 1920x1080 gradient:'#2b1055-#d53369' /usr/share/backgrounds/oguzdows.png) || true
 EOF
 
+# --- Giriş garantisi: kullanıcı oguz / şifre oguz + otomatik giriş ---
+# live-config'in kullanıcı/otomatik giriş ayarına güvenmek yerine, açılışta
+# (ekran yöneticisinden önce) kendi servisimiz hesabı garanti eder.
+mkdir -p config/includes.chroot/etc/systemd/system config/includes.chroot/etc/sudoers.d
+
+cat > config/includes.chroot/usr/local/bin/oguzdows-fixlogin <<'EOF'
+#!/bin/sh
+# Her açılışta çalışır: kullanıcıyı, şifreyi ve otomatik girişi garanti eder.
+U=oguz
+getent group nopasswdlogin >/dev/null || groupadd -r nopasswdlogin
+if ! getent passwd "$U" >/dev/null; then
+  useradd -m -s /bin/bash -c "Oguz" "$U"
+fi
+echo "$U:oguz" | chpasswd
+for g in sudo audio video plugdev netdev cdrom dip floppy lpadmin scanner bluetooth nopasswdlogin; do
+  getent group "$g" >/dev/null && usermod -aG "$g" "$U"
+done
+echo "$U ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/oguzdows
+chmod 440 /etc/sudoers.d/oguzdows
+mkdir -p /etc/lightdm/lightdm.conf.d
+cat > /etc/lightdm/lightdm.conf.d/50-oguzdows.conf <<EOC
+[Seat:*]
+autologin-user=$U
+autologin-user-timeout=0
+user-session=xfce
+EOC
+exit 0
+EOF
+chmod +x config/includes.chroot/usr/local/bin/oguzdows-fixlogin
+
+cat > config/includes.chroot/etc/systemd/system/oguzdows-fixlogin.service <<'EOF'
+[Unit]
+Description=OguzDows kullanici ve otomatik giris ayari
+After=live-config.service
+Before=display-manager.service lightdm.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/oguzdows-fixlogin
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+cat > config/hooks/live/0300-login.hook.chroot <<'EOF'
+#!/bin/sh
+set -e
+systemctl enable oguzdows-fixlogin.service
+EOF
+
+# Klavye: Türkçe Q (giriş ekranı dahil)
+cat > config/includes.chroot/etc/default/keyboard <<'EOF'
+XKBMODEL="pc105"
+XKBLAYOUT="tr"
+XKBVARIANT=""
+XKBOPTIONS=""
+BACKSPACE="guess"
+EOF
+
 chmod +x config/hooks/live/*.hook.chroot
 
 # zram: RAM'i sıkıştırarak eski makinelerde takılmayı azaltır
