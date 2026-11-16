@@ -22,6 +22,9 @@ esac
 [ "$(id -u)" -eq 0 ] || { echo "root olarak çalıştırın (sudo)."; exit 1; }
 command -v lb >/dev/null || { echo "live-build kurulu değil: apt install live-build"; exit 1; }
 
+# Çekirdek parametreleri (ISO menüsü de aynısını kullanır)
+BOOTAPPEND="boot=live components quiet splash hostname=oguzdows username=oguz locales=tr_TR.UTF-8 keyboard-layouts=tr timezone=Europe/Istanbul"
+
 HERE="$(pwd)"
 WORK="$HERE/build-$ARCH"
 rm -rf "$WORK"
@@ -30,7 +33,6 @@ cd "$WORK"
 
 # ---------------------------------------------------------------
 # 1) Temel yapılandırma
-#    Canlı ISO'da GRUB yok: syslinux/isolinux ile BIOS'tan açılır.
 # ---------------------------------------------------------------
 lb config \
   --distribution "$SUITE" \
@@ -47,7 +49,7 @@ lb config \
   --iso-application "OguzDows" \
   --iso-publisher "Oguz" \
   --memtest none \
-  --bootappend-live "boot=live components quiet splash hostname=oguzdows username=oguz locales=tr_TR.UTF-8 keyboard-layouts=tr timezone=Europe/Istanbul"
+  --bootappend-live "$BOOTAPPEND"
 
 # ---------------------------------------------------------------
 # 2) Paket listesi
@@ -79,6 +81,9 @@ ristretto
 gvfs
 gvfs-backends
 sudo
+procps
+libpam-systemd
+dbus-user-session
 
 # --- Ağ / Wi-Fi / Bluetooth ---
 network-manager
@@ -106,6 +111,7 @@ fonts-noto-color-emoji
 # --- Mac görünümü ---
 plank
 plymouth
+plymouth-themes
 gtk2-engines-murrine
 gnome-themes-extra
 qt5-gtk-platformtheme
@@ -155,18 +161,18 @@ firmware-realtek
 firmware-atheros
 firmware-brcm80211
 firmware-amd-graphics
+firmware-intel-graphics
 EOF
 
-# Yalnızca Debian 13'te bulunan paketler
 if [ "$SUITE" = "trixie" ]; then
-  printf '%s\n' firmware-intel-sound firmware-intel-graphics \
+  printf '%s\n' firmware-intel-sound polkitd pkexec \
     >> config/package-lists/oguzdows.list.chroot
+else
+  printf '%s\n' policykit-1 >> config/package-lists/oguzdows.list.chroot
 fi
 
 # ---------------------------------------------------------------
-# 3) Masaüstü ayarları (macOS tarzı)
-#    Üstte ince menü çubuğu, altta zoom'lu dock, pencere düğmeleri solda,
-#    WhiteSur tema/ikon/imleç, Inter yazı tipi, dokunmatik yüzeyde doğal kaydırma
+# 3) Masaüstü ayarları (macOS tarzı üst panel ve tema)
 # ---------------------------------------------------------------
 SKEL=config/includes.chroot/etc/skel
 XF="$SKEL/.config/xfce4/xfconf/xfce-perchannel-xml"
@@ -220,7 +226,7 @@ cat > "$XF/xfwm4.xml" <<'EOF'
 </channel>
 EOF
 
-# Üst panel: soldan menü, sağda durum simgeleri, ses, pil, saat
+# Garanti üst panel yerleşimi
 cat > "$XF/xfce4-panel.xml" <<'EOF'
 <?xml version="1.0" encoding="UTF-8"?>
 <channel name="xfce4-panel" version="1.0">
@@ -267,7 +273,6 @@ cat > "$XF/xfce4-panel.xml" <<'EOF'
 </channel>
 EOF
 
-# Dokunmatik yüzey: dokunarak tıklama + doğal kaydırma (macOS gibi)
 cat > config/includes.chroot/etc/X11/xorg.conf.d/40-touchpad.conf <<'EOF'
 Section "InputClass"
     Identifier "OguzDows touchpad"
@@ -280,7 +285,6 @@ Section "InputClass"
 EndSection
 EOF
 
-# GTK ayarları ve üst panelin yarı saydam macOS menü çubuğu görünümü
 cat > "$SKEL/.config/gtk-3.0/settings.ini" <<'EOF'
 [Settings]
 gtk-theme-name=WhiteSur-Light
@@ -292,9 +296,9 @@ EOF
 
 cat > "$SKEL/.config/gtk-3.0/gtk.css" <<'EOF'
 .xfce4-panel.background {
-  background-color: rgba(246, 246, 248, 0.82);
+  background-color: rgba(246, 246, 248, 0.85);
   color: #1d1d1f;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.12);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.15);
 }
 .xfce4-panel button, .xfce4-panel label {
   color: #1d1d1f;
@@ -302,12 +306,10 @@ cat > "$SKEL/.config/gtk-3.0/gtk.css" <<'EOF'
 }
 EOF
 
-# Qt uygulamaları (VLC, Calamares) GTK temasını kullansın
 cat > config/includes.chroot/etc/environment <<'EOF'
 QT_QPA_PLATFORMTHEME=gtk2
 EOF
 
-# Giriş ekranı (LightDM) macOS tarzı
 cat > config/includes.chroot/etc/lightdm/lightdm-gtk-greeter.conf <<'EOF'
 [greeter]
 background=/usr/share/backgrounds/oguzdows.png
@@ -320,7 +322,6 @@ indicators=~host;~spacer;~clock;~spacer;~session;~language;~a11y;~power
 user-background=false
 EOF
 
-# Dock (Plank): zoom'lu, ortada, saydam
 cat > config/includes.chroot/etc/dconf/profile/user <<'EOF'
 user-db:user
 system-db:local
@@ -357,7 +358,6 @@ mkdock 04-vlc       vlc
 mkdock 05-terminal  xfce4-terminal
 mkdock 06-install   oguzdows-install
 
-# Duvar kağıdı ilk oturumda uygulanır
 cat > config/includes.chroot/usr/local/bin/oguzdows-wallpaper <<'EOF'
 #!/bin/sh
 sleep 2
@@ -382,7 +382,6 @@ Exec=/usr/local/bin/oguzdows-wallpaper
 X-GNOME-Autostart-enabled=true
 EOF
 
-# Açılış müziği: masaüstü açılınca çalar
 cat > config/includes.chroot/usr/local/bin/oguzdows-chime <<'EOF'
 #!/bin/sh
 sleep 2
@@ -402,14 +401,14 @@ X-GNOME-Autostart-enabled=true
 EOF
 
 # ---------------------------------------------------------------
-# 4) Kurulum arayüzü (Calamares) kısayolları
+# 4) Kurulum arayüzü (Calamares) kısayolları ve macOS Stili Markalama
 # ---------------------------------------------------------------
 mkdir -p config/includes.chroot/usr/share/applications
 cat > config/includes.chroot/usr/share/applications/oguzdows-install.desktop <<'EOF'
 [Desktop Entry]
 Type=Application
 Name=OğuzDows'u Kur
-Comment=OğuzDows'u bilgisayarın diskine kur
+Comment=OğuzDows'u bilgisayarın diskine kur (macOS Stili)
 Exec=sudo -E calamares
 Icon=calamares
 Terminal=false
@@ -419,8 +418,7 @@ cp config/includes.chroot/usr/share/applications/oguzdows-install.desktop \
    "$SKEL/Desktop/OguzDows-Kur.desktop"
 
 # ---------------------------------------------------------------
-# 5) Giriş garantisi: kullanıcı oguz / şifre oguz + otomatik giriş
-#    live-config'e güvenmek yerine açılışta kendi servisimiz hesabı garanti eder.
+# 5) Kullanıcı yönetimi ve otomatik giriş
 # ---------------------------------------------------------------
 mkdir -p config/includes.chroot/etc/systemd/system config/includes.chroot/etc/sudoers.d
 
@@ -463,7 +461,6 @@ RemainAfterExit=yes
 WantedBy=multi-user.target
 EOF
 
-# Klavye: Türkçe Q (giriş ekranı dahil)
 cat > config/includes.chroot/etc/default/keyboard <<'EOF'
 XKBMODEL="pc105"
 XKBLAYOUT="tr"
@@ -472,41 +469,39 @@ XKBOPTIONS=""
 BACKSPACE="guess"
 EOF
 
-# zram: RAM'i sıkıştırarak eski makinelerde takılmayı azaltır
 cat > config/includes.chroot/etc/default/zramswap <<'EOF'
 ALGO=lz4
 PERCENT=50
 EOF
 
 # ---------------------------------------------------------------
-# 6) Chroot kancaları
+# 6) Chroot Kancaları (Hooks)
 # ---------------------------------------------------------------
 mkdir -p config/hooks/live
 
-# --- 0100: markalama ---
+# --- 0100: Markalama ve Calamares macOS dönüştürme ---
 cat > config/hooks/live/0100-branding.hook.chroot <<'EOF'
 #!/bin/sh
 set -e
-# ID=debian korunur (araçlar uyumlu kalsın), görünen ad değişir
 sed -i 's/^PRETTY_NAME=.*/PRETTY_NAME="OğuzDows"/; s/^NAME=.*/NAME="OğuzDows"/' /etc/os-release
 echo "OğuzDows \\n \\l" > /etc/issue
 echo "OğuzDows" > /etc/issue.net
 chmod +x /etc/skel/Desktop/*.desktop || true
-# Kurulum aracında ürün adı OğuzDows olsun
+
+# Calamares yükleyicisini tamamen OğuzDows macOS stiline uyarla
 for f in /etc/calamares/branding/*/branding.desc /usr/share/calamares/branding/*/branding.desc; do
   [ -f "$f" ] || continue
   sed -i -E 's/^([[:space:]]*(productName|shortProductName):[[:space:]]*).*/\1OğuzDows/' "$f" || true
   sed -i -E 's/^([[:space:]]*bootloaderEntryName:[[:space:]]*).*/\1OguzDows/' "$f" || true
+  sed -i -E 's/^([[:space:]]*windowExpanding:[[:space:]]*).*/\1normal/' "$f" || true
 done
-# Flathub deposunu ekle (güncel uygulamalar için)
+
 flatpak remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo || true
 EOF
 
-# --- 0200: WhiteSur macOS teması + duvar kağıdı ---
+# --- 0200: WhiteSur Teması ve Şık Duvar Kağıdı ---
 cat > config/hooks/live/0200-macos-theme.hook.chroot <<'EOF'
 #!/bin/sh
-# WhiteSur (macOS tarzı) GTK/ikon/imleç temalarını GitHub'dan kurar.
-# Ağ yoksa derleme kırılmaz; varsayılan tema kalır.
 set -e
 T=/tmp/oguzdows-theme
 mkdir -p "$T"
@@ -516,14 +511,13 @@ if git clone --depth=1 https://github.com/vinceliuice/WhiteSur-gtk-theme.git gtk
  && git clone --depth=1 https://github.com/vinceliuice/WhiteSur-cursors.git cursors; then
   (cd gtk    && ./install.sh -d /usr/share/themes -c Light -t default) || echo "GTK teması kurulamadı"
   (cd icons  && ./install.sh -d /usr/share/icons)                       || echo "İkon teması kurulamadı"
-  (mkdir -p /usr/share/icons && cp -r cursors/dist /usr/share/icons/WhiteSur-cursors) || echo "İmleç teması kurulamadı"
+  (mkdir -p /usr/share/icons && cp -r cursors/dist /usr/share/icons/WhiteSur-cursors) || echo "İmleç kurulamadı"
 else
-  echo "UYARI: WhiteSur indirilemedi, varsayılan tema kullanılacak."
+  echo "UYARI: WhiteSur indirilemedi, varsayılan kullanılacak."
 fi
 cd /
 rm -rf "$T"
 
-# Duvar kağıdı (mor-pembe, macOS Big Sur havasında özgün bir degrade)
 mkdir -p /usr/share/backgrounds
 IM=convert; command -v convert >/dev/null 2>&1 || IM=magick
 $IM -size 1920x1080 gradient:'#1b1464-#0e0b2e' \
@@ -531,15 +525,12 @@ $IM -size 1920x1080 gradient:'#1b1464-#0e0b2e' \
   -compose screen -composite /usr/share/backgrounds/oguzdows.png \
   || $IM -size 1920x1080 gradient:'#1b1464-#0e0b2e' /usr/share/backgrounds/oguzdows.png || true
 
-# Dock ayarlarını sisteme işle
 dconf update || true
 EOF
 
-# --- 0250: sürücüler (Broadcom Wi-Fi için dkms) ---
+# --- 0250: Sürücüler (Broadcom & Donanım) ---
 cat > config/hooks/live/0250-drivers.hook.chroot <<EOF
 #!/bin/sh
-# Broadcom Wi-Fi kartları (ASUS dizüstülerde yaygın) için kapalı kaynak 'wl' sürücüsü.
-# Başarısız olursa derleme kırılmaz.
 export DEBIAN_FRONTEND=noninteractive
 apt-get update || true
 apt-get install -y --no-install-recommends dkms linux-headers-$FLAVOUR broadcom-sta-dkms \\
@@ -559,36 +550,38 @@ fi
 exit 0
 EOF
 
-# --- 0300: giriş servisini etkinleştir ---
+# --- 0300: Giriş Servisi ---
 cat > config/hooks/live/0300-login.hook.chroot <<'EOF'
 #!/bin/sh
 set -e
 systemctl enable oguzdows-fixlogin.service
 EOF
 
-# --- 0400: macOS tarzı açılış ekranı (Plymouth) + açılış müziği ---
+# --- 0400: macOS Tarzı Animasyonlu Yükleme ve Ses Efekti ---
 cat > config/hooks/live/0400-boot-experience.hook.chroot <<'EOF'
 #!/bin/sh
 set -e
 
-# ----- Açılış ekranı: siyah zemin, ortada beyaz "OğuzDows", altında ince ilerleme çubuğu -----
+# Plymouth: Zarif, animasyonlu macOS tarzı yükleme ekranı
 D=/usr/share/plymouth/themes/oguzdows
 mkdir -p "$D"
 IM=convert; command -v convert >/dev/null 2>&1 || IM=magick
 FONT="$(fc-match -f '%{file}' 'Inter:bold' 2>/dev/null || true)"
 [ -n "$FONT" ] || FONT="$(fc-match -f '%{file}' 'sans:bold' 2>/dev/null || true)"
 if [ -n "$FONT" ]; then
-  $IM -background none -fill white -font "$FONT" -pointsize 84 label:'OğuzDows' "png32:$D/logo.png"
+  $IM -background none -fill white -font "$FONT" -pointsize 76 label:'OğuzDows' "png32:$D/logo.png"
 else
-  $IM -background none -fill white -pointsize 84 label:'OğuzDows' "png32:$D/logo.png"
+  $IM -background none -fill white -pointsize 76 label:'OğuzDows' "png32:$D/logo.png"
 fi
-$IM -size 240x4 xc:'rgba(255,255,255,0.25)' "png32:$D/track.png"
-$IM -size 240x4 xc:white "png32:$D/fill.png"
+
+# Modern macOS tarzı ince, yuvarlatılmış kapsül yükleme çubuğu parçaları
+$IM -size 220x6 xc:'rgba(255,255,255,0.2)' "png32:$D/track.png"
+$IM -size 220x6 xc:'#ffffff' "png32:$D/fill.png"
 
 cat > "$D/oguzdows.plymouth" <<'EOP'
 [Plymouth Theme]
 Name=OguzDows
-Description=OguzDows acilis ekrani
+Description=OguzDows Animasyonlu macOS Tarzi Acilis Ekrani
 ModuleName=script
 
 [script]
@@ -597,16 +590,16 @@ ScriptFile=/usr/share/plymouth/themes/oguzdows/oguzdows.script
 EOP
 
 cat > "$D/oguzdows.script" <<'EOP'
-Window.SetBackgroundTopColor(0.0, 0.0, 0.0);
-Window.SetBackgroundBottomColor(0.0, 0.0, 0.0);
+Window.SetBackgroundTopColor(0.05, 0.05, 0.08);
+Window.SetBackgroundBottomColor(0.0, 0.0, 0.02);
 
 logo.image = Image("logo.png");
 logo.sprite = Sprite(logo.image);
 logo.sprite.SetX(Window.GetWidth() / 2 - logo.image.GetWidth() / 2);
-logo.sprite.SetY(Window.GetHeight() / 2 - logo.image.GetHeight() / 2 - 40);
+logo.sprite.SetY(Window.GetHeight() / 2 - logo.image.GetHeight() / 2 - 50);
 
-bar.x = Window.GetWidth() / 2 - 120;
-bar.y = Window.GetHeight() / 2 + 70;
+bar.x = Window.GetWidth() / 2 - 110;
+bar.y = Window.GetHeight() / 2 + 65;
 
 track.image = Image("track.png");
 track.sprite = Sprite(track.image);
@@ -619,27 +612,26 @@ fill.sprite.SetX(bar.x);
 fill.sprite.SetY(bar.y);
 fill.sprite.SetZ(10);
 
-state.counter = 0;
-
+progress = 0;
 fun refresh_callback() {
-  state.counter = state.counter + 1;
-  p = state.counter / (state.counter + 220);
-  w = Math.Int(240 * p);
-  if (w < 2) w = 2;
-  fill.sprite.SetImage(fill.image.Scale(w, 4));
+  progress = progress + 1.5;
+  if (progress > 220) progress = 20;
+  w = Math.Int(progress);
+  if (w < 4) w = 4;
+  fill.sprite.SetImage(fill.image.Scale(w, 6));
 }
 Plymouth.SetRefreshFunction(refresh_callback);
 EOP
 
 plymouth-set-default-theme oguzdows
 
-# ----- Açılış müziği: özgün, yumuşak bir akor (SoX ile üretilir) -----
+# Yumuşak başlangıç akor sesi (SoX ile)
 mkdir -p /usr/share/sounds/oguzdows
 TMP=/tmp/oguzdows-chime
 mkdir -p "$TMP"
 i=0
 for f in 130.81 196.00 329.63 392.00 587.33 783.99; do
-  d=$(awk "BEGIN{printf \"%.2f\", $i*0.11}")
+  d=$(awk "BEGIN{printf \"%.2f\", $i*0.1}")
   sox -n -r 44100 -b 16 "$TMP/n$i.wav" synth 5 sine "$f" fade q 0.03 5 4.2 pad "$d" 0 gain -16 channels 2
   i=$((i+1))
 done
@@ -647,7 +639,6 @@ sox -m "$TMP"/n0.wav "$TMP"/n1.wav "$TMP"/n2.wav "$TMP"/n3.wav "$TMP"/n4.wav "$T
   /usr/share/sounds/oguzdows/startup.wav gain -n -3 reverb 30
 rm -rf "$TMP"
 
-# Açılış ekranı çekirdek görüntüsüne işlensin
 update-initramfs -u -k all
 EOF
 
