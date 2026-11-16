@@ -1,0 +1,39 @@
+name: OğuzDows ISO
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [amd64, i386]
+    container:
+      image: debian:trixie
+      options: --privileged
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Araçları kur
+        run: |
+          apt-get update
+          apt-get install -y live-build debootstrap squashfs-tools xorriso \
+            syslinux syslinux-utils isolinux git ca-certificates sudo
+
+      - name: ISO derle
+        run: |
+          chmod +x build.sh
+          ./build.sh ${{ matrix.arch }}
+
+      - name: ISO'yu yükle
+        uses: actions/upload-artifact@v4
+        with:
+          name: OguzDows-${{ matrix.arch }}
+          path: |
+            OguzDows-${{ matrix.arch }}.iso
+            OguzDows-${{ matrix.arch }}.iso.sha256
+          compression-level: 0
