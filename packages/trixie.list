@@ -1,0 +1,9 @@
+# Bu firmware paketleri yeni sürümde ayrıştırılmıştır.
+firmware-intel-graphics
+firmware-intel-sound
+firmware-mediatek
+firmware-marvell
+firmware-nvidia-graphics
+polkitd
+pkexec
+qt6-gtk-platformtheme

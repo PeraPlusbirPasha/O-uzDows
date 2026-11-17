@@ -1,0 +1,21 @@
+#!/bin/sh
+set -eu
+[ "$(id -u)" -eq 0 ] || { echo 'Kurucu için yönetici yetkisi gerekli.' >&2; exit 1; }
+case " $(cat /proc/cmdline) " in
+    *' boot=live '*) ;;
+    *) echo 'Kurucu yalnızca OğuzDows canlı ortamında çalışır.' >&2; exit 1 ;;
+esac
+# Bazı canlı önyükleme sürümleri medyayı farklı bir yola bağlar.
+SOURCE=
+for base in /run/live/medium /lib/live/mount/medium; do
+    if [ -f "$base/live/filesystem.squashfs" ]; then
+        SOURCE="$base/live/filesystem.squashfs"
+        break
+    fi
+done
+[ -n "$SOURCE" ] || { echo 'OğuzDows kurulum kaynağı bulunamadı.' >&2; exit 1; }
+printf '%s\n' '---' 'unpack:' "  - source: $SOURCE" '    sourcefs: squashfs' '    destination: ""' \
+    > /etc/calamares/modules/unpackfs.conf
+export LANG=tr_TR.UTF-8 LANGUAGE=tr LC_MESSAGES=tr_TR.UTF-8
+export QT_QPA_PLATFORMTHEME=gtk3
+exec /usr/bin/calamares --config /etc/calamares/settings.conf

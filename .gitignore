@@ -1,0 +1,15 @@
+# ISO çıktıları ve live-build çalışma alanları
+/build-amd64/
+/build-i386/
+/OguzDows-*.iso
+/OguzDows-*.iso.sha256
+*.log
+
+# Yerel araçlar ve test çıktıları
+.cache/
+.venv/
+node_modules/
+__pycache__/
+*.py[cod]
+/preview/
+/test-results/

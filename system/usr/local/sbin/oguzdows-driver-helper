@@ -1,0 +1,60 @@
+#!/usr/bin/python3 -I
+"""Yalnızca desteklenen Broadcom STA kurulumu için dar yetkili giriş noktası."""
+from __future__ import annotations
+
+import fcntl
+import os
+import subprocess
+import sys
+from pathlib import Path
+
+sys.path.insert(0, "/usr/lib/oguzdows")
+from hardware import supported_broadcom
+
+
+def main() -> int:
+    if sys.argv[1:] != ["broadcom"]:
+        print("Geçersiz sürücü işlemi.", file=sys.stderr)
+        return 2
+    if os.geteuid() != 0:
+        print("Bu işlem için yönetici yetkisi gerekli.", file=sys.stderr)
+        return 1
+    if not supported_broadcom():
+        print("Bu bilgisayarda STA ile uyumlu bir Broadcom aygıtı bulunamadı. Yerleşik sürücüler korundu.", file=sys.stderr)
+        return 1
+    lock_fd = os.open("/run/lock/oguzdows-drivers.lock", os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW, 0o600)
+    try:
+        fcntl.flock(lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError:
+        os.close(lock_fd)
+        print("Başka bir OğuzDows sürücü işlemi zaten çalışıyor.", file=sys.stderr)
+        return 1
+    try:
+        logdir = Path("/var/log/oguzdows")
+        logdir.mkdir(mode=0o755, exist_ok=True)
+        log_fd = os.open(logdir / "drivers.log", os.O_WRONLY | os.O_CREAT | os.O_TRUNC | os.O_NOFOLLOW, 0o600)
+        env = {"PATH": "/usr/sbin:/usr/bin:/sbin:/bin", "LC_ALL": "C.UTF-8", "DEBIAN_FRONTEND": "noninteractive"}
+        headers = "linux-headers-" + os.uname().release
+        commands = [
+            ["/usr/bin/apt-get", "-o", "Acquire::Retries=1", "-o", "Acquire::http::Timeout=30", "-o", "Acquire::https::Timeout=30", "update"],
+            ["/usr/bin/apt-cache", "show", headers],
+            ["/usr/bin/apt-get", "install", "-y", "--no-install-recommends", "dkms", headers, "broadcom-sta-dkms"],
+            ["/usr/sbin/update-initramfs", "-u", "-k", "all"],
+        ]
+        with os.fdopen(log_fd, "w", encoding="utf-8") as log:
+            for command in commands:
+                log.write("İşlem: " + " ".join(command) + "\n")
+                log.flush()
+                subprocess.run(command, check=True, stdout=log, stderr=subprocess.STDOUT, env=env)
+    except (subprocess.CalledProcessError, OSError):
+        print("Kurulum tamamlanamadı. İnternet bağlantısını ve çalışan çekirdeğin başlık paketini kontrol et. Ayrıntılar: /var/log/oguzdows/drivers.log", file=sys.stderr)
+        return 1
+    finally:
+        os.close(lock_fd)
+    # Yüklü modülleri canlı olarak sökme, bütün Broadcom ailesini kara listeye alma.
+    print("Broadcom STA kuruldu. Sürücüyü kullanmak için bilgisayarı yeniden başlat.")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

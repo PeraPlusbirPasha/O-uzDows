@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=OğuzDows Rehberi
+Comment=OğuzDows'u keşfet, donanımını tanı
+Exec=/usr/local/bin/oguzdows-welcome
+Icon=oguzdows
+Terminal=false
+Categories=System;Settings;
+StartupNotify=true

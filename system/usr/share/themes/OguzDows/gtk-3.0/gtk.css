@@ -1,0 +1,30 @@
+@import url("resource:///org/gtk/libgtk/theme/Adwaita/gtk-contained-dark.css");
+
+@define-color theme_selected_bg_color #c93246;
+@define-color theme_selected_fg_color #ffffff;
+@define-color selected_bg_color #c93246;
+@define-color selected_fg_color #ffffff;
+@define-color accent #3fc5c1;
+
+window, dialog { background-color: #151820; color: #f3eee6; }
+headerbar { background-image: none; background-color: #1c202a; border-bottom: 2px solid #a8263a; }
+button.suggested-action { background-image: none; background-color: #c93246; color: #fff; border-color: #df4054; }
+button.suggested-action:hover { background-color: #dd3d52; }
+button:focus, entry:focus { border-color: #3fc5c1; }
+selection { background-color: #c93246; color: #fff; }
+progressbar progress, scale highlight { background-image: none; background-color: #3fc5c1; }
+.xfce4-panel.background { background-color: #151820; color: #f3eee6; border-bottom: 2px solid #a8263a; }
+.xfce4-panel button { color: #f3eee6; border-radius: 4px; }
+.xfce4-panel button:checked { background-color: #632433; }
+.xfce4-panel button:hover { background-color: #292d39; }
+.oguzdows-window .heading { font-size: 30px; font-weight: 800; letter-spacing: -1px; }
+.oguzdows-window .eyebrow { color: #3fc5c1; font-size: 10px; font-weight: 700; letter-spacing: 2px; }
+.oguzdows-window .muted { color: #b6bac7; }
+.oguzdows-window .card { background-image: none; background-color: #20242f; border: 1px solid #383d4b; border-radius: 10px; padding: 18px; }
+.oguzdows-window .card:hover { background-color: #292e3b; border-color: #3fc5c1; }
+.oguzdows-window .card.primary { border-color: #c93246; background-color: #38202a; }
+.oguzdows-window .card:disabled { opacity: 0.5; }
+.oguzdows-window .card-title { font-size: 16px; font-weight: 700; }
+.oguzdows-window .section-title { font-size: 16px; font-weight: 700; }
+.oguzdows-window .pill { background-color: #202d32; color: #7ad9d1; border-radius: 12px; padding: 5px 12px; font-size: 10px; }
+.oguzdows-window textview, .oguzdows-window textview text { background-color: #10131a; color: #dae0e9; font-family: monospace; font-size: 11px; }

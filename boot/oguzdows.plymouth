@@ -1,0 +1,8 @@
+[Plymouth Theme]
+Name=OğuzDows · Ay Yıldız
+Description=Ay yıldız, gerçek açılış ilerlemesi ve turkuaz nefes animasyonu
+ModuleName=script
+
+[script]
+ImageDir=/usr/share/plymouth/themes/oguzdows
+ScriptFile=/usr/share/plymouth/themes/oguzdows/oguzdows.script

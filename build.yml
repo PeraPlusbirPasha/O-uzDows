@@ -4,36 +4,113 @@ on:
   workflow_dispatch:
   push:
     branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: oguzdows-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  build:
+  verify:
+    name: Yapılandırma ve GTK · ${{ matrix.suite }}
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     strategy:
       fail-fast: false
       matrix:
-        arch: [amd64, i386]
+        suite: [bookworm, trixie]
     container:
-      image: debian:trixie
+      image: debian:${{ matrix.suite }}
+    env:
+      GSETTINGS_BACKEND: memory
+      NO_AT_BRIDGE: "1"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Doğrulama araçları
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends python3 python3-yaml python3-pil \
+            python3-gi gir1.2-gtk-3.0 shellcheck fonts-inter fonts-noto-core \
+            fonts-dejavu-core adwaita-icon-theme xauth xvfb dbus-x11 pciutils usbutils rfkill
+
+      - name: Birim ve yapılandırma testleri
+        run: python3 -m unittest discover -s tests -p 'test_*.py' -v
+
+      - name: Kabuk betiklerini denetle
+        run: |
+          shellcheck build.sh hooks/* system/usr/lib/oguzdows/*.sh \
+            system/usr/local/bin/* system/usr/local/sbin/oguzdows-installer
+
+      - name: Gerçek GTK arayüzünü aç ve doğrula
+        run: |
+          cp -a system/usr/share/themes/OguzDows /usr/share/themes/
+          python3 scripts/render-assets.py --root /
+          xvfb-run -a -s '-screen 0 1024x768x24' dbus-run-session -- \
+            python3 tests/smoke-welcome.py --output test-results
+
+      - name: Arayüz ekran görüntüleri
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: OguzDows-arayuz-${{ matrix.suite }}
+          path: test-results/*.png
+          if-no-files-found: warn
+          retention-days: 7
+
+  build:
+    name: ISO · ${{ matrix.arch }}
+    needs: verify
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            suite: trixie
+          - arch: i386
+            suite: bookworm
+    container:
+      image: debian:${{ matrix.suite }}
       options: --privileged
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
-      - name: Araçları kur
+      - name: Derleme araçları
         run: |
           apt-get update
-          apt-get install -y live-build debootstrap squashfs-tools xorriso \
-            syslinux syslinux-utils isolinux git ca-certificates sudo
+          apt-get install -y --no-install-recommends live-build debootstrap squashfs-tools \
+            xorriso syslinux syslinux-utils isolinux grub-pc-bin grub-efi-amd64-bin \
+            mtools dosfstools python3 ca-certificates
 
-      - name: ISO derle
-        run: |
-          chmod +x build.sh
-          ./build.sh ${{ matrix.arch }}
+      - name: ISO derle ve önyükleme dosyalarını doğrula
+        run: bash build.sh ${{ matrix.arch }}
 
-      - name: ISO'yu yükle
+      - name: ISO ve SHA-256 dosyaları
         uses: actions/upload-artifact@v4
         with:
           name: OguzDows-${{ matrix.arch }}
           path: |
             OguzDows-${{ matrix.arch }}.iso
             OguzDows-${{ matrix.arch }}.iso.sha256
+          if-no-files-found: error
           compression-level: 0
+          retention-days: 7
+
+      - name: Başarısız derleme günlüğü
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: OguzDows-derleme-gunlugu-${{ matrix.arch }}
+          path: build-${{ matrix.arch }}/build.log
+          if-no-files-found: ignore
+          retention-days: 7

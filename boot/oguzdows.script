@@ -1,0 +1,89 @@
+# OğuzDows: küçük, sabit sayıda sprite; 3B hızlandırma gerektirmez.
+Window.SetBackgroundTopColor(0.075, 0.086, 0.125);
+Window.SetBackgroundBottomColor(0.040, 0.047, 0.070);
+
+center.x = Window.GetWidth() / 2;
+center.y = Window.GetHeight() / 2;
+
+emblem.image = Image("emblem.png");
+emblem.sprite = Sprite(emblem.image);
+emblem.sprite.SetX(center.x - emblem.image.GetWidth() / 2);
+emblem.sprite.SetY(center.y - 152);
+
+wordmark.image = Image("wordmark.png");
+wordmark.sprite = Sprite(wordmark.image);
+wordmark.sprite.SetX(center.x - wordmark.image.GetWidth() / 2);
+wordmark.sprite.SetY(center.y - 10);
+
+tagline.image = Image("tagline.png");
+tagline.sprite = Sprite(tagline.image);
+tagline.sprite.SetX(center.x - tagline.image.GetWidth() / 2);
+tagline.sprite.SetY(center.y + 54);
+
+track.image = Image("track.png");
+track.sprite = Sprite(track.image);
+track.sprite.SetX(center.x - 140);
+track.sprite.SetY(center.y + 103);
+
+fill.image = Image("fill.png");
+fill.sprite = Sprite(fill.image.Scale(1, 4));
+fill.sprite.SetX(center.x - 140);
+fill.sprite.SetY(center.y + 103);
+fill.sprite.SetZ(2);
+fill.sprite.SetOpacity(0);
+
+dot.image = Image("dot.png");
+for (i = 0; i < 3; i++) {
+  dots[i] = Sprite(dot.image);
+  dots[i].SetX(center.x - 14 + i * 12);
+  dots[i].SetY(center.y + 130);
+}
+
+prompt.sprite = Sprite();
+prompt.sprite.SetZ(20);
+prompt.sprite.SetOpacity(0);
+global.last_progress = 0;
+global.phase = 0;
+
+# Animasyon yalnızca üç noktanın saydamlığını değiştirir; ilerlemeyi uydurmaz.
+fun refresh_callback() {
+  global.phase += 0.06;
+  for (i = 0; i < 3; i++) {
+    dots[i].SetOpacity(0.35 + 0.65 * (Math.Sin(global.phase - i * 0.8) + 1) / 2);
+  }
+}
+Plymouth.SetRefreshFunction(refresh_callback);
+
+fun progress_callback(duration, progress) {
+  if (progress < global.last_progress) progress = global.last_progress;
+  if (progress > 1) progress = 1;
+  global.last_progress = progress;
+  width = Math.Int(280 * progress);
+  if (width < 1) width = 1;
+  fill.sprite.SetImage(fill.image.Scale(width, 4));
+  fill.sprite.SetOpacity(1);
+}
+Plymouth.SetBootProgressFunction(progress_callback);
+
+# Disk şifresi / fsck soruları gizlenmez; klavye girişi Plymouth'a bırakılır.
+fun show_prompt(text) {
+  prompt.image = Image.Text(text, 1, 0.98, 0.94);
+  prompt.sprite.SetImage(prompt.image);
+  prompt.sprite.SetX(Window.GetWidth() / 2 - prompt.image.GetWidth() / 2);
+  prompt.sprite.SetY(center.y + 151);
+  prompt.sprite.SetOpacity(1);
+}
+fun password_callback(prompt, bullets) {
+  stars = "";
+  for (i = 0; i < bullets; i++) stars += "*";
+  show_prompt(prompt + "  " + stars);
+}
+fun question_callback(prompt, entry) {
+  show_prompt(prompt + "  " + entry);
+}
+fun normal_callback() {
+  prompt.sprite.SetOpacity(0);
+}
+Plymouth.SetDisplayPasswordFunction(password_callback);
+Plymouth.SetDisplayQuestionFunction(question_callback);
+Plymouth.SetDisplayNormalFunction(normal_callback);

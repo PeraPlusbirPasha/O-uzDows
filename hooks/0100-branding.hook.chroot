@@ -1,0 +1,19 @@
+#!/bin/sh
+set -eu
+# Paket güncellemesi ürün kimliğini geri çevirmesin. Orijinal meta veri saklanır.
+if [ -z "$(dpkg-divert --list /usr/lib/os-release)" ]; then
+    dpkg-divert --local --add --rename --divert /usr/lib/os-release.upstream /usr/lib/os-release
+fi
+install -m 0644 /usr/share/oguzdows/os-release /usr/lib/os-release
+ln -sfn ../usr/lib/os-release /etc/os-release
+locale-gen
+update-locale LANG=tr_TR.UTF-8 LANGUAGE=tr:en
+ln -sfn /usr/share/zoneinfo/Europe/Istanbul /etc/localtime
+# Kendi başlatıcımız kullanılır; paket başlatıcısı menüde ikinci kez görünmez.
+install -d /usr/local/share/applications
+cat > /usr/local/share/applications/calamares.desktop <<'DESKTOP'
+[Desktop Entry]
+Type=Application
+Name=OğuzDows Kurucu
+Hidden=true
+DESKTOP

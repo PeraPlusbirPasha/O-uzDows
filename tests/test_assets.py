@@ -1,0 +1,48 @@
+import re
+import tempfile
+import unittest
+from pathlib import Path
+
+from PIL import Image
+
+from support import ROOT, load
+
+renderer = load("oguzdows_assets", "scripts/render-assets.py")
+
+
+class AssetTests(unittest.TestCase):
+    def test_all_theme_assets_render_offline(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            renderer.render(root)
+            wallpaper = root / "usr/share/backgrounds/oguzdows/wallpaper.png"
+            bios = root / "usr/share/oguzdows/brand/boot-bios.png"
+            efi = root / "usr/share/oguzdows/brand/boot-efi.png"
+            for path, expected in ((wallpaper, (1920, 1080)), (bios, (640, 480)), (efi, (800, 600))):
+                with Image.open(path) as image:
+                    self.assertEqual(image.size, expected)
+            for name in re.findall(r'Image\("([^"/]+\.png)"\)', (ROOT / "boot/oguzdows.script").read_text()):
+                self.assertTrue((root / "usr/share/plymouth/themes/oguzdows" / name).is_file(), name)
+            self.assertTrue((root / "usr/share/calamares/branding/oguzdows/logo.png").is_file())
+            self.assertTrue((root / "usr/share/calamares/branding/oguzdows/welcome.png").is_file())
+            theme = root / "usr/share/themes/OguzDows/xfwm4"
+            for part in ("title-1", "title-5", "left", "right", "bottom", "top-left", "top-right", "bottom-left", "bottom-right"):
+                for state in ("active", "inactive"):
+                    self.assertTrue((theme / f"{part}-{state}.png").is_file())
+            for button in ("close", "hide", "maximize", "maximize-toggled", "menu"):
+                for state in ("active", "inactive", "prelight", "pressed"):
+                    self.assertTrue((theme / f"{button}-{state}.png").is_file())
+            original = bios.read_bytes()
+            renderer.render(root)
+            self.assertEqual(bios.read_bytes(), original)
+
+    def test_mark_has_transparent_background_and_native_small_icons(self):
+        mark = renderer.emblem(128)
+        self.assertEqual(mark.size, (128, 128))
+        self.assertEqual(mark.getpixel((0, 0))[3], 0)
+        self.assertEqual(renderer.emblem(24, tile=True).size, (24, 24))
+        self.assertGreater(renderer.text_image("OğuzDows · İstanbul", 20, "white").width, 100)
+
+
+if __name__ == "__main__":
+    unittest.main()

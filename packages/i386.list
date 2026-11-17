@@ -1,0 +1,2 @@
+# 32 bit ISO: i686 / PAE işlemci, klasik BIOS.
+# Çekirdek ve başlıklar live-build tarafından 686-pae çeşidiyle seçilir.

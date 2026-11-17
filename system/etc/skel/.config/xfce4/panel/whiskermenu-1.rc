@@ -1,0 +1,9 @@
+button-title=OğuzDows
+button-icon=oguzdows
+show-button-title=true
+show-button-icon=true
+button-single-row=false
+custom-menu-file=/etc/xdg/menus/oguzdows-applications.menu
+favorites=oguzdows-welcome.desktop,oguzdows-drivers.desktop,firefox-esr.desktop,thunar.desktop,libreoffice-writer.desktop,xfce4-terminal.desktop
+launcher-show-name=true
+launcher-show-description=false

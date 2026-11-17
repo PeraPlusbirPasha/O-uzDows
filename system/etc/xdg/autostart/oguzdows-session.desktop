@@ -1,0 +1,7 @@
+[Desktop Entry]
+Type=Application
+Name=OğuzDows oturum ayarları
+Exec=/usr/lib/oguzdows/session.sh
+OnlyShowIn=XFCE;
+NoDisplay=true
+X-GNOME-Autostart-enabled=true
