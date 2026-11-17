@@ -50,8 +50,10 @@ jobs:
       - name: Gerçek GTK arayüzünü aç ve doğrula
         run: |
           cp -a system/usr/share/themes/OguzDows /usr/share/themes/
-          python3 scripts/render-assets.py --root /
-          xvfb-run -a -s '-screen 0 1024x768x24' dbus-run-session -- \
+          python3 scripts/ci-run.py --title 'Tema görselleri' -- \
+            python3 scripts/render-assets.py --root /
+          python3 scripts/ci-run.py --title 'GTK arayüz kontrolü' -- \
+            xvfb-run -a -s '-screen 0 1024x768x24' dbus-run-session -- \
             python3 tests/smoke-welcome.py --output test-results
 
       - name: Arayüz ekran görüntüleri
@@ -93,7 +95,7 @@ jobs:
             mtools dosfstools python3 ca-certificates
 
       - name: ISO derle ve önyükleme dosyalarını doğrula
-        run: bash build.sh ${{ matrix.arch }}
+        run: python3 scripts/ci-run.py --title 'ISO ${{ matrix.arch }}' -- bash build.sh ${{ matrix.arch }}
 
       - name: ISO ve SHA-256 dosyaları
         uses: actions/upload-artifact@v4

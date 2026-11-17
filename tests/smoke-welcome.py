@@ -65,24 +65,40 @@ def main():
                 errors.append(str(error))
             return GLib.SOURCE_REMOVE
 
-        def finish():
+        def closed(*_):
+            # Gtk.Window.close() kapanış olayını kuyruğa koyar. Tercih ancak
+            # delete-event işlendikten sonra yazılır; önce kontrol etmek yarıştı.
             try:
-                assert app.stack.get_visible_child_name() == "hardware"
-                assert app.report_text, "Donanım raporu üretilmedi"
-                assert not app.report_loading
-                assert app.save_button.get_sensitive()
-                screenshot("hardware.png")
-                app.window.close()
                 assert app.state_file.is_file(), "İlk açılış tercihi kaydedilmedi"
             except Exception as error:
                 errors.append(str(error))
             finally:
                 loop.quit()
+
+        def finish():
+            if app.report_loading:
+                return GLib.SOURCE_CONTINUE
+            try:
+                assert app.stack.get_visible_child_name() == "hardware"
+                assert app.report_text, "Donanım raporu üretilmedi"
+                assert app.save_button.get_sensitive()
+                screenshot("hardware.png")
+                app.window.connect("destroy", closed)
+                app.window.close()
+            except Exception as error:
+                errors.append(str(error))
+                loop.quit()
+            return GLib.SOURCE_REMOVE
+
+        def timed_out():
+            errors.append("GTK kontrolü 45 saniyede tamamlanmadı.")
+            loop.quit()
             return GLib.SOURCE_REMOVE
 
         GLib.timeout_add(350, start)
         GLib.timeout_add(700, hardware)
         GLib.timeout_add(4000, finish)
+        GLib.timeout_add(45000, timed_out)
         loop.run()
     if errors:
         print("\n".join(errors), file=sys.stderr)
