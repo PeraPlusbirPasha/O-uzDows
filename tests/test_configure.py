@@ -34,7 +34,8 @@ class ConfigurationTests(unittest.TestCase):
                 self.assertFalse(any(p.startswith("calamares-settings-") for p in packages))
                 self.assertEqual("firmware-intel-graphics" in packages, arch == "amd64")
                 self.assertEqual("grub-efi-amd64-bin" in packages, arch == "amd64")
-                self.assertEqual("firmware-libertas" in packages, arch == "i386")
+                self.assertIn("firmware-libertas", packages)
+                self.assertEqual("firmware-mediatek" in packages, arch == "amd64")
                 for name in ("oguzdows-welcome.desktop", "oguzdows-install.desktop"):
                     launcher = overlay / "etc/skel/Masaüstü" / name
                     self.assertTrue(launcher.is_file())

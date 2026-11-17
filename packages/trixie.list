@@ -2,7 +2,7 @@
 firmware-intel-graphics
 firmware-intel-sound
 firmware-mediatek
-firmware-marvell
+firmware-libertas
 firmware-nvidia-graphics
 polkitd
 pkexec
