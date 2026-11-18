@@ -10,6 +10,10 @@
     <property name="show_popup_shadow" type="bool" value="false"/>
     <property name="shadow_opacity" type="int" value="25"/>
     <property name="frame_opacity" type="int" value="100"/>
+    <property name="inactive_opacity" type="int" value="100"/>
+    <property name="popup_opacity" type="int" value="100"/>
+    <property name="move_opacity" type="int" value="100"/>
+    <property name="resize_opacity" type="int" value="100"/>
     <property name="double_click_action" type="string" value="maximize"/>
   </property>
 </channel>

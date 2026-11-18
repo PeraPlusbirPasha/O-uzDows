@@ -31,6 +31,8 @@ def main():
         settings.set_property("gtk-theme-name", "OguzDows")
         provider = Gtk.CssProvider()
         provider.load_from_path(str(ROOT / "system/usr/share/themes/OguzDows/gtk-3.0/gtk.css"))
+        notify_provider = Gtk.CssProvider()
+        notify_provider.load_from_path(str(ROOT / "system/usr/share/themes/OguzDows/xfce-notify-4.0/gtk.css"))
         welcome = load("oguzdows_welcome_smoke", "system/usr/lib/oguzdows/welcome.py")
         app = welcome.Welcome()
         app.register(None)
@@ -56,9 +58,18 @@ def main():
                 errors.append(str(error))
             return GLib.SOURCE_REMOVE
 
-        def hardware():
+        def gallery():
             try:
                 screenshot("welcome-small.png")
+                assert len(app.wallpaper_buttons) == 6, "Türkiye galerisinde altı seçim bulunmalı"
+                app.stack.set_visible_child_name("wallpapers")
+            except Exception as error:
+                errors.append(str(error))
+            return GLib.SOURCE_REMOVE
+
+        def hardware():
+            try:
+                screenshot("wallpapers.png")
                 app.window.resize(900, 600)
                 app.show_drivers()
             except Exception as error:
@@ -82,6 +93,15 @@ def main():
                 assert app.stack.get_visible_child_name() == "hardware"
                 assert app.report_text, "Donanım raporu üretilmedi"
                 assert app.save_button.get_sensitive()
+                assert app.intel_button is not None
+                assert app.install_status is not None
+                # Başlatma hatası sessizce kaybolmasın; gerçek kurucu çağırma.
+                original_message = app.message
+                messages = []
+                app.message = lambda *args: messages.append(args)
+                app.install_finished(1, "Kurucu başlatma hata testi")
+                app.message = original_message
+                assert messages and "Kurucu başlatma hata testi" in messages[0][1]
                 screenshot("hardware.png")
                 app.window.connect("destroy", closed)
                 app.window.close()
@@ -96,8 +116,9 @@ def main():
             return GLib.SOURCE_REMOVE
 
         GLib.timeout_add(350, start)
-        GLib.timeout_add(700, hardware)
-        GLib.timeout_add(4000, finish)
+        GLib.timeout_add(800, gallery)
+        GLib.timeout_add(1400, hardware)
+        GLib.timeout_add(5000, finish)
         GLib.timeout_add(45000, timed_out)
         loop.run()
     if errors:

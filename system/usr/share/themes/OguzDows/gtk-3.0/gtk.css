@@ -7,13 +7,29 @@
 @define-color accent #3fc5c1;
 
 window, dialog { background-color: #151820; color: #f3eee6; }
-headerbar { background-image: none; background-color: #1c202a; border-bottom: 2px solid #a8263a; }
+/* Başlık ve X düğmesi, odak başka penceredeyken de okunaklı kalır. */
+headerbar, headerbar:backdrop {
+  background-image: none; background-color: #1c202a; color: #fff9ef;
+  border-bottom: 2px solid #a8263a; opacity: 1;
+}
+headerbar label:backdrop { color: #d4dce8; }
+headerbar button.titlebutton, headerbar button.titlebutton:backdrop {
+  background-image: none; background-color: #303747; color: #fff9ef;
+  border: 1px solid #566071; opacity: 1; -gtk-icon-effect: none;
+  min-width: 24px; min-height: 24px; box-shadow: none; text-shadow: none;
+}
+headerbar button.titlebutton.close, headerbar button.titlebutton.close:backdrop {
+  background-color: #a8263a; border-color: #df6171; color: #ffffff;
+}
+headerbar button.titlebutton:hover { background-color: #475269; }
+headerbar button.titlebutton.close:hover { background-color: #d3344d; }
+headerbar button.titlebutton:active { background-color: #202736; }
 button.suggested-action { background-image: none; background-color: #c93246; color: #fff; border-color: #df4054; }
 button.suggested-action:hover { background-color: #dd3d52; }
 button:focus, entry:focus { border-color: #3fc5c1; }
 selection { background-color: #c93246; color: #fff; }
 progressbar progress, scale highlight { background-image: none; background-color: #3fc5c1; }
-.xfce4-panel.background { background-color: #151820; color: #f3eee6; border-bottom: 2px solid #a8263a; }
+.xfce4-panel.background { background-image: none; background-color: #151820; color: #f3eee6; border-bottom: 2px solid #a8263a; opacity: 1; }
 .xfce4-panel button { color: #f3eee6; border-radius: 4px; }
 .xfce4-panel button:checked { background-color: #632433; }
 .xfce4-panel button:hover { background-color: #292d39; }

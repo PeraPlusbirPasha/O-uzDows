@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""OğuzDows ilk karşılama ve donanım merkezi — yerel GTK 3 arayüzü."""
+"""OğuzDows rehberi, yerel donanım merkezi ve Türkiye duvar kâğıtları."""
 from __future__ import annotations
 
 import os
@@ -9,12 +9,14 @@ import threading
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from hardware import is_live, light_profile, memory_kib, read_text, report, supported_broadcom
+from hardware import is_live, light_profile, memory_kib, read_text, report, supported_broadcom, supported_intel_legacy
+import offline
+import wallpapers
 
 import gi
 
 gi.require_version("Gtk", "3.0")
-from gi.repository import Gio, GLib, Gtk
+from gi.repository import GdkPixbuf, Gio, GLib, Gtk
 
 
 def label(text: str, style: str = "", width: int = 0) -> Gtk.Label:
@@ -34,21 +36,28 @@ class Welcome(Gtk.Application):
         self.state_file = state_home / "oguzdows/welcome-seen"
         self.window = None
         self.driver_busy = False
+        self.install_busy = False
         self.report_loading = False
         self.report_text = ""
         self.mark_on_close = False
+        self.wallpaper_buttons = []
 
     def do_command_line(self, command_line: Gio.ApplicationCommandLine) -> int:
         args = set(command_line.get_arguments()[1:])
-        if args - {"--autostart", "--drivers"}:
-            print("Kullanım: oguzdows-welcome [--autostart|--drivers]", file=sys.stderr)
+        if args - {"--autostart", "--drivers", "--wallpapers", "--install"}:
+            print("Kullanım: oguzdows-welcome [--autostart|--drivers|--wallpapers|--install]", file=sys.stderr)
             return 2
         if "--autostart" in args and self.state_file.exists():
             return 0
-        self.mark_on_close = self.mark_on_close or "--drivers" not in args
+        self.mark_on_close = self.mark_on_close or not bool(args & {"--drivers", "--wallpapers"})
         self.activate()
         if "--drivers" in args:
             self.show_drivers()
+        if "--wallpapers" in args:
+            self.stack.set_visible_child_name("wallpapers")
+        if "--install" in args:
+            self.stack.set_visible_child_name("welcome")
+            GLib.idle_add(self.install)
         return 0
 
     def do_activate(self) -> None:
@@ -63,14 +72,13 @@ class Welcome(Gtk.Application):
         self.window.get_style_context().add_class("oguzdows-window")
         self.window.set_position(Gtk.WindowPosition.CENTER)
         screen = self.window.get_screen()
-        self.window.set_default_size(min(900, screen.get_width() - 32), min(640, screen.get_height() - 64))
+        self.window.set_default_size(min(900, screen.get_width() - 32), min(680, screen.get_height() - 64))
         self.window.set_size_request(520, 360)
         self.window.connect("delete-event", self.on_close)
         header = Gtk.HeaderBar(title="OğuzDows", subtitle="Ay Yıldız")
         header.set_show_close_button(True)
         self.window.set_titlebar(header)
-        badge = label("Canlı oturum" if is_live() else "Senin masaüstün", "pill")
-        header.pack_end(badge)
+        header.pack_end(label("Canlı oturum" if is_live() else "Senin masaüstün", "pill"))
         body = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
         body.set_border_width(24)
         self.stack = Gtk.Stack()
@@ -82,6 +90,7 @@ class Welcome(Gtk.Application):
         body.pack_start(switcher, False, False, 0)
         self.stack.add_titled(self.welcome_page(), "welcome", "Hoş geldin")
         self.stack.add_titled(self.hardware_page(), "hardware", "Donanım ve Sürücüler")
+        self.stack.add_titled(self.wallpapers_page(), "wallpapers", "Duvar Kâğıtları")
         self.stack.connect("notify::visible-child-name", self.page_changed)
         body.pack_start(self.stack, True, True, 0)
         scroll = Gtk.ScrolledWindow()
@@ -91,7 +100,7 @@ class Welcome(Gtk.Application):
         self.window.show_all()
 
     def welcome_page(self) -> Gtk.Box:
-        page = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=22)
+        page = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=18)
         hero = Gtk.Box(spacing=22)
         image = Gtk.Image.new_from_file("/usr/share/oguzdows/brand/oguzdows.png")
         image.set_valign(Gtk.Align.CENTER)
@@ -112,17 +121,21 @@ class Welcome(Gtk.Application):
         choices.set_max_children_per_line(3)
         choices.set_homogeneous(True)
         choices.add(self.card("OğuzDows'u dene", "Diskine dokunmadan masaüstünü ve uygulamalarını keşfet.", "user-desktop-symbolic", lambda *_: self.window.close(), primary=True))
-        install = self.card("OğuzDows'u kur", "Hazır olduğunda OğuzDows'u bilgisayarına yerleştir.", "system-software-install-symbolic", self.install)
-        install.set_sensitive(is_live() and Path("/usr/local/sbin/oguzdows-installer").is_file())
+        self.install_button = self.card("OğuzDows'u kur", "Canlı USB'den, internet gerekmeden bilgisayarına yerleştir.", "system-software-install-symbolic", self.install)
+        self.install_button.set_sensitive(self.can_install())
         if not is_live():
-            install.set_tooltip_text("OğuzDows zaten kurulu. Kurulum canlı USB'den başlatılır.")
-        choices.add(install)
-        choices.add(self.card("Donanımını tanı", "Sürücüleri incele, eski cihazın için seçenekleri gör.", "preferences-system-symbolic", lambda *_: self.show_drivers()))
+            self.install_button.set_tooltip_text("Kurulum canlı OğuzDows USB'sinden başlatılır.")
+        choices.add(self.install_button)
+        choices.add(self.card("Donanımını tanı", "Aygıtları, yüklü firmware'i ve gömülü ek sürücüleri gör.", "preferences-system-symbolic", lambda *_: self.show_drivers()))
         page.pack_start(choices, False, False, 0)
+        self.install_status = label("Kurulum günlüğü: /var/log/oguzdows/installer.log", "muted", 90)
+        page.pack_start(self.install_status, False, False, 0)
         page.pack_start(Gtk.Separator(), False, False, 0)
         page.pack_start(label("Türkçe dil ve Q klavye · İstanbul saat dilimi · Hafif Xfce masaüstü", "muted", 80), False, False, 0)
+        gallery = Gtk.Button(label="Türkiye duvar kâğıtlarını keşfet")
+        gallery.connect("clicked", lambda *_: self.stack.set_visible_child_name("wallpapers"))
+        page.pack_start(gallery, False, False, 0)
         self.show_again = Gtk.CheckButton(label="Bir sonraki girişte bu ekranı yeniden göster")
-        self.show_again.set_active(False)
         page.pack_start(self.show_again, False, False, 0)
         note = "Canlı oturumdaki değişiklikler, kalıcılık ayarlanmadıkça yeniden başlatmada silinir." if is_live() else "Rehbere uygulamalar menüsünden her zaman dönebilirsin."
         page.pack_start(label(note, "muted", 90), False, False, 0)
@@ -148,7 +161,7 @@ class Welcome(Gtk.Application):
     def hardware_page(self) -> Gtk.Box:
         page = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
         page.pack_start(label("Önce tanı, sonra kur.", "section-title"), False, False, 8)
-        page.pack_start(label("Intel, AMD/ATI, Nouveau ve yaygın Wi-Fi sürücüleri ISO'ya dahildir. Pek çok aygıt otomatik tanınır; uyumluluk modele ve çekirdeğe bağlıdır.", "muted", 95), False, False, 0)
+        page.pack_start(label("Intel, AMD/ATI, Nouveau; Intel, Realtek, Atheros, Broadcom, Atmel, ZD1211 ve Libertas firmware paketleri ISO'dadır. Aşağıdaki rapor aygıtın gerçekten hangi sürücüye bağlandığını gösterir.", "muted", 95), False, False, 0)
         self.report_view = Gtk.TextView(editable=False, cursor_visible=False, monospace=True)
         self.report_view.set_left_margin(12)
         self.report_view.set_top_margin(12)
@@ -173,11 +186,15 @@ class Welcome(Gtk.Application):
         for button in (self.refresh_button, self.save_button, network):
             buttons.add(button)
         page.pack_start(buttons, False, False, 0)
-        self.broadcom_button = Gtk.Button(label="Ek Broadcom STA sürücüsü kur…")
+        self.broadcom_button = Gtk.Button(label="Gömülü Broadcom STA sürücüsünü kur…")
         self.broadcom_button.set_sensitive(False)
-        self.broadcom_button.connect("clicked", self.install_broadcom)
+        self.broadcom_button.connect("clicked", lambda *_: self.install_driver("broadcom"))
         page.pack_start(self.broadcom_button, False, False, 0)
-        page.pack_start(label("Ek sürücü yalnızca desteklenen aygıtlarda sunulur. İnternet ve yönetici onayı gerekir; değişiklikten sonra yeniden başlatılır. Hiçbir sürücü kendiliğinden kurulmaz.", "muted", 95), False, False, 0)
+        self.intel_button = Gtk.Button(label="Gömülü Intel 2100 / 2200 / 2915 firmware'ini kur…")
+        self.intel_button.set_sensitive(False)
+        self.intel_button.connect("clicked", lambda *_: self.install_driver("intel-legacy-accept-license"))
+        page.pack_start(self.intel_button, False, False, 0)
+        page.pack_start(label("Bu iki ek paket ve gerekli derleme araçları ISO'ya gömülüdür; eşleşen kartlarda internet gerekmez. Lisans ve yönetici onayı istenir. Canlıda onayladığın seçim disk kurulumuna taşınır. Gri düğme: bu sürücüyle eşleşen kart algılanmadı.", "muted", 95), False, False, 0)
         status = Gtk.Box(spacing=10)
         self.spinner = Gtk.Spinner()
         self.status = label("Donanım bilgilerin cihazında kalır.", "muted", 90)
@@ -185,6 +202,55 @@ class Welcome(Gtk.Application):
         status.pack_start(self.status, True, True, 0)
         page.pack_start(status, False, False, 0)
         return page
+
+    def wallpapers_page(self) -> Gtk.Box:
+        page = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=14)
+        page.pack_start(label("Türkiye'nin renkleri masaüstünde.", "section-title"), False, False, 6)
+        page.pack_start(label("Özgün çizimlerden oluşan altı duvar kâğıdı. Tamamı çevrimdışı; animasyon veya ek arka plan servisi yok.", "muted", 90), False, False, 0)
+        grid = Gtk.FlowBox()
+        grid.set_selection_mode(Gtk.SelectionMode.NONE)
+        grid.set_min_children_per_line(1)
+        grid.set_max_children_per_line(3)
+        grid.set_column_spacing(10)
+        grid.set_row_spacing(10)
+        for item in wallpapers.catalog():
+            button = Gtk.Button()
+            box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
+            box.set_border_width(8)
+            try:
+                pixbuf = GdkPixbuf.Pixbuf.new_from_file_at_scale(item["preview"], 224, 126, True)
+                box.pack_start(Gtk.Image.new_from_pixbuf(pixbuf), False, False, 0)
+            except GLib.Error:
+                box.pack_start(Gtk.Image.new_from_icon_name("image-x-generic", Gtk.IconSize.DIALOG), False, False, 0)
+            box.pack_start(label(item["name"], "card-title", 25), False, False, 0)
+            box.pack_start(label("Masaüstüne uygula", "muted"), False, False, 0)
+            button.add(box)
+            button.connect("clicked", lambda _, choice=item: self.apply_wallpaper(choice))
+            grid.add(button)
+            self.wallpaper_buttons.append(button)
+        page.pack_start(grid, False, False, 0)
+        self.wallpaper_status = label("Seçimin sonraki oturumda korunur. Canlı USB'de kalıcılık yoksa yeniden başlatmada sıfırlanır.", "muted", 90)
+        page.pack_start(self.wallpaper_status, False, False, 0)
+        return page
+
+    def apply_wallpaper(self, item):
+        for button in self.wallpaper_buttons:
+            button.set_sensitive(False)
+        self.wallpaper_status.set_text("Duvar kâğıdı uygulanıyor…")
+        def work():
+            try:
+                wallpapers.apply(item["id"])
+                text = item["name"] + " uygulandı; seçimin kaydedildi."
+            except (OSError, ValueError, RuntimeError, subprocess.TimeoutExpired) as error:
+                text = str(error)
+            GLib.idle_add(self.wallpaper_finished, text)
+        threading.Thread(target=work, daemon=True).start()
+
+    def wallpaper_finished(self, text):
+        self.wallpaper_status.set_text(text)
+        for button in self.wallpaper_buttons:
+            button.set_sensitive(True)
+        return GLib.SOURCE_REMOVE
 
     def page_changed(self, *_):
         if self.stack.get_visible_child_name() == "hardware" and not self.report_text:
@@ -194,32 +260,32 @@ class Welcome(Gtk.Application):
         self.stack.set_visible_child_name("hardware")
 
     def load_report(self):
-        if self.report_loading or self.driver_busy:
+        if self.report_loading or self.driver_busy or self.install_busy:
             return
         self.report_loading = True
         self.refresh_button.set_sensitive(False)
         self.spinner.start()
         self.status.set_text("Donanım okunuyor…")
-
         def work():
             try:
-                text, devices = report(), supported_broadcom()
+                text, broadcom, intel = report(), supported_broadcom(), supported_intel_legacy()
             except Exception:
-                text, devices = "Donanım raporu okunamadı. Yeniden deneyebilirsin.", []
-            GLib.idle_add(self.report_ready, text, devices)
-
+                text, broadcom, intel = "Donanım raporu okunamadı. Yeniden deneyebilirsin.", [], []
+            GLib.idle_add(self.report_ready, text, broadcom, intel)
         threading.Thread(target=work, daemon=True).start()
 
-    def report_ready(self, text, devices):
+    def report_ready(self, text, broadcom, intel):
         self.report_loading = False
         self.report_text = text
         self.report_view.get_buffer().set_text(text)
         self.spinner.stop()
         self.refresh_button.set_sensitive(True)
         self.save_button.set_sensitive(True)
-        self.broadcom_button.set_sensitive(bool(devices))
-        self.broadcom_button.set_tooltip_text("Algılanan uyumlu aygıt: " + ", ".join(devices) if devices else "STA gerektiren desteklenmiş bir Broadcom aygıtı algılanmadı.")
-        self.status.set_text("Rapor hazır. Bilgilerin hiçbir yere gönderilmedi.")
+        self.broadcom_button.set_sensitive(bool(broadcom) and not self.driver_busy and not self.install_busy)
+        self.intel_button.set_sensitive(bool(intel) and not self.driver_busy and not self.install_busy)
+        for button, devices in ((self.broadcom_button, broadcom), (self.intel_button, intel)):
+            button.set_tooltip_text("Algılanan uyumlu aygıt: " + ", ".join(devices) if devices else "Bu ek sürücüyle eşleşen bir kart algılanmadı. Raporundaki PCI/USB kimliğini paylaşabilirsin.")
+        self.status.set_text("Rapor hazır. SÜRÜCÜ BAĞLI DEĞİL satırları ayrıca incelenmelidir. Bilgilerin gönderilmedi.")
         return GLib.SOURCE_REMOVE
 
     def save_report(self, *_):
@@ -234,8 +300,43 @@ class Welcome(Gtk.Application):
                 self.message("Rapor kaydedilemedi.", "Seçtiğin klasörün yazılabilir olduğundan emin ol.")
         dialog.destroy()
 
+    def can_install(self):
+        return is_live() and Path("/usr/local/sbin/oguzdows-installer").is_file()
+
     def install(self, *_):
-        self.launch(["/usr/bin/pkexec", "/usr/local/sbin/oguzdows-installer"])
+        if self.install_busy or self.driver_busy:
+            self.message("Başka bir işlem devam ediyor.", "Kurucu veya sürücü işlemi tamamlanana kadar bekle.")
+            return GLib.SOURCE_REMOVE
+        if not self.can_install():
+            self.message("Kurulum canlı USB'den başlatılır.", "Canlı OğuzDows USB'siyle açıldığından emin ol.")
+            return GLib.SOURCE_REMOVE
+        self.install_busy = True
+        self.install_button.set_sensitive(False)
+        self.broadcom_button.set_sensitive(False)
+        self.intel_button.set_sensitive(False)
+        self.install_status.set_text("Yönetici onayı bekleniyor / OğuzDows kurucusu açık…")
+        def work():
+            try:
+                result = subprocess.run(["/usr/bin/pkexec", "/usr/local/sbin/oguzdows-installer"], capture_output=True, text=True, errors="replace", check=False)
+                code, detail = result.returncode, (result.stderr or result.stdout).strip()[-5000:]
+            except OSError as error:
+                code, detail = 1, str(error)
+            GLib.idle_add(self.install_finished, code, detail)
+        threading.Thread(target=work, daemon=True).start()
+        return GLib.SOURCE_REMOVE
+
+    def install_finished(self, code, detail):
+        self.install_busy = False
+        self.install_button.set_sensitive(self.can_install())
+        self.broadcom_button.set_sensitive(bool(supported_broadcom()))
+        self.intel_button.set_sensitive(bool(supported_intel_legacy()))
+        if code == 0:
+            self.install_status.set_text("Kurucu kapandı. Kurulum yaptıysan USB'yi çıkarıp yeniden başlatabilirsin.")
+        else:
+            self.install_status.set_text("Kurucu tamamlanamadı; hata ayrıntılarını kontrol et.")
+            title = "Yetkilendirme iptal edildi." if code in (126, 127) else "OğuzDows kurucusu hata ile kapandı."
+            self.message(title, (detail + "\n\nGünlük: /var/log/oguzdows/installer.log").strip())
+        return GLib.SOURCE_REMOVE
 
     def launch(self, command):
         try:
@@ -243,29 +344,59 @@ class Welcome(Gtk.Application):
         except OSError:
             self.message("Uygulama başlatılamadı.", "Gerekli bileşenin kurulu olduğunu kontrol et.")
 
-    def install_broadcom(self, *_):
-        if self.driver_busy or self.report_loading:
+    def install_driver(self, action):
+        if self.driver_busy or self.report_loading or self.install_busy:
             return
-        dialog = Gtk.MessageDialog(transient_for=self.window, modal=True, message_type=Gtk.MessageType.WARNING, buttons=Gtk.ButtonsType.OK_CANCEL, text="Ek Broadcom STA sürücüsü kurulsun mu?")
-        dialog.format_secondary_text("İnternet bağlantısı gerekir. Bu sürücü mevcut açık sürücünün yerine geçebilir. Kurulum sonunda yeniden başlatmalısın. Canlı oturumdaki değişiklikler kalıcı olmayabilir.")
+        text = offline.license_text(action)
+        if not text:
+            self.message("Gömülü sürücü lisansı bulunamadı.", "Güncel OğuzDows ISO'sunu kullan; paket lisansı olmadan kurulum başlatılmadı.")
+            return
+        ready = offline.payload(action) is not None and (action != "broadcom" or offline.headers_available())
+        if not ready and action != "broadcom":
+            self.message("Gömülü paket doğrulanamadı.", "ISO bütünlüğünü SHA-256 ile denetle. Hiçbir değişiklik yapılmadı.")
+            return
+        title = "Broadcom STA sürücüsü" if action == "broadcom" else "Intel 2100 / 2200 / 2915 firmware'i"
+        dialog = Gtk.Dialog(title=title, transient_for=self.window, modal=True)
+        dialog.add_button("Vazgeç", Gtk.ResponseType.CANCEL)
+        confirm = dialog.add_button("Onayla ve kur", Gtk.ResponseType.OK)
+        confirm.set_sensitive(False)
+        content = dialog.get_content_area()
+        content.set_spacing(12)
+        content.set_border_width(16)
+        note = "ISO'daki paket kullanılacak; internet gerekmez." if ready else "Çekirdeğin değişmiş: internetten eşleşen başlıklar ve STA indirilecek."
+        content.pack_start(label(note + " Mevcut açık sürücünün yerini alabilir. Canlıda onayladığın seçim disk kurulumuna taşınır.", "", 75), False, False, 0)
+        view = Gtk.TextView(editable=False, cursor_visible=False, wrap_mode=Gtk.WrapMode.WORD_CHAR)
+        view.get_buffer().set_text(text)
+        scroll = Gtk.ScrolledWindow()
+        scroll.set_size_request(460, 240)
+        scroll.add(view)
+        content.pack_start(scroll, True, True, 0)
+        consent = Gtk.CheckButton(label="Yukarıdaki özgün lisansı okudum ve kabul ediyorum.")
+        consent.connect("toggled", lambda button: confirm.set_sensitive(button.get_active()))
+        content.pack_start(consent, False, False, 0)
+        dialog.show_all()
         answer = dialog.run()
+        agreed = consent.get_active()
         dialog.destroy()
-        if answer != Gtk.ResponseType.OK:
+        if answer != Gtk.ResponseType.OK or not agreed:
             return
         self.driver_busy = True
         self.broadcom_button.set_sensitive(False)
+        self.intel_button.set_sensitive(False)
         self.refresh_button.set_sensitive(False)
+        self.install_button.set_sensitive(False)
         self.spinner.start()
-        self.status.set_text("Yönetici onayı bekleniyor / sürücü kuruluyor. Bu işlem birkaç dakika sürebilir…")
-
+        self.status.set_text("Yönetici onayı bekleniyor / sürücü kuruluyor. Birkaç dakika sürebilir…")
         def work():
             try:
-                result = subprocess.run(["/usr/bin/pkexec", "/usr/local/sbin/oguzdows-driver-helper", "broadcom"], capture_output=True, text=True, check=False)
-                text = result.stdout.strip() if result.returncode == 0 else "Sürücü işlemi tamamlanmadı veya yetkilendirme iptal edildi. Ayrıntılar: /var/log/oguzdows/drivers.log"
+                command = ["/usr/bin/pkexec", "/usr/local/sbin/oguzdows-driver-helper", action]
+                if ready:
+                    command.append("--offline")
+                result = subprocess.run(command, capture_output=True, text=True, errors="replace", check=False)
+                message = result.stdout.strip() if result.returncode == 0 else "Sürücü işlemi tamamlanmadı veya yetkilendirme iptal edildi. " + result.stderr.strip()[-1200:]
             except OSError:
-                text = "Sürücü yardımcısı başlatılamadı."
-            GLib.idle_add(self.driver_finished, text)
-
+                message = "Sürücü yardımcısı başlatılamadı."
+            GLib.idle_add(self.driver_finished, message)
         threading.Thread(target=work, daemon=True).start()
 
     def driver_finished(self, text):
@@ -273,6 +404,8 @@ class Welcome(Gtk.Application):
         self.spinner.stop()
         self.refresh_button.set_sensitive(True)
         self.broadcom_button.set_sensitive(bool(supported_broadcom()))
+        self.intel_button.set_sensitive(bool(supported_intel_legacy()))
+        self.install_button.set_sensitive(self.can_install())
         self.status.set_text(text)
         return GLib.SOURCE_REMOVE
 
@@ -283,8 +416,8 @@ class Welcome(Gtk.Application):
         dialog.destroy()
 
     def on_close(self, *_):
-        if self.driver_busy:
-            self.message("Sürücü işlemi devam ediyor.", "Paket yöneticisini yarıda kesmemek için işlem bitene kadar bekle.")
+        if self.driver_busy or self.install_busy:
+            self.message("Kurucu / sürücü işlemi devam ediyor.", "İşlemi yarıda kesmemek için önce kurucuyu kapat veya sürücü işleminin bitmesini bekle.")
             return True
         if self.mark_on_close:
             try:

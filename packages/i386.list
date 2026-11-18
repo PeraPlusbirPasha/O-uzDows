@@ -1,2 +1,3 @@
 # 32 bit ISO: i686 / PAE işlemci, klasik BIOS.
-# Çekirdek ve başlıklar live-build tarafından 686-pae çeşidiyle seçilir.
+# Çevrimdışı DKMS için ISO çekirdeğiyle eşleşen başlıklar.
+linux-headers-686-pae

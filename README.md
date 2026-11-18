@@ -17,6 +17,13 @@ Türkçe, Xfce tabanlı bir canlı masaüstü ve kurulum ISO’su. Ay-yıldız a
 
 Kendi ekranlarımızdaki ürün adı OğuzDows’tur. Paket deposu adresleri, derleme araçlarının zorunlu seçenekleri, paket/donanım meta verileri ve üçüncü tarafların lisans, telif ve yasal “hakkında” içerikleri değiştirilmez. Markalama, bunları silmek veya köken bilgilerini yanıltıcı biçimde gizlemek anlamına gelmez.
 
+## Görünüm ve Türkiye duvar kâğıtları
+
+- Pencere başlıkları, kapatma **X** düğmesi, üst panel ve bildirimler opaktır. Odak başka pencereye geçince başlık/düğme solmaz; bildirimlerin solma animasyonu varsayılan kapalıdır. Birleştirme kapalı eski GPU profilinde de okunaklılık hedeflenir.
+- Rehberdeki **Duvar Kâğıtları** sekmesi veya uygulamalar menüsündeki **Türkiye Duvar Kâğıtları** ile altı seçenek: **Ay Yıldız, İstanbul · Boğaz, Kapadokya · Şafak, Pamukkale · Traverten, Kaçkar · Yaylalar, Anadolu · Kilim**.
+- Manzaralar fotoğraf iddiası taşımayan özgün, sade çizimlerdir; Pillow ile yerel ve tekrarlanabilir biçimde üretilir. Her biri 1920×1080; küçük önizlemeler ayrı tutulur. Ağ indirmesi, animasyon, döngüsel arka plan servisi veya ek GPU yükü yoktur.
+- Seçim algılanan monitör/çalışma alanlarına uygulanır ve Xfce'de saklanır. Oturum betiği her girişte varsayılanı yeniden dayatmaz. Kalıcılıksız canlı USB'deki seçimler yeniden başlatmada silinir.
+
 ## Eski cihazlar ve sürücüler
 
 | İmaj | Hedef | Açılış |
@@ -24,13 +31,14 @@ Kendi ekranlarımızdaki ürün adı OğuzDows’tur. Paket deposu adresleri, de
 | `amd64` | 64 bit x86 işlemciler | BIOS + 64 bit UEFI |
 | `i386` | i686 / PAE destekli 32 bit işlemciler; tarayıcı için SSE2 gerekir | BIOS |
 
-- Intel, AMD/ATI, Nouveau, VESA/fbdev ve standart Xorg sürücüleri; Intel/AMD mikro kodları; yaygın Intel, Realtek, Atheros, Broadcom ve eski Intel kablosuz firmware paketleri ISO’ya alınır. Paketler taban sürümüne göre ayrılır; yeni firmware adları 32 bit eski sürüme zorla eklenmez.
+- Intel, AMD/ATI, Nouveau, VESA/fbdev ve standart Xorg sürücüleri; Intel/AMD mikro kodları; Intel, Realtek, Atheros, Broadcom, **Atmel, ZD1211, Libertas** kablosuz firmware'i ve eski Broadcom Ethernet firmware'i ISO’ya kurulur. Eski giriş aygıtları için evdev de bulunur. Paketler taban sürümüne göre ayrılır; firmware, aygıtın çekirdek sürücüsünün yerine geçmez.
 - **Siyah ekran:** açılışta “OğuzDows - güvenli görüntü” seçeneğini deneyin. `nomodeset`, grafik açılışını kapatma ve hafif profil uygular; ACPI/APIC veya bütün Wi-Fi sürücülerini topluca kapatmaz. Bu seçenekle kurulum yapılırsa uyumluluk parametreleri hedefte `/etc/default/grub.d/60-oguzdows-compat.cfg` dosyasında korunur; kurucu canlı ortama ait `boot=live` parametresini taşımaz.
 - **Az RAM:** “OğuzDows - düşük bellek” seçeneği efektleri kapatır, sistemi RAM’e kopyalamaz. Canlı sistem/kurucu için en az 1 GiB RAM ve kurulum için 12 GiB boş alan kontrol edilir; günlük kullanım için **en az 2 GiB RAM önerilir**. Tarayıcı ve ofis uygulamaları daha fazla bellek isteyebilir.
-- **Donanım merkezi:** PCI/USB aygıtlarını, kullanılan çekirdek sürücülerini ve kablosuz anahtarlarını gösterir. Raporu yalnızca siz kaydedersiniz; otomatik yükleme/telemetri yoktur.
-- **Ek Broadcom STA:** yalnızca izin listesindeki uyumlu bir PCI aygıtı algılanırsa sunulur. İnternet ve yönetici onayı gerekir. Çalışan çekirdeğin **tam sürümüne ait** başlıkları ve DKMS’i kullanır; kendiliğinden kurulmaz. İşlem mevcut açık sürücünün yerini alabilir, yeniden başlatma gerektirir. Günlük: `/var/log/oguzdows/drivers.log` (yönetici erişimi).
-- STA’yı geri almak için kurulu sistemde `sudo apt-get purge broadcom-sta-dkms` çalıştırıp yeniden başlatabilirsiniz. Çekirdek başlıkları artık depoda yoksa önce sistem/çekirdek güncellemesi gerekebilir.
-- Çok eski Intel PRO/Wireless 2100/2200 aygıtları için ayrı lisans onaylı `firmware-ipw2x00` paketi varsayılan ISO’ya eklenmez. Gerekirse kurulu sistemde `sudo apt-get install firmware-ipw2x00` ile lisansını inceleyerek kurabilirsiniz. Ek sürücü indirmek için kablolu bağlantı veya USB internet paylaşımı gerekebilir.
+- **Donanım merkezi:** PCI/USB kimlikleri, ağ/görüntü kartının gerçekten bağlandığı sürücü, **SÜRÜCÜ BAĞLI DEĞİL** uyarısı, kurulu firmware envanteri, ağ durumu ve kablosuz anahtarları gösterilir. Gri ek sürücü düğmesi, o ek paketle eşleşen kart bulunmadığı anlamına gelir; bütün sürücülerin eksik olduğu anlamına gelmez. Raporu yalnızca siz kaydedersiniz; otomatik yükleme yoktur. Sorun bildirirken laptop modeliyle birlikte bu raporu ekleyin.
+- **Çevrimdışı ek sürücüler:** `broadcom-sta-dkms` ve Intel 2100/2200/2915 için `firmware-ipw2x00` paketlerinin **özgün .deb arşivleri ve lisansları**, derleme sırasında imzalı sistem deposundan `/usr/share/oguzdows/offline-drivers/` içine alınır. Paket hash'leri tekrar doğrulanır. Intel lisansı derleme sırasında kabul edilmez; bu iki paket varsayılan olarak kurulmaz veya etkinleştirilmez. Donanım eşleşmesi, özgün lisansı okuma/kabul kutusu ve yönetici onayı gerekir. Hiçbir rastgele internet arşivi veya Windows sürücüsü eklenmez.
+- **İnternet olmadan STA:** DKMS, derleyici ve ISO çekirdeğiyle **tam eşleşen başlıklar** imajda hazırdır. Ek kurulum `--no-download --no-remove` ile yapılır. Çekirdeği sonradan değiştirdiyseniz Broadcom için eşleşen başlıkların internetten indirileceği ayrıca bildirilir. Eksik/bozuk Intel arşivi sessizce internetten indirilmez. Çekirdek, başlık veya lisans hazırlığı başarısızsa ISO derlemesi durur.
+- **Canlı oturum ve disk kurulumu:** sürücü kurulduğunda modül yükleme denenir; çalışan bağlantının sürücüsü zorla sökülmez. Raporu yenileyip ağı kontrol edin. Canlıda onaylanan sürücüler, kurucu tarafından hedef sisteme de **çevrimdışı** kurulur; yeniden lisans onayı varsayılmaz, aynı oturumdaki açık seçim taşınır. Seçim yapılmadıysa hedefte ek sürücü kurulmaz. Kurulu sistemde yeniden başlatın; kalıcılıksız canlı USB’yi yeniden başlatmak değişiklikleri siler.
+- Günlük: `/var/log/oguzdows/drivers.log` (yönetici erişimi). STA’yı geri almak için kurulu sistemde `sudo apt-get purge broadcom-sta-dkms` çalıştırıp yeniden başlatabilirsiniz. Donanım modeli bilinmeden her eski karta kapalı sürücü zorlanmaz; b43 ailesinin ayrı edinilen firmware'i veya artık desteklenmeyen NVIDIA/ATI sürümleri için genel uyumluluk sözü verilmez.
 
 **Sınırlar:** her eski aygıt için garanti yoktur. PAE’siz işlemciler, 32 bit UEFI, Secure Boot ve artık güncel çekirdeklerle çalışmayan eski kapalı NVIDIA/ATI sürücüleri bu profilin kapsamında değildir. UEFI kurulumda Secure Boot kapalı olmalıdır. Wi-Fi, askıya alma, ses ve 3B hızlandırma gerçek cihazda ayrıca sınanmalıdır.
 
@@ -102,7 +110,9 @@ python3 scripts/render-assets.py --root preview
 
 Testler iki mimarinin paket ayrımını, ilk açılış/kurulum temizliğini, dar yetkili sürücü yardımcısını, gerçek ilerleme geri çağrılarını, BIOS/UEFI menülerini, XML/YAML/JSON dosyalarını ve yerel tema üretimini kontrol eder. `--configure-only` akışı sahte bir `lb` ile sınanır; testler gerçek disklere veya paket yöneticisine yazmaz.
 
-GitHub Actions ayrıca iki taban sürümünde **gerçek GTK penceresini Xvfb ile açar**, küçük ekranı ve donanım sekmesini kontrol eder; ekran görüntülerini artefakt olarak saklar. PR’larda testler, `main` güncellemesinde veya elle çalıştırmada testlerden sonra iki ISO derlemesi çalışır. `.github/workflows/main.yml` etkin iş akışıdır; kökteki `build.yml` eş kopyasıdır.
+GitHub Actions iki taban sürümünde **gerçek GTK penceresini Xvfb ile açar**; küçük ekran, donanım, altı duvar kâğıdı ve görünür kurucu hata yolunu kontrol eder. Ayrıca **gerçek Calamares'i** kendi markalama/ayarlarıyla açıp bütün modüllerin yüklenmesini ve pencerenin görünmesini doğrular; hiçbir kurulum düğmesine basmaz veya disk kurmaz. Ekran görüntüleri ve kurucu açılış günlüğü artefakt olarak saklanır. PR’larda testler, `main` güncellemesinde veya elle çalıştırmada testlerden sonra iki ISO derlemesi çalışır. Yeni bir çalıştırma **sürmekte olan ISO işini iptal etmez**. `.github/workflows/main.yml` etkin iş akışıdır; kökteki `build.yml` eş kopyasıdır.
+
+Kurucu, standart `/etc/calamares/settings.conf` yapılandırmasını kullanır; bu dosya `--config` seçeneğine verilmez. Başlatıcı yalnızca canlı ortamda çalışır, tek kurucu kilidi alır ve gerçek squashfs kaynağını saptar. Kurucu açılamazsa masaüstünde hata gösterilir; yönetici günlüğü: `/var/log/oguzdows/installer.log`. Kurucunun açılması, gerçek diske başarılı kurulum yapıldığının kanıtı değildir.
 
 ### Yayın öncesi elle kontrol
 

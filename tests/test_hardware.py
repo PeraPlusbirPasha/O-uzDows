@@ -44,6 +44,21 @@ class HardwareTests(unittest.TestCase):
             self.assertEqual(hardware.supported_broadcom(root), ["14e4:4353"])
             self.assertEqual(hardware.supported_broadcom(root / "absent"), [])
 
+    def test_intel_legacy_detection_and_unbound_device_summary(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            for name, vendor, device, kind in (("old-wifi", "0x8086", "0x4220", "0x028000"), ("modern-wifi", "0x8086", "0x2723", "0x028000"), ("not-network", "0x8086", "0x4220", "0x040000")):
+                path = root / name
+                path.mkdir()
+                for key, value in (("vendor", vendor), ("device", device), ("class", kind)):
+                    (path / key).write_text(value)
+            (root / "modern-wifi/driver").symlink_to(root / "drivers/iwlwifi")
+            self.assertEqual(hardware.supported_intel_legacy(root), ["8086:4220"])
+            text = hardware.driver_summary(root)
+            self.assertIn("SÜRÜCÜ BAĞLI DEĞİL", text)
+            self.assertIn("iwlwifi", text)
+            self.assertNotIn("not-network", text)
+
     def test_missing_or_stalled_diagnostic_tools_do_not_crash(self):
         for error in (FileNotFoundError(), OSError(), subprocess.TimeoutExpired("lspci", 12)):
             with patch.object(hardware.subprocess, "run", side_effect=error):
@@ -54,7 +69,8 @@ class HardwareTests(unittest.TestCase):
             text = hardware.report()
             self.assertIn("OğuzDows", text)
             self.assertIn("hiçbir yere gönderilmez", text)
-            self.assertEqual([call.args[0][0] for call in run.call_args_list], ["/usr/bin/lspci", "/usr/bin/lsusb", "/usr/sbin/rfkill"])
+            self.assertEqual([call.args[0][0] for call in run.call_args_list], ["/usr/bin/lspci", "/usr/bin/lsusb", "/usr/sbin/rfkill", "/usr/bin/dpkg-query", "/usr/bin/nmcli"])
+            self.assertIn("sürücüsü durumu", text)
 
     def test_privileged_helper_rejects_unknown_action_before_doing_anything(self):
         with patch.object(sys, "argv", ["helper", "arbitrary-package"]), patch.object(helper.os, "open") as opened, patch.object(helper.subprocess, "run") as run, patch("sys.stderr", io.StringIO()):

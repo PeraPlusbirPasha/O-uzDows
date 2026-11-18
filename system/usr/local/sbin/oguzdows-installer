@@ -1,21 +1,30 @@
 #!/bin/sh
 set -eu
+[ "$#" -eq 0 ] || { echo 'Kurucu ek komut kabul etmez.' >&2; exit 2; }
 [ "$(id -u)" -eq 0 ] || { echo 'Kurucu için yönetici yetkisi gerekli.' >&2; exit 1; }
 case " $(cat /proc/cmdline) " in
     *' boot=live '*) ;;
     *) echo 'Kurucu yalnızca OğuzDows canlı ortamında çalışır.' >&2; exit 1 ;;
 esac
-# Bazı canlı önyükleme sürümleri medyayı farklı bir yola bağlar.
-SOURCE=
-for base in /run/live/medium /lib/live/mount/medium; do
-    if [ -f "$base/live/filesystem.squashfs" ]; then
-        SOURCE="$base/live/filesystem.squashfs"
-        break
-    fi
-done
-[ -n "$SOURCE" ] || { echo 'OğuzDows kurulum kaynağı bulunamadı.' >&2; exit 1; }
-printf '%s\n' '---' 'unpack:' "  - source: $SOURCE" '    sourcefs: squashfs' '    destination: ""' \
-    > /etc/calamares/modules/unpackfs.conf
+# Birden fazla kurucu aynı anda disklerde işlem yapmasın.
+exec 9>/run/lock/oguzdows-installer.lock
+flock -n 9 || { echo 'OğuzDows kurucusu zaten açık.' >&2; exit 1; }
+umask 077
+install -d -m 0755 /var/log/oguzdows
+LOG=$(mktemp /var/log/oguzdows/installer.XXXXXX.log)
+ln -sfn "${LOG##*/}" /var/log/oguzdows/installer.log
+if ! python3 -I /usr/lib/oguzdows/prepare-install.py >>"$LOG" 2>&1; then
+    tail -n 15 "$LOG" >&2
+    exit 1
+fi
 export LANG=tr_TR.UTF-8 LANGUAGE=tr LC_MESSAGES=tr_TR.UTF-8
 export QT_QPA_PLATFORMTHEME=gtk3
-exec /usr/bin/calamares --config /etc/calamares/settings.conf
+# Standart /etc/calamares/settings.conf otomatik okunur. --config'e dosya
+# vermek geçersizdi; dizinle override etmek de varsayılan kaynak aramasını daraltır.
+STATUS=0
+/usr/bin/calamares -D 6 >>"$LOG" 2>&1 || STATUS=$?
+if [ "$STATUS" -ne 0 ]; then
+    printf 'OğuzDows kurucusu tamamlanamadı. Günlük: /var/log/oguzdows/installer.log\n' >&2
+    tail -n 20 "$LOG" >&2
+fi
+exit "$STATUS"

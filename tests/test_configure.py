@@ -28,6 +28,10 @@ class ConfigurationTests(unittest.TestCase):
                 self.assertIn("amd64-microcode", packages)
                 self.assertIn("xfce4-power-manager-plugins", packages)
                 self.assertIn("plymouth-label", packages)
+                for package in ("atmel-firmware", "firmware-zd1211", "firmware-bnx2", "firmware-bnx2x", "dkms", "build-essential", "python3-yaml"):
+                    self.assertIn(package, packages)
+                self.assertIn("linux-headers-" + ("amd64" if arch == "amd64" else "686-pae"), packages)
+                self.assertNotIn("firmware-ipw2x00", packages)  # yalnızca onay sonrası yerel arşivden
                 self.assertTrue((overlay / "etc/skel/İndirilenler").is_dir())
                 self.assertNotIn("broadcom-sta-dkms", packages)
                 self.assertNotIn("plank", packages)

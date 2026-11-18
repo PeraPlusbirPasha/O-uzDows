@@ -2,7 +2,7 @@
 Type=Application
 Name=OğuzDows'u Kur
 Comment=OğuzDows'u bilgisayarına kur
-Exec=pkexec /usr/local/sbin/oguzdows-installer
+Exec=oguzdows-install
 Icon=oguzdows
 Terminal=false
 Categories=System;

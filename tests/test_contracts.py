@@ -130,6 +130,41 @@ class ContractsTests(unittest.TestCase):
         self.assertIn("COMPAT_ARGS=' nomodeset'", cleanup)
         self.assertNotIn("GRUB_CMDLINE_LINUX_DEFAULT", (ROOT / "system/etc/default/grub.d/50-oguzdows.cfg").read_text())
 
+    def test_titlebars_panel_and_notifications_do_not_fade(self):
+        base = ROOT / "system/etc/skel/.config/xfce4/xfconf/xfce-perchannel-xml"
+        for name, keys in (("xfwm4", ("inactive_opacity", "frame_opacity", "popup_opacity", "move_opacity", "resize_opacity")), ("xfce4-panel", ("enter-opacity", "leave-opacity"))):
+            tree = ET.parse(base / (name + ".xml"))
+            for key in keys:
+                self.assertEqual(tree.find(f".//property[@name='{key}']").get("value"), "100")
+        tree = ET.parse(base / "xfce4-notifyd.xml")
+        self.assertEqual(tree.find("property[@name='initial-opacity']").get("value"), "1.0")
+        self.assertEqual(tree.find("property[@name='do-fadeout']").get("value"), "false")
+        css = (ROOT / "system/usr/share/themes/OguzDows/gtk-3.0/gtk.css").read_text()
+        self.assertIn("button.titlebutton.close:backdrop", css)
+        self.assertTrue((ROOT / "system/usr/share/themes/OguzDows/xfce-notify-4.0/gtk.css").is_file())
+
+    def test_live_installer_uses_system_configuration_and_exposes_errors(self):
+        script = (ROOT / "system/usr/local/sbin/oguzdows-installer").read_text()
+        self.assertIn("/usr/bin/calamares -D", script)
+        self.assertNotIn("--config /etc/calamares/settings.conf", script)
+        self.assertIn("flock -n", script)
+        self.assertIn("installer.log", script)
+        self.assertIn("--install", (ROOT / "system/usr/local/bin/oguzdows-install").read_text())
+        settings = yaml.safe_load((ROOT / "installer/settings.conf").read_text())
+        sequence = settings["sequence"][1]["exec"]
+        self.assertLess(sequence.index("shellprocess@drivers"), sequence.index("initramfs"))
+        self.assertLess(sequence.index("shellprocess@cleanup"), sequence.index("shellprocess@drivers"))
+        defaults = yaml.safe_load((ROOT / "installer/modules/selected-drivers.conf").read_text())
+        self.assertEqual(defaults["script"], [])
+        workflow = yaml.safe_load((ROOT / ".github/workflows/main.yml").read_text())
+        self.assertFalse(workflow["concurrency"]["cancel-in-progress"])
+
+    def test_wallpaper_selection_is_not_reset_on_every_login(self):
+        script = (ROOT / "system/usr/lib/oguzdows/session.sh").read_text()
+        self.assertIn("wallpapers.py --initialize", script)
+        self.assertNotIn("/last-image", script)
+        self.assertTrue((ROOT / "system/usr/share/applications/oguzdows-wallpapers.desktop").is_file())
+
     def test_workflow_mirror_is_kept_in_sync(self):
         self.assertEqual((ROOT / "build.yml").read_text(), (ROOT / ".github/workflows/main.yml").read_text())
 

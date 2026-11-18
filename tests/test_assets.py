@@ -1,3 +1,4 @@
+import json
 import re
 import tempfile
 import unittest
@@ -32,6 +33,19 @@ class AssetTests(unittest.TestCase):
             for button in ("close", "hide", "maximize", "maximize-toggled", "menu"):
                 for state in ("active", "inactive", "prelight", "pressed"):
                     self.assertTrue((theme / f"{button}-{state}.png").is_file())
+            manifest = json.loads((root / "usr/share/oguzdows/wallpapers.json").read_text())
+            self.assertEqual({item["id"] for item in manifest}, {"ay-yildiz", "istanbul", "kapadokya", "pamukkale", "kackar", "anadolu"})
+            pixels = set()
+            for item in manifest:
+                with Image.open(root / item["path"].lstrip("/")) as image:
+                    self.assertEqual(image.size, (1920, 1080))
+                    pixels.add(image.tobytes())
+                with Image.open(root / item["preview"].lstrip("/")) as preview:
+                    self.assertEqual(preview.size, (320, 180))
+            self.assertEqual(len(pixels), 6)
+            for state in ("active", "inactive"):
+                with Image.open(theme / f"close-{state}.png") as close:
+                    self.assertEqual(close.getchannel("A").getextrema(), (255, 255))
             original = bios.read_bytes()
             renderer.render(root)
             self.assertEqual(bios.read_bytes(), original)

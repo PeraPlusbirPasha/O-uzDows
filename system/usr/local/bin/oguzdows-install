@@ -1,0 +1,3 @@
+#!/bin/sh
+# Hataları masaüstünde görünür kılan yetkisiz arayüz; root işi pkexec yapar.
+exec /usr/local/bin/oguzdows-welcome --install

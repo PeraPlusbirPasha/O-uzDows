@@ -2,6 +2,7 @@
 xorg
 x11-xserver-utils
 xserver-xorg-input-libinput
+xserver-xorg-input-evdev
 xserver-xorg-video-all
 xfce4
 xfce4-terminal
@@ -91,9 +92,18 @@ mesa-utils
 pciutils
 usbutils
 ethtool
+# ISO'ya gömülü STA paketini internet olmadan derleyebilmek için.
+dkms
+build-essential
+python3-yaml
 
 # Sık kullanılan eski/yeni kablosuz ve ekran kartı firmware'i
 firmware-linux
+firmware-linux-free
+atmel-firmware
+firmware-zd1211
+firmware-bnx2
+firmware-bnx2x
 firmware-misc-nonfree
 firmware-iwlwifi
 firmware-realtek

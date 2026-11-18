@@ -10,8 +10,8 @@ from pathlib import Path
 # Broadcom STA'nın desteklediği PCI kimlikleri. Diğer Broadcom aygıtları için
 # b43 / brcmsmac / brcmfmac yerleşik sürücüleri korunur.
 BROADCOM_STA_IDS = frozenset({
-    "4311", "4312", "4313", "4315", "4328", "4329", "432a", "432b", "432c",
-    "432d", "4353", "4357", "4358", "4359", "4360", "4365", "43a0", "43b1",
+    "4311", "4312", "4313", "4315", "4329", "432a", "432b", "432c", "4727",
+    "432d", "4353", "4357", "4358", "4359", "4365", "43a0", "43b1",
 })
 
 
@@ -42,16 +42,41 @@ def light_profile(cmdline: str, memory: int) -> bool:
     return "oguzdows.profile=light" in args or "nomodeset" in args or 0 < memory <= 2097152
 
 
-def supported_broadcom(sysfs: Path = Path("/sys/bus/pci/devices")) -> list[str]:
+INTEL_LEGACY_IDS = frozenset({"1043", "4220", "4221", "4223", "4224"})
+
+
+def matching_pci(vendor_id: str, ids: frozenset[str], sysfs: Path = Path("/sys/bus/pci/devices")) -> list[Path]:
     devices = []
     for path in sorted(sysfs.glob("*")):
         vendor = read_text(path / "vendor").strip().lower()
         device = read_text(path / "device").strip().lower().removeprefix("0x")
-        # Ağ denetleyicisi dışında aynı sayısal kimliğe bakarak karar verme.
         device_class = read_text(path / "class").strip().lower()
-        if vendor == "0x14e4" and device in BROADCOM_STA_IDS and device_class.startswith("0x02"):
-            devices.append(f"14e4:{device}")
+        if vendor == "0x" + vendor_id and device in ids and device_class.startswith("0x02"):
+            devices.append(path)
     return devices
+
+
+def supported_broadcom(sysfs: Path = Path("/sys/bus/pci/devices")) -> list[str]:
+    return ["14e4:" + read_text(path / "device").strip().lower().removeprefix("0x")
+            for path in matching_pci("14e4", BROADCOM_STA_IDS, sysfs)]
+
+
+def supported_intel_legacy(sysfs: Path = Path("/sys/bus/pci/devices")) -> list[str]:
+    return ["8086:" + read_text(path / "device").strip().lower().removeprefix("0x")
+            for path in matching_pci("8086", INTEL_LEGACY_IDS, sysfs)]
+
+
+def driver_summary(sysfs: Path = Path("/sys/bus/pci/devices")) -> str:
+    lines = []
+    for path in sorted(sysfs.glob("*")):
+        kind = read_text(path / "class").strip().lower()
+        if not kind.startswith(("0x02", "0x03")):
+            continue
+        identity = ":".join(read_text(path / key).strip().lower().removeprefix("0x") for key in ("vendor", "device"))
+        driver = (path / "driver").resolve().name if (path / "driver").is_symlink() else "SÜRÜCÜ BAĞLI DEĞİL"
+        category = "Ağ" if kind.startswith("0x02") else "Görüntü"
+        lines.append(f"{category} · {identity} · {path.name} → {driver}")
+    return "\n".join(lines) or "PCI ağ/görüntü aygıtı bulunamadı (USB aygıtlarını da kontrol et)."
 
 
 def command_output(command: list[str]) -> str:
@@ -77,9 +102,12 @@ def report() -> str:
         f"Bellek: {memory // 1024} MiB",
         "Oturum: " + ("Canlı OğuzDows" if is_live(cmdline) else "Kurulu OğuzDows"),
         "Profil: " + ("Hafif / efektler kapalı" if light_profile(cmdline, memory) else "Standart"),
+        "\nAğ / görüntü sürücüsü durumu\n" + driver_summary(),
         "\nPCI aygıtları ve kullanılan çekirdek sürücüleri\n" + command_output(["/usr/bin/lspci", "-nnk"]),
         "\nUSB aygıtları\n" + command_output(["/usr/bin/lsusb"]),
         "\nKablosuz anahtarları\n" + command_output(["/usr/sbin/rfkill", "list"]),
+        "\nISO / sistemde kurulu firmware paketleri\n" + command_output(["/usr/bin/dpkg-query", "-W", "-f=${binary:Package} ${Version}\\n", "firmware-*", "atmel-firmware"]),
+        "\nAğ aygıtları\n" + command_output(["/usr/bin/nmcli", "-f", "DEVICE,TYPE,STATE", "device"]),
         "\nNot: Bu rapor yerel olarak üretilir; hiçbir yere gönderilmez.",
     ]
     return "\n".join(sections) + "\n"

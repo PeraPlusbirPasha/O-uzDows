@@ -15,6 +15,8 @@ for conf in /etc/lightdm/lightdm.conf /etc/lightdm/lightdm.conf.d/*.conf; do
 done
 rm -f /usr/share/applications/oguzdows-install.desktop \
       /usr/local/sbin/oguzdows-installer \
+      /usr/local/bin/oguzdows-install \
+      /usr/lib/oguzdows/prepare-install.py \
       /usr/share/polkit-1/actions/org.oguzdows.install.policy \
       /etc/skel/Masaüstü/oguzdows-install.desktop
 # Uyumluluk seçeneğiyle kuran kullanıcı ilk disk açılışında yeniden siyah ekran görmesin.
