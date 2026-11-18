@@ -111,7 +111,9 @@ jobs:
         run: |
           apt-get update
           apt-get install -y --no-install-recommends python3 grub-pc-bin grub-efi-amd64-bin \
-            grub2-common parted e2fsprogs dosfstools qemu-system-x86 seabios ovmf
+            grub2-common parted e2fsprogs dosfstools qemu-system-x86 seabios ovmf \
+            udev util-linux mount
+          # GRUB 2.06, loop bölümünün sysfs yolunu udevadm info ile bulur.
       - name: Gerçek GRUB ile BIOS ve NVRAM'siz UEFI fallback açılışı
         run: |
           python3 scripts/ci-run.py --title 'Kurulu disk boot ${{ matrix.suite }}' -- \

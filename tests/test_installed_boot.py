@@ -229,6 +229,7 @@ class InstalledBootIntegrationTests(unittest.TestCase):
         self.assertEqual(job["strategy"]["matrix"]["suite"], ["bookworm", "trixie"])
         self.assertIn("target != 'raspberrypi'", job["if"])
         self.assertIn("tests/smoke-installed-boot.py", str(job["steps"]))
+        self.assertIn("udev util-linux mount", str(job["steps"]))  # GRUB 2.06 loop/sysfs sorgusu
         self.assertFalse(workflow["concurrency"]["cancel-in-progress"])
         self.assertIn("inputs.target", workflow["concurrency"]["group"])
 
