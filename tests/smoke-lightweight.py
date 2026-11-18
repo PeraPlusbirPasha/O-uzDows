@@ -9,6 +9,7 @@ import argparse
 import json
 import os
 import resource
+import subprocess
 import sys
 import tempfile
 import threading
@@ -48,6 +49,7 @@ def main():
         metrics={'component':args.component,'environment':'CI / Xvfb, privileged worker stubbed, not physical hardware'}
         app=None
         guide=None
+        peer=None
         def fake_installer():
             worker_threads.append(threading.get_ident())
             if not release.wait(12):
@@ -65,7 +67,7 @@ def main():
             app.register(None)
             window=module.Companion(app,{},reduced=False)
             window.show_all()
-        else:
+        elif args.component=='installer':
             module=load('light_installer_native','system/usr/lib/oguzdows/install_launcher.py')
             module.run_installer=fake_installer
             app=module.Installer()
@@ -74,12 +76,20 @@ def main():
             window=app.window
             app.activate()
             assert app.starts==1, 'Aynı başlatıcı ikinci işçi açmamalı'
-            if args.component=='coordination':
-                guide_module=load('light_coordination_guide','system/usr/lib/oguzdows/welcome.py')
-                guide=guide_module.Welcome()
-                guide.register(None)
-                guide.activate()
-                guide.open_assistant()
+        else:
+            # İki Gtk.Application aynı süreçte GApplication kaydını paylaşamaz.
+            # Üründeki gibi gerçekten iki ayrı süreç kullan; root işi yine stub.
+            peer=subprocess.Popen([sys.executable,str(Path(__file__).with_name('launcher-peer.py'))],stdin=subprocess.PIPE,text=True)
+            guide_module=load('light_coordination_guide','system/usr/lib/oguzdows/welcome.py')
+            guide=guide_module.Welcome()
+            guide.register(None)
+            guide.activate()
+            guide.open_assistant()
+            app=guide
+            window=guide.window
+        def send_peer(word):
+            peer.stdin.write(word+'\n')
+            peer.stdin.flush()
         metrics['activation_ms']=round((time.monotonic()-started)*1000,2)
         last_heartbeat=[time.monotonic()]
         gaps=[]
@@ -138,20 +148,22 @@ def main():
                     window.hide()
                     assert window.avatar.timer is None and window.avatar.blink_source is None
                     window.show_all()
-                else:
+                elif args.component=='installer':
                     assert worker_threads and all(t!=main_thread for t in worker_threads)
                     assert app.busy and app.activity.get_state().get_boolean()
-                    if args.component=='installer':
-                        assert 'rifki' not in sys.modules and 'wallpapers' not in sys.modules
-                    else:
-                        assert guide.external_installing and guide.rifki.installing
-                        assert guide.rifki.avatar.frozen and guide.rifki.avatar.timer is None
-                        # Başlatıcı zaten açıkken sonradan açılan kedi de sessiz.
-                        guide.rifki.destroy()
-                        guide.open_assistant()
-                        assert guide.rifki.installing and not guide.rifki.speaker.playing
+                    assert 'rifki' not in sys.modules and 'wallpapers' not in sys.modules
+                else:
+                    assert peer.poll() is None, 'Test başlatıcı süreci erken kapandı'
+                    assert guide.external_installing and guide.rifki.installing
+                    assert guide.rifki.avatar.frozen and guide.rifki.avatar.timer is None
+                    # Başlatıcı zaten açıkken sonradan açılan kedi de sessiz.
+                    guide.rifki.destroy()
+                    guide.open_assistant()
+                    assert guide.rifki.installing and not guide.rifki.speaker.playing
                 screenshot()
                 release.set()
+                if peer is not None:
+                    send_peer('finish')
                 if args.component in ('installer','coordination'):
                     GLib.timeout_add(150,after_worker)
                 else:
@@ -162,20 +174,22 @@ def main():
             return GLib.SOURCE_REMOVE
         def after_worker():
             try:
-                if app.busy or (guide is not None and guide.external_installing):
-                    return GLib.SOURCE_CONTINUE
-                assert not app.activity.get_state().get_boolean()
-                assert app.data['outcome']=='cancelled'
-                assert not app.restart.get_visible() and app.close_button.get_sensitive()
                 if guide is not None:
-                    assert not guide.external_installing and not guide.rifki.installing
-                    guide.rifki.avatar.reduced=False  # Bildirimle durdurulan isteğe bağlı yolu da denetle.
+                    if guide.external_installing:
+                        return GLib.SOURCE_CONTINUE
+                    assert not guide.rifki.installing
+                    guide.rifki.avatar.reduced=False
                     guide.rifki.avatar.allow_motion=True
                     guide.rifki.avatar.voice_changed(True)
                     assert guide.rifki.avatar.timer is not None
-                    app.set_busy(True)
+                    send_peer('busy')
                     GLib.timeout_add(200,after_repause)
                 else:
+                    if app.busy:
+                        return GLib.SOURCE_CONTINUE
+                    assert not app.activity.get_state().get_boolean()
+                    assert app.data['outcome']=='cancelled'
+                    assert not app.restart.get_visible() and app.close_button.get_sensitive()
                     window.destroy()
                     loop.quit()
             except Exception as error:
@@ -188,10 +202,9 @@ def main():
                 assert guide.rifki.installing
                 assert guide.rifki.avatar.timer is None
                 metrics['dbus_pause_resume_verified']=True
-                app.set_busy(False)
+                send_peer('quit')
                 guide.rifki.destroy()
                 guide.window.destroy()
-                window.destroy()
                 loop.quit()
             except Exception as error:
                 stop_with_error(error)
@@ -202,9 +215,25 @@ def main():
         GLib.timeout_add(3200,finish)
         GLib.timeout_add(10000,timeout)
         loop.run()
+        if peer is not None:
+            try:
+                send_peer('quit')
+            except (BrokenPipeError,OSError):
+                pass
+            peer.stdin.close()
+            try:
+                code=peer.wait(timeout=3)
+            except subprocess.TimeoutExpired:
+                peer.terminate()
+                code=peer.wait(timeout=3)
+            if code:
+                errors.append('Test başlatıcı süreci hata ile kapandı: '+str(code))
         metrics['errors']=errors
         (args.output/('lightweight-'+args.component+'.json')).write_text(json.dumps(metrics,ensure_ascii=False,indent=2)+'\n')
-        print(json.dumps(metrics,ensure_ascii=False))
+        summary=json.dumps(metrics,ensure_ascii=False)
+        print(summary)
+        # Günlük/artefakt indirme alanı kısıtlı olsa da ölçümler checks API'den okunur.
+        print('::notice title=Hafif arayüz '+args.component+'::'+summary.replace('%','%25'))
         release.set()
     sys.excepthook=original_hook
     return 1 if errors else 0
