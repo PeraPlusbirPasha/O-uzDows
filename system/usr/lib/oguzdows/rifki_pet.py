@@ -185,13 +185,12 @@ class DesktopPet(Gtk.Window):
     def shape_after(self,*_):
         # Compositor kapalı eski cihazlarda siyah / opak dikdörtgen bırakma.
         if self.get_realized() and not self.get_screen().is_composited() and self.view.frame is not None:
-            alpha=self.view.frame.getchannel('A')
-            region=cairo.Region()
-            pixels=alpha.load()
-            for y in range(0,alpha.height,3):
-                xs=[x for x in range(alpha.width) if pixels[x,y]>40]
-                if xs:
-                    region.union(cairo.RectangleInt(min(xs),y,max(xs)-min(xs)+1,min(3,alpha.height-y)))
+            frame=self.view.frame
+            # C tarafında gerçek alfa bölgeleri: kedi ile oyuncak arasını opak
+            # bir şeritle birleştirme; kare başına Python piksel döngüsü kurma.
+            data=bytearray(frame.tobytes('raw','BGRA'))
+            surface=cairo.ImageSurface.create_for_data(data,cairo.FORMAT_ARGB32,frame.width,frame.height,frame.width*4)
+            region=Gdk.cairo_region_create_from_surface(surface)
             self.get_window().shape_combine_region(region,0,0)
             self.get_window().input_shape_combine_region(cairo.Region(),0,0)
         return False
