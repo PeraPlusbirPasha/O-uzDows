@@ -135,7 +135,14 @@ Resmî `RPi-Distro/pi-gen` kaynakları `pi-gen.lock.json` içinde **tam commit +
 - Export öncesi ve son ham imajın **salt okunur loop** kontrolünde MBR/FAT/ext4, hizalama, model DTB/çekirdek/initramfs zinciri, çözülmüş PARTUUID, marka ve hesap güvenliği denetlenir. SSH anahtarları/machine-id, ortak kullanıcı ve parolasız sudo bulunması derlemeyi durdurur.
 - Bu kontroller **Pi'nin firmware'den gerçekten açıldığını, VC4/V3D donanım hızlandırmasını, Wi-Fi/Bluetooth/kamera/HAT işlevlerini veya performansı kanıtlamaz.** Bunlar fiziksel test ister.
 
-`.github/workflows/raspberrypi.yml` PC ISO işlerinden ayrıdır. PR'da test, `main` güncellemesi veya elle çalıştırmada seçilen iki/tek imaj derlenir. **Süren işler yeni bir çalıştırmayla iptal edilmez.** Artefaktlar imaj + SHA-256 + paket envanteri + kaynak kilidini taşır; başarısızlıkta derleme günlüğü saklanır.
+`.github/workflows/raspberrypi.yml` PC ISO işlerinden ayrıdır. PR'da test, `main` güncellemesi veya elle çalıştırmada seçilen iki/tek imaj derlenir. Yeni workflow henüz varsayılan dala eklenmediyse GitHub doğrudan dispatch'i kaydetmez; mevcut `main.yml` girişinden **`target=raspberrypi`** seçilerek aynı daldaki Pi workflow'u çağrılır. Bu seçim PC ISO işlerini başlatmaz:
+
+```sh
+gh workflow run main.yml --ref CALISTIGINIZ_DAL -f target=raspberrypi -f architecture=both
+# architecture: both, armhf veya arm64
+```
+
+**Süren işler yeni bir çalıştırmayla iptal edilmez.** Artefaktlar imaj + SHA-256 + paket envanteri + kaynak kilidini taşır; başarısızlıkta derleme günlüğü saklanır.
 
 ### Fiziksel yayın kontrol listesi
 

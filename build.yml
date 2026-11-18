@@ -2,6 +2,17 @@ name: OğuzDows ISO
 
 on:
   workflow_dispatch:
+    inputs:
+      target:
+        description: PC ISO veya Raspberry Pi imajları
+        type: choice
+        options: [pc, raspberrypi]
+        default: pc
+      architecture:
+        description: Yalnızca Raspberry Pi hedefi için
+        type: choice
+        options: [both, armhf, arm64]
+        default: both
   push:
     branches: [main]
   pull_request:
@@ -16,6 +27,7 @@ concurrency:
 
 jobs:
   verify:
+    if: github.event.inputs.target != 'raspberrypi'
     name: Yapılandırma ve GTK · ${{ matrix.suite }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -81,7 +93,7 @@ jobs:
   build:
     name: ISO · ${{ matrix.arch }}
     needs: verify
-    if: github.event_name != 'pull_request'
+    if: github.event_name != 'pull_request' && github.event.inputs.target != 'raspberrypi'
     runs-on: ubuntu-latest
     timeout-minutes: 120
     strategy:
@@ -129,3 +141,10 @@ jobs:
           path: build-${{ matrix.arch }}/build.log
           if-no-files-found: ignore
           retention-days: 7
+
+  raspberrypi:
+    name: Raspberry Pi
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.target == 'raspberrypi'
+    uses: ./.github/workflows/raspberrypi.yml
+    with:
+      architecture: ${{ inputs.architecture || 'both' }}

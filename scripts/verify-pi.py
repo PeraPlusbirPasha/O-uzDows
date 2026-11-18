@@ -55,6 +55,9 @@ def validate(root: Path, arch: str, pre_export: bool = False) -> None:
         if filename.is_file():
             require(not any("NOPASSWD" in line.partition("#")[0] for line in filename.read_text().splitlines()),
                     "Kalıcı imajda parolasız sudo kuralı var: " + filename.name)
+    for filename in (root / "etc/lightdm").rglob("*.conf"):
+        require(not any(re.match(r"\s*autologin-user\s*=\s*\S", line.partition("#")[0])
+                        for line in filename.read_text().splitlines()), "Kalıcı imajda otomatik giriş açık.")
     for service in ("oguzdows-pi-firstboot", "oguzdows-pi-tune", "zramswap"):
         require((root / f"etc/systemd/system/multi-user.target.wants/{service}.service").is_symlink(),
                 "Servis etkinleştirilmemiş: " + service)

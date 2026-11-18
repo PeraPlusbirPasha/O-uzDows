@@ -131,6 +131,30 @@ class PiConfigurationTests(unittest.TestCase):
         self.assertIn(".img.xz.sha256", steps)
         self.assertIn("--pi", str(workflow["jobs"]["verify"]["steps"]))
 
+    def test_registered_workflow_can_call_pi_without_rebuilding_pc_isos(self):
+        workflow = yaml.safe_load((ROOT / ".github/workflows/main.yml").read_text())
+        job = workflow["jobs"]["raspberrypi"]
+        self.assertEqual(job["uses"], "./.github/workflows/raspberrypi.yml")
+        self.assertIn("'raspberrypi'", job["if"])
+        for name in ("verify", "build"):
+            self.assertIn("target != 'raspberrypi'", workflow["jobs"][name]["if"])
+
+    def test_export_chroot_receives_a_shell_script_not_a_python_elf_as_shell_input(self):
+        script = 'on_chroot() { [ "$#" -eq 0 ] || return 71; cat; }; export -f on_chroot; export ARCH=armhf; bash "$1"'
+        result = subprocess.run(["bash", "-c", script, "bash", str(ROOT / "raspberrypi/export-check.sh")], capture_output=True, text=True, check=True)
+        self.assertIn("/usr/bin/python3 /usr/lib/oguzdows/verify-pi.py", result.stdout)
+        self.assertIn('--arch "armhf" --pre-export', result.stdout)
+
+    def test_browser_selects_netsurf_only_for_armv6_and_never_interprets_options(self):
+        for legacy, expected in ((True, "/usr/bin/netsurf-gtk"), (False, "/usr/bin/firefox-esr")):
+            with patch.object(pi, "armv6", return_value=legacy), patch.object(os, "execv") as execute, patch("sys.argv", ["oguzdows-browser", "https://example.org/"]):
+                load("oguzdows_browser_test", "raspberrypi/system/usr/local/bin/oguzdows-browser")
+                execute.assert_called_once_with(expected, [expected, "https://example.org/"])
+        with patch.object(os, "execv") as execute, patch("sys.argv", ["oguzdows-browser", "--private-window"]):
+            with self.assertRaises(SystemExit):
+                load("oguzdows_browser_test_rejected", "raspberrypi/system/usr/local/bin/oguzdows-browser")
+            execute.assert_not_called()
+
     def test_new_privileged_python_never_uses_a_shell(self):
         for path in (ROOT / "raspberrypi/system").rglob("*"):
             if path.is_file() and (path.suffix == ".py" or path.name == "oguzdows-browser"):
@@ -351,6 +375,7 @@ class PiImageValidationTests(unittest.TestCase):
                  ("etc/passwd", "oguz:x:1000:1000:live:/home/oguz:/bin/bash\n", "normal kullanıcı"),
                  ("etc/sudoers.d/bad", "oguz ALL=(ALL) NOPASSWD: ALL\n", "parolasız sudo"),
                  ("etc/machine-id", "cloned-id", "Makine kimliği"),
+                 ("etc/lightdm/lightdm.conf.d/99-unsafe.conf", "[Seat:*]\nautologin-user=oguz\n", "otomatik giriş"),
                  ("etc/ssh/ssh_host_ed25519_key", "copied-key", "SSH sunucu anahtarı"),
                  ("var/lib/oguzdows/firstboot.done", "{}", "taşınmaması")]
         for filename, content, expected in cases:
