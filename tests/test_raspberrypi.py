@@ -52,6 +52,11 @@ class PiConfigurationTests(unittest.TestCase):
                 self.assertFalse((overlay / "etc/skel/Masaüstü/oguzdows-install.desktop").exists())
                 self.assertTrue((overlay / "usr/share/plymouth/themes/oguzdows/oguzdows.script").is_file())
                 self.assertTrue((overlay / "usr/share/themes/OguzDows/gtk-3.0/gtk.css").is_file())
+                start = (overlay / "usr/share/oguzdows/start.html").read_text()
+                self.assertIn("Raspberry Pi", start)
+                self.assertIn("JavaScript yoktur", start)
+                self.assertNotIn("Canlı oturumdan kurulumu", start)
+                self.assertNotIn("açılış menüsündeki güvenli görüntüyü", start)
                 self.assertFalse(list(overlay.rglob("__pycache__")))
                 for path in (stage / "prerun.sh", stage / "00-desktop/01-run.sh", overlay / "usr/lib/oguzdows/pi-firstboot.py", overlay / "usr/local/bin/oguzdows-browser"):
                     self.assertTrue(os.access(path, os.X_OK), str(path))
@@ -120,6 +125,14 @@ class PiConfigurationTests(unittest.TestCase):
         self.assertIn("systemctl disable ssh.service", setup)
         self.assertNotIn("autologin-user=", setup)
         self.assertNotIn("init=/", setup)  # Resmî ilk açılış / bölüm büyütme korunur.
+
+    @unittest.skipUnless(shutil.which("systemd-analyze"), "systemd-analyze kurulu değil")
+    def test_pi_units_pass_the_real_systemd_unit_parser(self):
+        base = ROOT / "raspberrypi/system/etc/systemd/system"
+        result = subprocess.run(["systemd-analyze", "--man=no", "verify",
+                                 str(base / "oguzdows-pi-firstboot.service"),
+                                 str(base / "oguzdows-pi-tune.service")], capture_output=True, text=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
 
     def test_pi_workflow_is_separate_non_cancelling_and_checks_images(self):
         workflow = yaml.safe_load((ROOT / ".github/workflows/raspberrypi.yml").read_text())
