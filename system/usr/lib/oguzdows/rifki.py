@@ -12,6 +12,7 @@ from pathlib import Path
 import gi
 
 gi.require_version('Gtk', '3.0')
+gi.require_version('Gdk', '3.0')
 gi.require_foreign('cairo')
 from gi.repository import Gdk, GdkPixbuf, GLib, Gtk
 

@@ -12,6 +12,7 @@ from pathlib import Path
 import gi
 
 gi.require_version("Gtk", "3.0")
+gi.require_version("Gdk", "3.0")
 from gi.repository import Gdk, GLib, Gtk
 
 from support import ROOT, load
@@ -27,7 +28,11 @@ def main():
         raise RuntimeError("GTK için bir görüntü sunucusu gerekli; Xvfb ile çalıştırın.")
     errors = []
     original_hook = sys.excepthook
-    sys.excepthook = lambda kind, value, trace: errors.append(str(value))
+    def report_exception(kind, value, trace):
+        if str(value) not in errors:
+            errors.append(str(value))
+            original_hook(kind, value, trace)
+    sys.excepthook = report_exception
     with tempfile.TemporaryDirectory(prefix="oguzdows-ui-") as state:
         os.environ["XDG_STATE_HOME"] = state
         os.environ["XDG_CONFIG_HOME"] = state
