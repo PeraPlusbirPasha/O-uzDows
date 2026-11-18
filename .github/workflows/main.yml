@@ -50,7 +50,7 @@ jobs:
         run: |
           apt-get update
           apt-get install -y --no-install-recommends python3 python3-yaml python3-pil \
-            python3-gi python3-gi-cairo gir1.2-gtk-3.0 gir1.2-wnck-3.0 espeak-ng shellcheck fonts-inter fonts-noto-core \
+            python3-gi gir1.2-gtk-3.0 shellcheck fonts-inter fonts-noto-core \
             fonts-dejavu-core adwaita-icon-theme xauth xvfb dbus-x11 pciutils usbutils rfkill \
             calamares x11-utils
 
@@ -71,6 +71,14 @@ jobs:
             xvfb-run -a -s '-screen 0 1024x768x24' dbus-run-session -- \
             python3 tests/smoke-welcome.py --output test-results
 
+      - name: Hafif başlatıcı, boşta yük ve kurulumda Rıfkı duraklatma
+        run: |
+          for component in welcome rifki installer coordination; do
+            python3 scripts/ci-run.py --title "Hafif arayüz $component" -- \
+              xvfb-run -a -s '-screen 0 1024x768x24' dbus-run-session -- \
+              python3 tests/smoke-lightweight.py --component "$component" --output test-results
+          done
+
       - name: Gerçek kurucuyu disk işlemi yapmadan aç
         run: |
           python3 scripts/configure.py --arch '${{ matrix.suite == 'trixie' && 'amd64' || 'i386' }}' --output /tmp/oguzdows-smoke
@@ -88,6 +96,7 @@ jobs:
           path: |
             test-results/*.png
             test-results/*.log
+            test-results/*.json
           if-no-files-found: warn
           retention-days: 7
 

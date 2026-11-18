@@ -14,7 +14,6 @@ import offline
 import wallpapers
 import boot_report
 import install_status as installer_state
-from rifki import Avatar, Companion
 from pi_support import current_policy, is_pi, model as pi_model
 
 import gi
@@ -40,6 +39,7 @@ class Welcome(Gtk.Application):
         self.state_file = state_home / "oguzdows/welcome-seen"
         self.window = None
         self.driver_busy = False
+        self.driver_eligibility = (False,False)
         self.install_busy = False
         self.report_loading = False
         self.report_text = ""
@@ -48,6 +48,62 @@ class Welcome(Gtk.Application):
         self.rifki = None
         self.install_data = {}
         self.previous_session = None
+        self.external_installing = False
+        self.launcher_group = None
+        self.launcher_signals = []
+        self.launcher_watch = None
+
+    def do_startup(self):
+        Gtk.Application.do_startup(self)
+        # Bağımsız masaüstü kısayolundan açılan kurucu da açık Rıfkı'yı susturur.
+        # D-Bus durum bildirimi kullanılır; boştayken dosya tarayan zamanlayıcı yok.
+        self.launcher_watch=Gio.bus_watch_name(
+            Gio.BusType.SESSION,'org.oguzdows.HafifKurucu',Gio.BusNameWatcherFlags.NONE,
+            self.launcher_appeared,self.launcher_vanished)
+
+    def do_shutdown(self):
+        if self.launcher_watch is not None:
+            Gio.bus_unwatch_name(self.launcher_watch)
+            self.launcher_watch=None
+        self.launcher_vanished(None,None)
+        Gtk.Application.do_shutdown(self)
+
+    def launcher_appeared(self,connection,name,_owner):
+        self.launcher_vanished(None,None)
+        self.launcher_group=Gio.DBusActionGroup.get(connection,name,'/org/oguzdows/HafifKurucu')
+        self.launcher_signals=[
+            self.launcher_group.connect('action-added',self.launcher_action_added),
+            self.launcher_group.connect('action-state-changed',self.launcher_state_changed),
+        ]
+        self.launcher_group.list_actions()  # İlk durum arka planda alınır.
+
+    def launcher_vanished(self,*_):
+        if self.launcher_group is not None:
+            for signal in self.launcher_signals:
+                self.launcher_group.disconnect(signal)
+        self.launcher_group=None
+        self.launcher_signals=[]
+        self.set_external_installing(False)
+
+    def launcher_action_added(self,group,name):
+        if name=='busy':
+            state=group.get_action_state(name)
+            if state is not None:
+                self.launcher_state_changed(group,name,state)
+
+    def launcher_state_changed(self,_group,name,state):
+        if name=='busy' and state.is_of_type(GLib.VariantType.new('b')):
+            self.set_external_installing(state.get_boolean())
+
+    def set_external_installing(self,value):
+        self.external_installing=bool(value)
+        busy=self.install_busy or self.external_installing
+        if self.rifki:
+            self.rifki.set_installing(busy)
+        if self.window is not None and not is_pi():
+            self.install_button.set_sensitive(not busy and not self.driver_busy and self.can_install())
+            for button,eligible in zip((self.broadcom_button,self.intel_button),self.driver_eligibility):
+                button.set_sensitive(eligible and not busy and not self.driver_busy)
 
     def do_command_line(self, command_line: Gio.ApplicationCommandLine) -> int:
         args = set(command_line.get_arguments()[1:])
@@ -62,7 +118,7 @@ class Welcome(Gtk.Application):
             self.show_drivers()
         if "--wallpapers" in args:
             self.stack.set_visible_child_name("wallpapers")
-        if "--assistant" in args or "--autostart" in args:
+        if "--assistant" in args:
             self.open_assistant()
         if "--install" in args:
             self.stack.set_visible_child_name("welcome")
@@ -97,7 +153,7 @@ class Welcome(Gtk.Application):
         reduced = not current_policy()["animations"] if is_pi() else light_profile(read_text(Path("/proc/cmdline")), memory_kib())
         reduced = reduced or not Gtk.Settings.get_default().get_property("gtk-enable-animations")
         self.reduced = reduced
-        self.stack.set_transition_type(Gtk.StackTransitionType.NONE if reduced else Gtk.StackTransitionType.CROSSFADE)
+        self.stack.set_transition_type(Gtk.StackTransitionType.NONE)
         self.stack.set_transition_duration(160)
         switcher = Gtk.StackSwitcher(stack=self.stack)
         switcher.set_halign(Gtk.Align.CENTER)
@@ -117,7 +173,11 @@ class Welcome(Gtk.Application):
     def welcome_page(self) -> Gtk.Box:
         page = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=18)
         hero = Gtk.Box(spacing=22)
-        image = Avatar(reduced=self.reduced, size=156)
+        image = Gtk.Image()
+        try:
+            image.set_from_pixbuf(GdkPixbuf.Pixbuf.new_from_file_at_scale('/usr/share/oguzdows/rifki/idle.png',128,128,True))
+        except GLib.Error:
+            image.set_from_icon_name('oguzdows',Gtk.IconSize.DIALOG)
         image.set_valign(Gtk.Align.CENTER)
         hero.pack_start(image, False, False, 0)
         words = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=9)
@@ -238,6 +298,16 @@ class Welcome(Gtk.Application):
         grid.set_max_children_per_line(3)
         grid.set_column_spacing(10)
         grid.set_row_spacing(10)
+        self.wallpaper_grid=grid
+        page.pack_start(grid, False, False, 0)
+        self.wallpaper_status = label("Seçimin SD/USB üzerinde kaydedilir; yeniden başlatınca korunur." if is_pi() else "Seçimin sonraki oturumda korunur. Canlı USB'de kalıcılık yoksa yeniden başlatmada sıfırlanır.", "muted", 90)
+        page.pack_start(self.wallpaper_status, False, False, 0)
+        return page
+
+    def populate_wallpapers(self):
+        if self.wallpaper_buttons:
+            return
+        grid=self.wallpaper_grid
         for item in wallpapers.catalog():
             button = Gtk.Button()
             box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
@@ -253,10 +323,7 @@ class Welcome(Gtk.Application):
             button.connect("clicked", lambda _, choice=item: self.apply_wallpaper(choice))
             grid.add(button)
             self.wallpaper_buttons.append(button)
-        page.pack_start(grid, False, False, 0)
-        self.wallpaper_status = label("Seçimin SD/USB üzerinde kaydedilir; yeniden başlatınca korunur." if is_pi() else "Seçimin sonraki oturumda korunur. Canlı USB'de kalıcılık yoksa yeniden başlatmada sıfırlanır.", "muted", 90)
-        page.pack_start(self.wallpaper_status, False, False, 0)
-        return page
+        grid.show_all()
 
     def apply_wallpaper(self, item):
         for button in self.wallpaper_buttons:
@@ -281,6 +348,8 @@ class Welcome(Gtk.Application):
 
     def page_changed(self, *_):
         page=self.stack.get_visible_child_name()
+        if page=='wallpapers':
+            self.populate_wallpapers()
         if page == "hardware" and not self.report_text:
             self.load_report()
         if self.rifki and page!='install-result':
@@ -295,7 +364,7 @@ class Welcome(Gtk.Application):
         self.stack.set_visible_child_name("hardware")
 
     def load_report(self):
-        if self.report_loading or self.driver_busy or self.install_busy:
+        if self.report_loading or self.driver_busy or self.install_busy or self.external_installing:
             return
         self.report_loading = True
         self.refresh_button.set_sensitive(False)
@@ -313,12 +382,13 @@ class Welcome(Gtk.Application):
     def report_ready(self, text, broadcom, intel):
         self.report_loading = False
         self.report_text = text
+        self.driver_eligibility = (bool(broadcom),bool(intel))
         self.report_view.get_buffer().set_text(text)
         self.spinner.stop()
         self.refresh_button.set_sensitive(True)
         self.save_button.set_sensitive(True)
-        self.broadcom_button.set_sensitive(bool(broadcom) and not self.driver_busy and not self.install_busy)
-        self.intel_button.set_sensitive(bool(intel) and not self.driver_busy and not self.install_busy)
+        self.broadcom_button.set_sensitive(bool(broadcom) and not self.driver_busy and not self.install_busy and not self.external_installing)
+        self.intel_button.set_sensitive(bool(intel) and not self.driver_busy and not self.install_busy and not self.external_installing)
         for button, devices in ((self.broadcom_button, broadcom), (self.intel_button, intel)):
             button.set_tooltip_text("Algılanan uyumlu aygıt: " + ", ".join(devices) if devices else "Bu ek sürücüyle eşleşen bir kart algılanmadı. Raporundaki PCI/USB kimliğini paylaşabilirsin.")
         self.status.set_text("Rapor hazır. SÜRÜCÜ BAĞLI DEĞİL satırları ayrıca incelenmelidir. Bilgilerin gönderilmedi.")
@@ -340,7 +410,7 @@ class Welcome(Gtk.Application):
         return is_live() and Path("/usr/local/sbin/oguzdows-installer").is_file()
 
     def install(self, *_):
-        if self.install_busy or self.driver_busy:
+        if self.install_busy or self.external_installing or self.driver_busy:
             self.message("Başka bir işlem devam ediyor.", "Kurucu veya sürücü işlemi tamamlanana kadar bekle.")
             return GLib.SOURCE_REMOVE
         if not self.can_install():
@@ -349,7 +419,8 @@ class Welcome(Gtk.Application):
         self.install_busy = True
         self.previous_session = installer_state.read_status().get('session')
         self.install_data = {}
-        self.open_assistant()
+        if self.rifki:
+            self.rifki.set_installing(True)
         GLib.timeout_add(800, self.poll_installation)
         self.install_button.set_sensitive(False)
         self.broadcom_button.set_sensitive(False)
@@ -415,9 +486,7 @@ class Welcome(Gtk.Application):
 
     def install_finished(self, code, detail, output=''):
         self.install_busy = False
-        self.install_button.set_sensitive(self.can_install())
-        self.broadcom_button.set_sensitive(bool(supported_broadcom()))
-        self.intel_button.set_sensitive(bool(supported_intel_legacy()))
+        self.set_external_installing(self.external_installing)
         data = installer_state.from_output(code, output)
         self.install_data = data
         title, explanation = installer_state.description(data)
@@ -430,10 +499,10 @@ class Welcome(Gtk.Application):
         self.stack.set_visible_child_name('install-result')
         self.window.present()
         if self.rifki:
-            self.rifki.set_keep_above(False)
+            self.rifki.set_installing(self.external_installing)
             self.rifki.installation(data)
         if not success:
-            self.message(title, (explanation + '\n\n' + detail + '\n\nGünlük: /var/log/oguzdows/installer.log').strip())
+            self.message(title, (explanation + '\n\n' + detail + '\n\nGünlük: /var/log/oguzdows/installer.log').strip(),False)
         return GLib.SOURCE_REMOVE
 
     def open_assistant(self):
@@ -445,9 +514,15 @@ class Welcome(Gtk.Application):
                 'wallpapers': lambda: self.navigate('wallpapers'),
                 'install': lambda: self.navigate('welcome'),
             }
-            self.rifki = Companion(self, callbacks, reduced=self.reduced,owner=lambda:self.window)
+            try:
+                from rifki import Companion
+                self.rifki = Companion(self,callbacks,reduced=self.reduced,installing=self.install_busy or self.external_installing)
+            except (ImportError,OSError,GLib.Error):
+                self.message('Rıfkı açılamadı.','Kurulum yardımcısı bağımsızdır; OğuzDows’u kur düğmesini kullanabilirsin.')
+                return
             self.rifki.connect('destroy', self.assistant_closed)
             self.rifki.show_all()
+        self.rifki.current_page=self.stack.get_visible_child_name()
         self.rifki.set_keep_above(False)
         self.rifki.present()
         if self.install_data:
@@ -483,7 +558,7 @@ class Welcome(Gtk.Application):
             self.message("Uygulama başlatılamadı.", "Gerekli bileşenin kurulu olduğunu kontrol et.")
 
     def install_driver(self, action):
-        if self.driver_busy or self.report_loading or self.install_busy:
+        if self.driver_busy or self.report_loading or self.install_busy or self.external_installing:
             return
         text = offline.license_text(action)
         if not text:
@@ -543,14 +618,12 @@ class Welcome(Gtk.Application):
         self.driver_busy = False
         self.spinner.stop()
         self.refresh_button.set_sensitive(True)
-        self.broadcom_button.set_sensitive(bool(supported_broadcom()))
-        self.intel_button.set_sensitive(bool(supported_intel_legacy()))
-        self.install_button.set_sensitive(self.can_install())
+        self.set_external_installing(self.external_installing)
         self.status.set_text(text)
         return GLib.SOURCE_REMOVE
 
-    def message(self, title, detail):
-        if self.rifki:
+    def message(self, title, detail, narrate=True):
+        if self.rifki and narrate:
             self.rifki.say(title+' '+detail)
         dialog = Gtk.MessageDialog(transient_for=self.window, modal=True, message_type=Gtk.MessageType.INFO, buttons=Gtk.ButtonsType.CLOSE, text=title)
         dialog.format_secondary_text(detail)

@@ -94,8 +94,9 @@ def main():
         def gallery():
             try:
                 screenshot("welcome-small.png")
-                assert len(app.wallpaper_buttons) == 12, "Türkiye galerisinde on iki seçim bulunmalı"
+                assert len(app.wallpaper_buttons)==0, 'Galeri başlangıçta yüklenmemeli'
                 app.stack.set_visible_child_name("wallpapers")
+                assert len(app.wallpaper_buttons)==12, 'Galeri yalnızca açılınca yüklenmeli'
             except Exception as error:
                 errors.append(str(error))
             return GLib.SOURCE_REMOVE
@@ -146,27 +147,21 @@ def main():
                 assert app.restart_button.get_visible()
                 screenshot("install-success.png")
                 app.open_assistant()
-                assert app.rifki.avatar.scene is not None
-                assert set(app.rifki.avatar.scene.manifest['poses'])=={'perch','leap','play','tea'}
+                assert set(app.rifki.avatar.frames)=={'idle','blink','talk'}
+                assert app.rifki.avatar.timer is None
+                assert not app.rifki.motion.get_active()
+                assert 'rifki_pet' not in sys.modules and 'rifki_scene' not in sys.modules
                 spoken=[]
                 original_speak=app.rifki.speaker.speak
                 app.rifki.speaker.speak=lambda text,*_:spoken.append(text)
                 for topic in ('disk','boot','internet','sürücü','duvar','pil','kurulum','bilinmeyen soru'):
                     app.rifki.ask(topic)
-                assert len(spoken)==8 and all(spoken), 'Her yardım yanıtı seslendirme yoluna girmeli'
-                for page in ('welcome','hardware','wallpapers','settings'):
-                    app.rifki.narrate_page(page,force=True)
-                assert len(spoken)==12
+                assert len(spoken)==8 and all(spoken)
+                app.rifki.set_installing(True)
+                app.rifki.say('Kurulumda sessiz metin')
+                assert len(spoken)==8, 'Kurulum sırasında otomatik ses çağrılmamalı'
+                app.rifki.set_installing(False)
                 app.rifki.speaker.speak=original_speak
-                app.rifki.attach.set_active(True)
-                app.rifki.ensure_pet()
-                from rifki_motion import Rect
-                app.rifki.pet.anchor_override=Rect(90,210,800,490)
-                app.rifki.pet.follow()
-                assert app.rifki.pet.get_visible()
-                assert app.rifki.pet.get_window().get_pass_through(), 'Kedi tıklamaları kurucuya geçirmeli'
-                assert not app.rifki.pet.get_accept_focus(), 'Kedi klavye odağını çalmamalı'
-                app.rifki.perform('tea')
                 app.rifki.ask("diskten açılmıyor")
                 assert app.rifki.action_name == 'boot-report'
                 app.rifki.speaker.set_enabled(False)
@@ -178,15 +173,6 @@ def main():
                         pixbuf = Gdk.pixbuf_get_from_window(window, 0, 0, width, height)
                         assert pixbuf is not None
                         pixbuf.savev(str(args.output / 'rifki.png'), 'png', [], [])
-                        assert app.rifki.pet.view.frame is not None
-                        pet_window=app.rifki.pet.get_window()
-                        pet_width,pet_height=app.rifki.pet.get_size()
-                        pet_pixbuf=Gdk.pixbuf_get_from_window(pet_window,0,0,pet_width,pet_height)
-                        assert pet_pixbuf is not None
-                        pet_pixbuf.savev(str(args.output/'rifki-pencere.png'),'png',[],[])
-                        app.rifki.pet.anchor_override=Rect(0,0,1024,768)
-                        app.rifki.pet.follow()
-                        assert not app.rifki.pet.get_visible(), 'Üstte yer yokken kontrol üstüne çizilmemeli'
                         app.rifki.destroy()
                         app.show_drivers()
                         screenshot("hardware.png")

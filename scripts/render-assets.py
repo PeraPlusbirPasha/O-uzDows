@@ -430,7 +430,7 @@ def render(root: Path) -> None:
     source = Path(__file__).resolve().parents[1] / "system/usr/share/oguzdows/rifki"
     target = root / "usr/share/oguzdows/rifki"
     if source.is_dir() and source.resolve() != target.resolve():
-        shutil.copytree(source, target, dirs_exist_ok=True)
+        shutil.copytree(source, target, dirs_exist_ok=True, ignore=shutil.ignore_patterns("rig", "envelopes.json", "intro-full.wav", "hello.wav", "help.wav", "disk.wav", "talk-blink.png"))
     for size in (24, 32, 48, 64, 128, 256):
         save(emblem(size, tile=True), root, f"usr/share/icons/hicolor/{size}x{size}/apps/oguzdows.png")
     brand = "usr/share/oguzdows/brand/"

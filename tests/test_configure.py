@@ -44,6 +44,11 @@ class ConfigurationTests(unittest.TestCase):
                     launcher = overlay / "etc/skel/Masaüstü" / name
                     self.assertTrue(launcher.is_file())
                     self.assertTrue(os.access(launcher, os.X_OK))
+                self.assertTrue((overlay / 'usr/lib/oguzdows/install_launcher.py').is_file())
+                for name in ('rifki_pet.py','rifki_scene.py','rifki_motion.py'):
+                    self.assertFalse((overlay / 'usr/lib/oguzdows' / name).exists())
+                for name in ('rig','envelopes.json','intro-full.wav'):
+                    self.assertFalse((overlay / 'usr/share/oguzdows/rifki' / name).exists())
                 self.assertFalse(list(overlay.rglob("__pycache__")))
                 for path in (overlay / "usr/lib/oguzdows").glob("*.py"):
                     self.assertTrue(os.access(path, os.X_OK))

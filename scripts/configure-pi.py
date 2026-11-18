@@ -15,7 +15,7 @@ PC_ONLY = (
     "etc/systemd/system/oguzdows-live-setup.service",
     "usr/lib/oguzdows/live-setup.sh", "usr/lib/oguzdows/finish-install.sh",
     "usr/lib/oguzdows/prepare-install.py", "usr/lib/oguzdows/cache-drivers.py",
-    "usr/lib/oguzdows/run-installer.py", "usr/lib/oguzdows/install-target-driver.py",
+    "usr/lib/oguzdows/install_launcher.py", "usr/lib/oguzdows/run-installer.py", "usr/lib/oguzdows/install-target-driver.py",
     "usr/lib/oguzdows/driver_transfer.py",
     "usr/local/bin/oguzdows-install", "usr/local/sbin/oguzdows-installer",
     "usr/local/sbin/oguzdows-driver-helper", "usr/share/applications/oguzdows-install.desktop",
@@ -48,7 +48,7 @@ def configure(arch: str, output: Path) -> None:
     shutil.copytree(ROOT / "raspberrypi/stage", stage)
     overlay = stage / "00-desktop/files/overlay"
     shutil.copytree(ROOT / "system", overlay,
-                    ignore=shutil.ignore_patterns("__pycache__", "*.py[cod]"))
+                    ignore=shutil.ignore_patterns("__pycache__", "*.py[cod]", "rifki_pet.py", "rifki_scene.py", "rifki_motion.py", "rig", "envelopes.json", "intro-full.wav", "hello.wav", "help.wav", "disk.wav", "talk-blink.png"))
     for name in PC_ONLY:
         path = overlay / name
         if path.is_dir():

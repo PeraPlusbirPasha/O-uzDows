@@ -20,6 +20,8 @@ Rectangle {
                 anchors.margins: 6
                 source: "file:///usr/share/oguzdows/rifki/idle.png"
                 fillMode: Image.PreserveAspectFit
+                sourceSize.width: 144
+                sourceSize.height: 144
             }
         }
         Text {
@@ -33,7 +35,7 @@ Rectangle {
         }
         Text {
             width: parent.width
-            text: "OğuzDows bilgisayarına yerleşiyor.\nDiskini ve gücü bağlı tut. Gerçek ilerlemeyi kurucudan izle.\n\nTakıldığında Rıfkı penceresine yazabilirsin.\nKurulum bittiğinde açık bir sonuç ekranı göreceksin."
+            text: "OğuzDows bilgisayarına yerleşiyor.\nDiskini ve gücü bağlı tut. Gerçek ilerlemeyi kurucudan izle.\n\nRıfkı yalnızca istersen açılır; kurulumda sakin kalır.\nKurulum bittiğinde açık bir sonuç ekranı göreceksin."
             color: "#c3c9d4"
             font.pixelSize: 15
             horizontalAlignment: Text.AlignHCenter
@@ -44,17 +46,5 @@ Rectangle {
             color: "#3fc5c1"
             anchors.horizontalCenter: parent.horizontalCenter
         }
-    }
-    Timer {
-        interval: 4600; repeat: true; running: slide.active && slide.visible
-        onTriggered: {
-            cat.source = "file:///usr/share/oguzdows/rifki/blink.png"
-            openEyes.restart()
-        }
-    }
-    Timer {
-        id: openEyes
-        interval: 180
-        onTriggered: cat.source = "file:///usr/share/oguzdows/rifki/idle.png"
     }
 }

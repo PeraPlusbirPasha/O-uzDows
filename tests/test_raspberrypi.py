@@ -48,6 +48,9 @@ class PiConfigurationTests(unittest.TestCase):
                     self.assertNotIn(package, packages)
                 for name in config.PC_ONLY:
                     self.assertFalse((overlay / name).exists(), name)
+                for name in ('rifki_pet.py','rifki_scene.py','rifki_motion.py'):
+                    self.assertFalse((overlay / 'usr/lib/oguzdows' / name).exists())
+                self.assertFalse((overlay / 'usr/share/oguzdows/rifki/rig').exists())
                 self.assertTrue((overlay / "etc/skel/Masaüstü/oguzdows-welcome.desktop").is_file())
                 self.assertFalse((overlay / "etc/skel/Masaüstü/oguzdows-install.desktop").exists())
                 self.assertTrue((overlay / "usr/share/plymouth/themes/oguzdows/oguzdows.script").is_file())

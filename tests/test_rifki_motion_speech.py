@@ -1,9 +1,8 @@
 """Hareket / ses testleri; pencere veya gerçek ses aygıtı açılmaz."""
+import ast
 import json
 import math
 import os
-import shutil
-import subprocess
 import tempfile
 import unittest
 import wave
@@ -21,13 +20,6 @@ model=load('rifki_model_more_tests','system/usr/lib/oguzdows/rifki_model.py')
 dialogue=load('rifki_dialogue_tests','system/usr/lib/oguzdows/rifki_dialogue.py')
 ASSETS=ROOT/'system/usr/share/oguzdows/rifki'
 
-
-def silent_wav(path):
-    with wave.open(str(path),'wb') as out:
-        out.setnchannels(1)
-        out.setsampwidth(2)
-        out.setframerate(22050)
-        out.writeframes(b'\0\0'*2205)
 
 
 class MotionTests(unittest.TestCase):
@@ -87,73 +79,107 @@ class MotionTests(unittest.TestCase):
                 renderer.render('tea',i/20)
         self.assertLessEqual(len(renderer.cache),24)
 
-    def test_motion_questions_do_not_become_system_commands(self):
-        for question,expected in (('zıpla','jump'),('kuyruğunu salla','tail'),('tüy topuyla oyna','feather'),('çay demle','tea')):
+    def test_motion_requests_explain_simplification_without_starting_actions(self):
+        for question in ('zıpla','kuyruğunu salla','tüy topuyla oyna','çay demle'):
             answer=model.reply(question)
-            self.assertEqual(answer['motion'],expected)
+            self.assertNotIn('motion',answer)
+            self.assertIn('yormamak',answer['text'])
             self.assertIsNone(answer['action'])
         self.assertEqual(model.reply('sudo rm -rf /dev/test')['action'],'boot-report')
 
 
 class SpeechTests(unittest.TestCase):
-    def test_ready_audio_is_matched_by_the_entire_text_never_by_a_generic_success_tag(self):
-        mapping=json.loads((ASSETS/'speech.json').read_text())
-        self.assertEqual(len(mapping),10)
-        for text in (dialogue.HELLO,*[dialogue.PANELS[name] for name in ('welcome','hardware','wallpapers')],*[model.reply(topic)['text'] for topic in ('boot','internet','sürücü','duvar','pil','kurulum')]):
-            self.assertIsNotNone(speech.ready_clip(text,ASSETS),text)
-        self.assertIsNone(speech.ready_clip('Kurulum başarısız oldu.',ASSETS))
-        self.assertIsNone(speech.ready_clip('OğuzDows başarıyla kuruldu. Değişen disk adı.',ASSETS))
+    def test_every_basic_topic_and_panel_has_a_recorded_natural_voice(self):
+        texts=[dialogue.HELLO,dialogue.LIGHT_NOTE,*dialogue.PANELS.values(),*[model.reply(t)['text'] for t in ('disk','boot','internet','sürücü','duvar','pil','kurulum','merhaba')],*[dialogue.STAGES[t][1] for t in ('preparing','ready','bootloader')]]
+        for text in texts:
+            path=speech.ready_clip(text,ASSETS)
+            self.assertIsNotNone(path,text)
+            with wave.open(str(path),'rb') as audio:
+                self.assertGreater(audio.getnframes(),audio.getframerate())
+        for name in speech.CUES.values():
+            self.assertTrue((ASSETS/name).is_file(),name)
 
-    def test_arbitrary_text_is_stdin_not_a_shell_or_a_speech_option(self):
-        with tempfile.TemporaryDirectory() as temporary:
-            directory=Path(temporary)/'voice'
-            calls=[]
-            def run(command,**kwargs):
-                calls.append((command,kwargs))
-                silent_wav(Path(command[command.index('-w')+1]))
-                return subprocess.CompletedProcess(command,0)
-            text='--option; $(touch /tmp/never) Türkçe yanıt'
-            with patch.object(speech.subprocess,'run',side_effect=run):
-                path=speech.synthesize(text,directory,engine='/usr/bin/espeak-ng')
-                self.assertEqual(len(calls),1)
-                self.assertNotIn(text,calls[0][0])
-                self.assertEqual(calls[0][1]['input'],text)
-                self.assertEqual(calls[0][0][-1],'--stdin')
-                self.assertIn('tr',calls[0][0])
-                self.assertEqual(path.stat().st_mode & 0o777,0o600)
-                self.assertEqual(directory.stat().st_mode & 0o777,0o700)
-                self.assertEqual(speech.synthesize(text,directory),path)
-                self.assertEqual(len(calls),1)
-
-    def test_failed_synthesis_does_not_publish_a_broken_audio_file(self):
-        with tempfile.TemporaryDirectory() as temporary:
-            directory=Path(temporary)/'voice'
-            with patch.object(speech.subprocess,'run',side_effect=subprocess.CalledProcessError(1,'fake')):
-                with self.assertRaises(subprocess.CalledProcessError):
-                    speech.synthesize('hata',directory,engine='/usr/bin/espeak-ng')
-            self.assertEqual(list(directory.iterdir()),[])
-
-    def test_stale_synthesis_after_new_message_or_mute_cannot_play(self):
-        with tempfile.TemporaryDirectory() as temporary, patch.dict(os.environ,{'XDG_CONFIG_HOME':temporary}):
-            speaker=speech.Speaker(lambda f,*a:f(*a))
-            generation=speaker.generation
-            speaker.stop()
-            with patch.object(speech.subprocess,'Popen') as popen:
-                speaker.play_ready(generation,Path('/unused.wav'),[])
-                popen.assert_not_called()
-            speaker.set_enabled(False)
-            self.assertFalse(speaker.enabled)
-            self.assertFalse(json.loads(speaker.preference.read_text())['speech'])
+    def test_unknown_text_never_starts_a_synthesizer_or_guesses_success(self):
+        with tempfile.TemporaryDirectory() as temporary, patch.dict(os.environ,{'XDG_CONFIG_HOME':temporary,'OGUZDOWS_TESTING':''}):
+            speaker=speech.Speaker(lambda f,*a:f(*a),assets=ASSETS)
+            with patch.object(speech.subprocess,'Popen') as process:
+                self.assertFalse(speaker.speak('--option; $(touch /tmp/never) bilinmeyen metin'))
+                process.assert_not_called()
+            self.assertFalse(hasattr(speech,'synthesize'))
+            self.assertFalse(hasattr(speech,'envelope'))
             speaker.close()
 
-    @unittest.skipUnless(shutil.which('espeak-ng'),'Türkçe ses motoru yerelde yok; iki tabanlı CI bunu gerçekten çalıştırır')
-    def test_real_offline_turkish_engine_generates_all_panel_and_dynamic_result_text(self):
+    def test_only_a_fixed_audio_player_is_spawned_and_wav_content_is_not_scanned(self):
+        with tempfile.TemporaryDirectory() as temporary, patch.dict(os.environ,{'XDG_CONFIG_HOME':temporary,'OGUZDOWS_TESTING':''}):
+            speaker=speech.Speaker(lambda f,*a:f(*a),assets=ASSETS)
+            with patch.object(speech.shutil,'which',return_value='/usr/bin/paplay'), patch.object(speech.subprocess,'Popen') as process, patch.object(speech.threading,'Thread'):
+                process.return_value.poll.return_value=None
+                self.assertTrue(speaker.speak(dialogue.HELLO))
+                self.assertEqual(process.call_args.args[0],['/usr/bin/paplay',str(ASSETS/'intro-light.wav')])
+                speaker.stop()
+                process.return_value.terminate.assert_called_once()
+                process.return_value.wait.assert_not_called()
+            speaker.close()
+
+    def test_new_silent_message_stops_the_old_clip_and_a_process_exit_race_is_safe(self):
+        with tempfile.TemporaryDirectory() as temporary, patch.dict(os.environ,{'XDG_CONFIG_HOME':temporary}):
+            speaker=speech.Speaker(lambda f,*a:f(*a),assets=ASSETS)
+            process=unittest.mock.Mock()
+            process.poll.return_value=None
+            process.terminate.side_effect=ProcessLookupError('already exited')
+            speaker.process=process
+            speaker.playing=True
+            self.assertFalse(speaker.speak('Bu değişken mesajın kaydı yok.'))
+            self.assertFalse(speaker.playing)
+            self.assertIsNone(speaker.process)
+            process.terminate.assert_called_once()
+            process.wait.assert_not_called()
+            speaker.close()
+
+    def test_audio_manifest_rejects_traversal_symlinks_and_invalid_json(self):
         with tempfile.TemporaryDirectory() as temporary:
-            for text in (*dialogue.PANELS.values(),'Kurulum tamamlanamadı. Ek sürücü uyarısı var.'):
-                path=speech.synthesize(text,Path(temporary)/'voice')
-                with wave.open(str(path),'rb') as audio:
-                    self.assertGreater(audio.getnframes(),audio.getframerate())
-                self.assertTrue(any(v>0 for v in speech.envelope(path)))
+            root=Path(temporary)
+            manifest=root/'speech.json'
+            for value in ('../success.wav','/tmp/success.wav',9,{},'success.mp3'):
+                manifest.write_text(json.dumps({speech.text_key('mesaj'):value}))
+                self.assertIsNone(speech.ready_clip('mesaj',root))
+            manifest.write_text('{bad}')
+            self.assertIsNone(speech.ready_clip('mesaj',root))
+            manifest.write_text(json.dumps({speech.text_key('mesaj'):'link.wav'}))
+            (root/'link.wav').symlink_to(ASSETS/'success.wav')
+            self.assertIsNone(speech.ready_clip('mesaj',root))
+
+    def test_old_heavy_preferences_cannot_turn_on_the_removed_pet(self):
+        with tempfile.TemporaryDirectory() as temporary, patch.dict(os.environ,{'XDG_CONFIG_HOME':temporary}):
+            path=Path(temporary)/'oguzdows/rifki.json'
+            path.parent.mkdir()
+            path.write_text(json.dumps({'pet':True,'auto':True,'speech':False}))
+            speaker=speech.Speaker(lambda f,*a:f(*a))
+            self.assertFalse(speaker.options['pet'])
+            self.assertFalse(speaker.options['auto'])
+            self.assertFalse(speaker.enabled)
+            speaker.close()
+
+    def test_muting_and_generation_guard_stale_playback_completion(self):
+        with tempfile.TemporaryDirectory() as temporary, patch.dict(os.environ,{'XDG_CONFIG_HOME':temporary}):
+            speaker=speech.Speaker(lambda f,*a:f(*a))
+            before=speaker.generation
+            speaker.set_enabled(False)
+            self.assertGreater(speaker.generation,before)
+            self.assertFalse(json.loads(speaker.preference.read_text())['speech'])
+            speaker.finished(before,1)
+            speaker.close()
+
+    def test_active_entrypoints_import_neither_rig_nor_tts_and_no_cairo_is_needed(self):
+        forbidden={'PIL','cairo','rifki_scene','rifki_pet','rifki_motion'}
+        for name in ('rifki.py','rifki_speech.py','install_launcher.py'):
+            tree=ast.parse((ROOT/'system/usr/lib/oguzdows'/name).read_text())
+            modules={node.module.split('.')[0] for node in ast.walk(tree) if isinstance(node,ast.ImportFrom) and node.module}
+            modules.update(alias.name.split('.')[0] for node in ast.walk(tree) if isinstance(node,ast.Import) for alias in node.names)
+            self.assertFalse(modules & forbidden,(name,modules & forbidden))
+        packages=(ROOT/'packages/common.list').read_text().splitlines()
+        self.assertNotIn('espeak-ng',packages)
+        self.assertNotIn('gir1.2-wnck-3.0',packages)
 
 
 if __name__=='__main__':

@@ -158,7 +158,7 @@ class ContractsTests(unittest.TestCase):
         self.assertNotIn("--config /etc/calamares/settings.conf", script)
         self.assertIn("flock -n", script)
         self.assertIn("installer.log", script)
-        self.assertIn("--install", (ROOT / "system/usr/local/bin/oguzdows-install").read_text())
+        self.assertIn("/usr/lib/oguzdows/install_launcher.py", (ROOT / "system/usr/local/bin/oguzdows-install").read_text())
         settings = yaml.safe_load((ROOT / "installer/settings.conf").read_text())
         sequence = settings["sequence"][1]["exec"]
         self.assertLess(sequence.index("oguzdowsdrivers@drivers"), sequence.index("initramfs"))

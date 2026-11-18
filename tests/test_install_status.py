@@ -138,6 +138,14 @@ class RifkiTests(unittest.TestCase):
         self.assertIn('Genel amaçlı', model.reply('bana bir roman yaz')['text'])
         self.assertEqual(model.reply('bitti', {'outcome': 'success', 'complete': True})['clip'], 'success')
 
+    def test_a_result_question_while_installing_does_not_announce_failure_or_success(self):
+        for outcome,stage in (('preparing','preparing'),('ready','ready'),('running','copying'),('running','bootloader')):
+            answer=model.reply('sonuç',{'outcome':outcome,'stage':stage})
+            self.assertIsNone(answer['clip'])
+            self.assertFalse(answer.get('result',False))
+            self.assertNotIn('tamamlanamadı',answer['text'])
+            self.assertNotIn('başarıyla kuruldu',answer['text'])
+
     def test_boot_report_only_invokes_read_only_commands(self):
         with patch.object(boot_report, 'command_output', return_value='test disk list') as command:
             text = boot_report.report()

@@ -2,7 +2,7 @@
 import unicodedata
 
 from install_status import description
-from rifki_dialogue import MOTIONS
+from rifki_dialogue import LIGHT_NOTE, STAGES
 
 
 def normalize(text):
@@ -15,16 +15,19 @@ def reply(text, status=None):
     if any(word in query for word in ('sudo ', 'mkfs', 'grub-install', 'rm -', '/dev/')):
         answer.update(text='Yazdığın komutu çalıştırmam. Yanlış diske yazmak verilerini silebilir. Önce salt-okunur açılış raporunu alalım.', action='boot-report')
     elif any(word in query for word in ('zipla','kuyru','tuy','cay','oyna')):
-        motion = 'jump' if 'zipla' in query else ('tail' if 'kuyru' in query else ('tea' if 'cay' in query else 'feather'))
-        answer.update(text=MOTIONS[motion], motion=motion, emotion='happy')
+        answer.update(text=LIGHT_NOTE)
     elif any(word in query for word in ('boot', 'grub', 'bios', 'uefi', 'acilm', 'acilis', 'baslamiyor')):
         answer.update(text='Bu hata masaüstünden önceyse önce firmware, disk ve GRUB yolunu kontrol ederiz. Fotoğraf tek başına nedeni kanıtlamaz. Aşağıdaki rapor diskleri ve şu anki açılış kipini yalnızca okur; onarım yapmaz.', action='boot-report')
     elif any(word in query for word in ('sonuc', 'bitti', 'basari', 'hata', 'tamamlan', 'yarim')):
+        if (status or {}).get('outcome') in ('preparing','ready','running'):
+            title,detail=STAGES.get(status.get('stage'),('Kurulum sürüyor','Kesin sonuç henüz oluşmadı. Gerçek ilerlemeyi kurucudan izle.'))
+            answer.update(text=title+'\n'+detail)
+            return answer
         title, detail = description(status or {'outcome': 'unknown'})
         good = (status or {}).get('complete') is True and (status or {}).get('outcome') == 'success'
-        answer.update(text=title + '\n' + detail, clip='success' if good else 'failure', emotion='happy' if good else 'concerned')
+        answer.update(text=title + '\n' + detail, result=True, clip='success' if good else 'failure', emotion='happy' if good else 'concerned')
     elif any(word in query for word in ('disk', 'bolum', 'format', 'silme')):
-        answer.update(text='Hedefi disk modeli ve kapasitesiyle doğrula. “Diski sil” o diskin verilerini siler. BIOS kurulumunda GRUB hedefi diskin tamamıdır; UEFI kurulumunda FAT EFI sistem bölümü gerekir. Yedek almadan ilerleme; ben disk seçmem veya biçimlendirmem.', clip='disk', emotion='concerned')
+        answer.update(text='Hedefi disk modeli ve kapasitesiyle doğrula. Diski sil o diskin verilerini siler. BIOS kurulumunda GRUB hedefi diskin tamamıdır; UEFI kurulumunda FAT EFI sistem bölümü gerekir. Yedek almadan ilerleme; ben disk seçmem veya biçimlendirmem.', clip='disk', emotion='concerned')
     elif any(word in query for word in ('internet', 'wifi', 'wi-fi', 'baglan', 'kablosuz', 'ag bag')):
         answer.update(text='Temel kurulum internet olmadan yapılabilir. Wi-Fi için önce uçak modunu ve donanım anahtarını kontrol et. Ağ bağlantılarını açabilirim; ağ parolanı sohbete yazma.', action='network')
     elif any(word in query for word in ('surucu', 'driver', 'ekran', 'ses', 'donanim')):

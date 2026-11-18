@@ -17,6 +17,7 @@ rm -f /usr/share/applications/oguzdows-install.desktop \
       /usr/local/sbin/oguzdows-installer \
       /usr/local/bin/oguzdows-install \
       /usr/lib/oguzdows/prepare-install.py \
+      /usr/lib/oguzdows/install_launcher.py \
       /usr/share/polkit-1/actions/org.oguzdows.install.policy \
       /etc/skel/Masaüstü/oguzdows-install.desktop
 # Uyumluluk seçeneğiyle kuran kullanıcı ilk disk açılışında yeniden siyah ekran görmesin.

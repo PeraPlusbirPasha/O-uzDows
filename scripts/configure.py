@@ -43,7 +43,7 @@ def configure(arch: str, output: Path) -> None:
     overlay = output / "includes.chroot"
     output.mkdir(parents=True, exist_ok=True)
     shutil.copytree(ROOT / "system", overlay, dirs_exist_ok=True,
-                    ignore=shutil.ignore_patterns("__pycache__", "*.py[cod]"))
+                    ignore=shutil.ignore_patterns("__pycache__", "*.py[cod]", "rifki_pet.py", "rifki_scene.py", "rifki_motion.py", "rig", "envelopes.json", "intro-full.wav", "hello.wav", "help.wav", "disk.wav", "talk-blink.png"))
     shutil.copytree(ROOT / "installer" / "modules", overlay / "etc/calamares/modules", dirs_exist_ok=True,
                     ignore=shutil.ignore_patterns("__pycache__", "*.py[cod]"))
     shutil.copy2(ROOT / "installer/settings.conf", overlay / "etc/calamares/settings.conf")
