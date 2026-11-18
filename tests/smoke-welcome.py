@@ -46,7 +46,8 @@ def main():
             assert info and '/OguzDows/' in info.get_filename(), name
             assert not info.is_symbolic(), "Nazar PNG renkleri sembolik renge dönüşmemeli"
             assert icons.load_icon(name, 24, 0).get_width() == 24
-        assert icons.lookup_icon("battery-missing-symbolic", 24, 0), "Eksik pil için Adwaita mirası korunmalı"
+        assert icons.lookup_icon("battery-missing-symbolic", 24, 0), "Belirsiz pil durumu için ayrı simge olmalı"
+        assert icons.lookup_icon("ac-adapter-symbolic", 24, 0), "Pilsiz AC durumu için ayrı fiş simgesi olmalı"
         provider = Gtk.CssProvider()
         provider.load_from_path(str(ROOT / "system/usr/share/themes/OguzDows/gtk-3.0/gtk.css"))
         notify_provider = Gtk.CssProvider()

@@ -378,6 +378,25 @@ def nazar(level: int, size: int = 48, charging: bool = False) -> Image.Image:
     return image.resize((size, size), Image.Resampling.LANCZOS)
 
 
+def power_fallback(size: int, missing: bool) -> Image.Image:
+    # Yeni ikon tabanlarında kaldırılan durumlar boş pil gibi gösterilmez.
+    n = size * 3
+    image = Image.new("RGBA", (n, n))
+    draw = ImageDraw.Draw(image)
+    color = "#d6e1ed"
+    line = max(2, n // 18)
+    if missing:
+        draw.rounded_rectangle((n*.23,n*.17,n*.76,n*.91), radius=n*.06, outline=color, width=line)
+        draw.rectangle((n*.39,n*.08,n*.60,n*.18), fill=color)
+        draw.text((n*.50,n*.53), "?", font=font(round(n*.43), True), fill=color, anchor="mm")
+    else:
+        for x in (.35, .64):
+            draw.line((n*x,n*.10,n*x,n*.38), fill=color, width=line)
+        draw.rounded_rectangle((n*.23,n*.32,n*.77,n*.66), radius=n*.12, outline=color, width=line)
+        draw.line([(n*.50,n*.66),(n*.50,n*.87),(n*.76,n*.87)], fill=color, width=line)
+    return image.resize((size, size), Image.Resampling.LANCZOS)
+
+
 def render_nazar(root: Path) -> None:
     sizes = (16, 24, 32, 48)
     base = root / "usr/share/icons/OguzDows"
@@ -399,6 +418,9 @@ def render_nazar(root: Path) -> None:
                 save(nazar(level, size, True), root, f"usr/share/icons/OguzDows/{directory}/battery-{name}-charging{suffix}.png")
         for name in ("battery-level-100-charged-symbolic", "battery-level-100-charged", "xfpm-primary-charged"):
             save(nazar(100, size), root, f"usr/share/icons/OguzDows/{directory}/{name}.png")
+        for name, missing in (("battery-missing", True), ("ac-adapter", False)):
+            for suffix in ("", "-symbolic"):
+                save(power_fallback(size, missing), root, f"usr/share/icons/OguzDows/{directory}/{name}{suffix}.png")
     (base / "index.theme").write_text(index, encoding="utf-8")
 
 

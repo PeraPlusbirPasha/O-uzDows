@@ -26,6 +26,10 @@ class AssetTests(unittest.TestCase):
                 self.assertTrue((root / "usr/share/plymouth/themes/oguzdows" / name).is_file(), name)
             self.assertTrue((root / "usr/share/calamares/branding/oguzdows/logo.png").is_file())
             self.assertTrue((root / "usr/share/calamares/branding/oguzdows/welcome.png").is_file())
+            for name in ("battery-missing-symbolic", "ac-adapter-symbolic"):
+                with Image.open(root / f"usr/share/icons/OguzDows/24x24/status/{name}.png") as fallback:
+                    self.assertEqual(fallback.size, (24, 24))
+                    self.assertNotEqual(fallback.tobytes(), renderer.nazar(0, 24).tobytes())
             theme = root / "usr/share/themes/OguzDows/xfwm4"
             for part in ("title-1", "title-5", "left", "right", "bottom", "top-left", "top-right", "bottom-left", "bottom-right"):
                 for state in ("active", "inactive"):
