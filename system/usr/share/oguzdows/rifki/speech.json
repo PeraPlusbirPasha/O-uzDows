@@ -1,0 +1,12 @@
+{
+  "25974694aa713be6fabbd374151963608645dd7afc54f409c3a6558dd650daae": "topic-boot.wav",
+  "1b81d522c11348aa088fcfc5c1fc7544e4e0e9e236c346346aa11f874a72c7fa": "topic-network.wav",
+  "acc2ff915e84403a2c00b45d4afa191c3b162859e0bdf4153ea8d9415d3147eb": "topic-drivers.wav",
+  "88aab4d27c7182164216b9ea9fa7632a048d9af964059428aef23a7ab00f6718": "topic-wallpapers.wav",
+  "ca0722056e5db5e0a23caae709d127bb941ffb9734d74d4d3c2f240a394f8244": "topic-battery.wav",
+  "80b5b8b31c463033fff89510639ba3d63eb45fbae170dfd552c8d441b631fa8d": "topic-install.wav",
+  "c72e1509d9578f25abbfdfe26515ff05311d0690fe6662ef1708b0dcf344947c": "panel-welcome.wav",
+  "6c19252cd93c7599573e3cbfbde8440252eb905fb3c36096d42ef75c0b247fff": "panel-hardware.wav",
+  "04f34db163d6dd2d9ba29e4409deda35bee6c766afb13fd4221062a4f4ed5748": "panel-wallpapers.wav",
+  "8c3ccd3a55f2c3e953c2be2c4634d585564318217062a81307c9b4f0ffd1da9a": "intro-full.wav"
+}

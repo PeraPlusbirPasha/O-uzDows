@@ -2,6 +2,7 @@
 import unicodedata
 
 from install_status import description
+from rifki_dialogue import MOTIONS
 
 
 def normalize(text):
@@ -13,8 +14,11 @@ def reply(text, status=None):
     answer = {'text': '', 'clip': None, 'action': None, 'emotion': 'listening'}
     if any(word in query for word in ('sudo ', 'mkfs', 'grub-install', 'rm -', '/dev/')):
         answer.update(text='Yazdığın komutu çalıştırmam. Yanlış diske yazmak verilerini silebilir. Önce salt-okunur açılış raporunu alalım.', action='boot-report')
+    elif any(word in query for word in ('zipla','kuyru','tuy','cay','oyna')):
+        motion = 'jump' if 'zipla' in query else ('tail' if 'kuyru' in query else ('tea' if 'cay' in query else 'feather'))
+        answer.update(text=MOTIONS[motion], motion=motion, emotion='happy')
     elif any(word in query for word in ('boot', 'grub', 'bios', 'uefi', 'acilm', 'acilis', 'baslamiyor')):
-        answer.update(text='Bu hata masaüstünden önceyse önce firmware → disk → GRUB yolunu kontrol ederiz. Fotoğraf tek başına nedeni kanıtlamaz. Aşağıdaki rapor diskleri ve şu anki açılış kipini yalnızca okur; onarım yapmaz.', action='boot-report')
+        answer.update(text='Bu hata masaüstünden önceyse önce firmware, disk ve GRUB yolunu kontrol ederiz. Fotoğraf tek başına nedeni kanıtlamaz. Aşağıdaki rapor diskleri ve şu anki açılış kipini yalnızca okur; onarım yapmaz.', action='boot-report')
     elif any(word in query for word in ('sonuc', 'bitti', 'basari', 'hata', 'tamamlan', 'yarim')):
         title, detail = description(status or {'outcome': 'unknown'})
         good = (status or {}).get('complete') is True and (status or {}).get('outcome') == 'success'
@@ -30,7 +34,7 @@ def reply(text, status=None):
     elif any(word in query for word in ('pil', 'sarj', 'nazar')):
         answer.update(text='Nazar boncuğu pil doldukça aşağıdan yukarı görünür. Tam dolunca bütünü görünür. Şimşek şarj olmayı, uyarı işareti düşük pili belirtir; güç yöneticisinin kritik pil koruması değişmez.')
     elif any(word in query for word in ('kur', 'yukle', 'install')):
-        answer.update(text='Canlı USB’den “OğuzDows’u kur” düğmesini kullan. Dil, klavye, disk ve kullanıcı bilgilerini gözden geçir. Son özeti onaylamadan diske yazılmaz. Kurulum sırasında beni küçük pencere olarak yanında tutabilirsin.', action='install', clip='disk')
+        answer.update(text='Canlı USB’den OğuzDows’u kur düğmesini kullan. Dil, klavye, disk ve kullanıcı bilgilerini gözden geçir. Son özeti onaylamadan diske yazılmaz. Kurulum sırasında beni küçük pencere olarak yanında tutabilirsin.', action='install', clip='disk')
     else:
         answer.update(text='Ben Rıfkı: çevrimdışı Türkçe kurulum rehberin. Disk, açılış, kurulum sonucu, internet, sürücüler, pil ve duvar kâğıdı konularında yardımcı olurum. Genel amaçlı bir yapay zekâ sohbet servisi değilim; mikrofonunu dinlemem, mesajlarını göndermem.', clip='help')
     return answer

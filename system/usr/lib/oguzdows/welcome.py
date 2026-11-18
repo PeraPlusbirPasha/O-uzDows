@@ -95,6 +95,7 @@ class Welcome(Gtk.Application):
         body.set_border_width(24)
         self.stack = Gtk.Stack()
         reduced = not current_policy()["animations"] if is_pi() else light_profile(read_text(Path("/proc/cmdline")), memory_kib())
+        reduced = reduced or not Gtk.Settings.get_default().get_property("gtk-enable-animations")
         self.reduced = reduced
         self.stack.set_transition_type(Gtk.StackTransitionType.NONE if reduced else Gtk.StackTransitionType.CROSSFADE)
         self.stack.set_transition_duration(160)
@@ -272,13 +273,23 @@ class Welcome(Gtk.Application):
 
     def wallpaper_finished(self, text):
         self.wallpaper_status.set_text(text)
+        if self.rifki:
+            self.rifki.say(text)
         for button in self.wallpaper_buttons:
             button.set_sensitive(True)
         return GLib.SOURCE_REMOVE
 
     def page_changed(self, *_):
-        if self.stack.get_visible_child_name() == "hardware" and not self.report_text:
+        page=self.stack.get_visible_child_name()
+        if page == "hardware" and not self.report_text:
             self.load_report()
+        if self.rifki and page!='install-result':
+            text=None
+            if is_pi() and page=='welcome':
+                text='OğuzDows Pi rehberindesin. Sistem SD veya USB üzerine zaten kuruludur. Masaüstü ayarlarını açabilir, donanım raporunu ve duvar kâğıtlarını inceleyebilirsin. PC disk kurucusu Pi üzerinde çalıştırılmaz.'
+            elif is_pi() and page=='hardware':
+                text='Pi donanım paneli. Platform, SDIO, USB ve ekran sürücüleri raporlanır. PC için Broadcom STA paketi Pi kablosuz kartına kurulmaz. Raporunu yenileyebilir ve kaydedebilirsin.'
+            self.rifki.narrate_page(page,text=text)
 
     def show_drivers(self):
         self.stack.set_visible_child_name("hardware")
@@ -434,10 +445,10 @@ class Welcome(Gtk.Application):
                 'wallpapers': lambda: self.navigate('wallpapers'),
                 'install': lambda: self.navigate('welcome'),
             }
-            self.rifki = Companion(self, callbacks, reduced=self.reduced)
+            self.rifki = Companion(self, callbacks, reduced=self.reduced,owner=lambda:self.window)
             self.rifki.connect('destroy', self.assistant_closed)
             self.rifki.show_all()
-        self.rifki.set_keep_above(self.install_busy)
+        self.rifki.set_keep_above(False)
         self.rifki.present()
         if self.install_data:
             self.rifki.installation(self.install_data)
@@ -527,6 +538,8 @@ class Welcome(Gtk.Application):
         threading.Thread(target=work, daemon=True).start()
 
     def driver_finished(self, text):
+        if self.rifki:
+            self.rifki.say(text)
         self.driver_busy = False
         self.spinner.stop()
         self.refresh_button.set_sensitive(True)
@@ -537,6 +550,8 @@ class Welcome(Gtk.Application):
         return GLib.SOURCE_REMOVE
 
     def message(self, title, detail):
+        if self.rifki:
+            self.rifki.say(title+' '+detail)
         dialog = Gtk.MessageDialog(transient_for=self.window, modal=True, message_type=Gtk.MessageType.INFO, buttons=Gtk.ButtonsType.CLOSE, text=title)
         dialog.format_secondary_text(detail)
         dialog.run()

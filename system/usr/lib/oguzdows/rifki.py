@@ -1,150 +1,42 @@
 """Foto-gerçekçi 2B Rıfkı: göz kırpma, nefes, baş hareketi ve sese bağlı ağız."""
 from __future__ import annotations
 
-import json
-import math
-import os
-import shutil
-import subprocess
-import time
-from pathlib import Path
-
 import gi
 
-gi.require_version('Gtk', '3.0')
-gi.require_version('Gdk', '3.0')
-gi.require_foreign('cairo')
-from gi.repository import Gdk, GdkPixbuf, GLib, Gtk
+gi.require_version('Gtk','3.0')
+from gi.repository import GLib, Gtk
 
 from rifki_model import reply
-
-ASSETS = Path('/usr/share/oguzdows/rifki')
-CLIPS = frozenset({'hello', 'disk', 'working', 'success', 'failure', 'help'})
-
-
-class Speaker:
-    def __init__(self):
-        self.process = None
-        self.start = 0.0
-        self.clip = None
-        self.preference = Path(os.environ.get('XDG_CONFIG_HOME', str(Path.home() / '.config'))) / 'oguzdows/rifki.json'
-        try:
-            self.enabled = json.loads(self.preference.read_text()).get('speech', True) is not False
-        except (OSError, ValueError, AttributeError):
-            self.enabled = True
-        try:
-            self.envelopes = json.loads((ASSETS / 'envelopes.json').read_text())
-        except (OSError, ValueError):
-            self.envelopes = {}
-
-    def stop(self):
-        if self.process is not None:
-            if self.process.poll() is None:
-                self.process.terminate()
-                try:
-                    self.process.wait(timeout=.4)
-                except subprocess.TimeoutExpired:
-                    self.process.kill()
-                    self.process.wait()
-            self.process = None
-        self.clip = None
-
-    def play(self, name):
-        self.stop()
-        if not self.enabled or name not in CLIPS or os.environ.get('OGUZDOWS_TESTING') == '1':
-            return
-        player = shutil.which('paplay') or shutil.which('aplay')
-        path = ASSETS / (name + '.wav')
-        if not player or not path.is_file():
-            return
-        try:
-            self.process = subprocess.Popen([player, str(path)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            self.start, self.clip = time.monotonic(), name
-        except OSError:
-            self.process = None
-
-    def amplitude(self):
-        if self.process is None or self.process.poll() is not None:
-            return 0.0
-        levels = self.envelopes.get(self.clip, {}).get('levels', [])
-        index = int((time.monotonic() - self.start) * 20)
-        return levels[index] if 0 <= index < len(levels) else 0.0
-
-    def set_enabled(self, value):
-        self.enabled = bool(value)
-        if not self.enabled:
-            self.stop()
-        try:
-            self.preference.parent.mkdir(parents=True, exist_ok=True)
-            self.preference.write_text(json.dumps({'speech': self.enabled}) + '\n')
-        except OSError:
-            pass
+from rifki_speech import Speaker
+from rifki_pet import DesktopPet, PetView
+from rifki_dialogue import HELLO, MOTIONS, PANELS, STAGES
+from install_status import description
 
 
-class Avatar(Gtk.DrawingArea):
-    def __init__(self, speaker=None, reduced=False, size=164):
-        super().__init__()
-        self.speaker = speaker
-        self.reduced = reduced
-        self.epoch = time.monotonic()
-        self.frames = {}
-        for name in ('idle', 'blink', 'talk', 'talk-blink'):
-            try:
-                self.frames[name] = GdkPixbuf.Pixbuf.new_from_file(str(ASSETS / (name + '.png')))
-            except GLib.Error:
-                pass
-        self.set_size_request(size, size)
-        self.set_hexpand(False)
-        self.set_halign(Gtk.Align.CENTER)
-        self.get_accessible().set_name('Rıfkı, göz kırpan ve konuşurken ağzı hareket eden gerçekçi Van kedisi')
-        self.connect('draw', self.draw_cat)
-        self.timer = GLib.timeout_add(250 if reduced else 60, self.tick)
-        self.connect('destroy', self.closed)
-
-    def tick(self):
-        if self.get_mapped():
-            self.queue_draw()
-        return GLib.SOURCE_CONTINUE
-
-    def closed(self, *_):
-        if self.timer:
-            GLib.source_remove(self.timer)
-            self.timer = None
-
-    def draw_cat(self, _widget, context):
-        width, height = self.get_allocated_width(), self.get_allocated_height()
-        context.set_source_rgb(1, 1, 1)
-        context.paint()
-        if not self.frames:
-            return False
-        t = time.monotonic() - self.epoch
-        blink = t % 4.7 > 4.48
-        talking = self.speaker is not None and self.speaker.amplitude() > .08
-        name = ('talk-blink' if blink else 'talk') if talking else ('blink' if blink else 'idle')
-        image = self.frames.get(name, self.frames.get('idle', next(iter(self.frames.values()))))
-        size = min(width, height)
-        breathe = 1.0 if self.reduced else 1 + .004 * math.sin(t * 1.8)
-        context.save()
-        context.translate(width / 2, height / 2)
-        if not self.reduced:
-            context.rotate(math.radians(.55 * math.sin(t * .7)))
-        context.scale(size / image.get_width(), size / image.get_height() * breathe)
-        Gdk.cairo_set_source_pixbuf(context, image, -image.get_width() / 2, -image.get_height() / 2)
-        context.paint()
-        context.restore()
-        return False
+class Avatar(PetView):
+    def __init__(self,speaker=None,reduced=False,size=230):
+        super().__init__(speaker,True,width=size,height=round(size*.75))
 
 
 class Companion(Gtk.ApplicationWindow):
-    def __init__(self, app, callbacks, reduced=False):
+    def __init__(self, app, callbacks, reduced=False, owner=lambda: None):
         super().__init__(application=app)
         self.callbacks = callbacks
-        self.speaker = Speaker()
+        self.speaker = Speaker(GLib.idle_add,self.voice_error)
+        self.owner=owner
+        self.reduced=reduced
+        self.pet=None
+        self.current_page='welcome'
+        self.last_message=''
+        self.last_panel=''
+        self.pet_status=Gtk.Label(label='Rıfkı kendi oyun alanında.',xalign=0)
+        self.pet_status.set_line_wrap(True)
+        self.pet_status.get_style_context().add_class('muted')
         self.status_data = {}
         self.last_stage = ''
         self.set_title('Rıfkı · OğuzDows yardımcın')
         self.set_icon_name('oguzdows')
-        self.set_default_size(364, min(570, self.get_screen().get_height() - 80))
+        self.set_default_size(374, min(700, self.get_screen().get_height() - 80))
         self.set_size_request(290, 370)
         self.get_style_context().add_class('oguzdows-window')
         self.get_style_context().add_class('rifki-window')
@@ -155,7 +47,7 @@ class Companion(Gtk.ApplicationWindow):
         scroll.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
         body = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=9)
         body.set_border_width(14)
-        self.avatar = Avatar(self.speaker, reduced)
+        self.avatar = PetView(self.speaker, reduced,width=300,height=192)
         event = Gtk.EventBox()
         event.add(self.avatar)
         event.connect('button-press-event', lambda *_: self.ask('merhaba'))
@@ -164,6 +56,16 @@ class Companion(Gtk.ApplicationWindow):
         self.stage_label.get_style_context().add_class('section-title')
         self.stage_label.set_line_wrap(True)
         body.pack_start(self.stage_label, False, False, 0)
+        body.pack_start(self.pet_status,False,False,0)
+        games=Gtk.FlowBox()
+        games.set_selection_mode(Gtk.SelectionMode.NONE)
+        games.set_min_children_per_line(2)
+        games.set_max_children_per_line(4)
+        for action,title in (('jump','Zıpla'),('tail','Kuyruk'),('feather','Tüy topu'),('tea','Çay molası')):
+            button=Gtk.Button(label=title)
+            button.connect('clicked',lambda _,name=action:self.perform(name))
+            games.add(button)
+        body.pack_start(games,False,False,0)
         self.chat = Gtk.TextView(editable=False, cursor_visible=False, wrap_mode=Gtk.WrapMode.WORD_CHAR)
         self.chat.set_left_margin(10)
         self.chat.set_right_margin(10)
@@ -196,14 +98,49 @@ class Companion(Gtk.ApplicationWindow):
         self.sound.set_active(self.speaker.enabled)
         self.sound.connect('toggled', lambda button: self.speaker.set_enabled(button.get_active()))
         body.pack_start(self.sound, False, False, 0)
-        note = Gtk.Label(label='Mikrofon dinlenmez · Mesajların gönderilmez\nRehber yanıtları metin, sesler önceden hazırlanmıştır.', xalign=0)
+        speech_buttons=Gtk.Box(spacing=6)
+        for title,callback in (('Son mesajı oku',lambda *_:self.speaker.speak(self.last_message)),('Sesi durdur',lambda *_:self.speaker.stop())):
+            button=Gtk.Button(label=title)
+            button.connect('clicked',callback)
+            speech_buttons.pack_start(button,True,True,0)
+        body.pack_start(speech_buttons,False,False,0)
+        options=Gtk.Box(orientation=Gtk.Orientation.VERTICAL,spacing=8)
+        self.narration=Gtk.CheckButton(label='Bütün rehber panellerini anlat')
+        self.narration.set_active(self.speaker.options.get('narration',True) is not False)
+        self.narration.connect('toggled',lambda button:self.speaker.save_option('narration',button.get_active()))
+        options.pack_start(self.narration,False,False,0)
+        self.attach=Gtk.CheckButton(label='Küçük kedi pencere kenarında görünsün')
+        self.attach.set_active(bool(self.speaker.options.get('pet',not reduced)))
+        self.attach.connect('toggled',self.pet_toggled)
+        options.pack_start(self.attach,False,False,0)
+        self.auto=Gtk.CheckButton(label='Kendi kendine oynasın')
+        self.auto.set_active(bool(self.speaker.options.get('auto',not reduced)))
+        self.auto.connect('toggled',self.auto_toggled)
+        options.pack_start(self.auto,False,False,0)
+        self.pause=Gtk.CheckButton(label='Hareketi duraklat')
+        self.pause.connect('toggled',self.pause_toggled)
+        options.pack_start(self.pause,False,False,0)
+        read_panel=Gtk.Button(label='Bu paneli anlat')
+        read_panel.connect('clicked',lambda *_:self.narrate_page(self.current_page,force=True))
+        options.pack_start(read_panel,False,False,0)
+        settings=Gtk.Expander(label='Hareket ve ses ayarları')
+        settings.add(options)
+        settings.connect('notify::expanded',lambda widget,*_:self.say(PANELS['settings']) if widget.get_expanded() else None)
+        body.pack_start(settings,False,False,0)
+        self.voice_status=Gtk.Label(label='',xalign=0)
+        self.voice_status.set_line_wrap(True)
+        self.voice_status.get_style_context().add_class('muted')
+        body.pack_start(self.voice_status,False,False,0)
+        note = Gtk.Label(label='Mikrofon dinlenmez · Mesajların gönderilmez\nHazır ses veya cihazında Türkçe seslendirme.', xalign=0)
         note.set_line_wrap(True)
         note.get_style_context().add_class('muted')
         body.pack_start(note, False, False, 0)
         scroll.add(body)
         self.add(scroll)
-        self.connect('destroy', lambda *_: self.speaker.stop())
-        self.say('Merhaba, ben Rıfkı. Kurulum, disk, açılış ve donanım adımlarında yanındayım. Bana yazabilir veya yardım düğmelerine basabilirsin.', 'hello')
+        self.connect('destroy', self.closed)
+        self.connect('map',lambda *_:self.ensure_pet())
+        self.avatar.behaviour.automatic=self.auto.get_active()
+        self.say(HELLO)
 
     def say(self, text, clip=None):
         buffer = self.chat.get_buffer()
@@ -211,8 +148,8 @@ class Companion(Gtk.ApplicationWindow):
         if buffer.get_char_count() > 16000:
             buffer.delete(buffer.get_start_iter(), buffer.get_iter_at_offset(4000))
         self.chat.scroll_to_iter(buffer.get_end_iter(), 0, False, 0, 1)
-        if clip:
-            self.speaker.play(clip)
+        self.last_message=text
+        self.speaker.speak(text,clip)
 
     def entered(self, *_):
         text = self.entry.get_text().strip()
@@ -225,6 +162,8 @@ class Companion(Gtk.ApplicationWindow):
         buffer.insert(buffer.get_end_iter(), 'Sen: ' + text[:1000] + '\n')
         answer = reply(text, self.status_data)
         self.say(answer['text'], answer['clip'])
+        if answer.get('motion'):
+            self.perform(answer['motion'],speak=False)
         self.action_name = answer['action']
         names = {'boot-report': 'Salt-okunur açılış raporunu göster', 'network': 'Ağ bağlantılarını aç', 'drivers': 'Donanım sekmesini aç', 'wallpapers': 'Galeriyi aç', 'install': 'Kurulum ekranına dön'}
         if self.action_name in self.callbacks:
@@ -239,22 +178,67 @@ class Companion(Gtk.ApplicationWindow):
         if callback:
             callback()
 
-    def installation(self, data):
-        self.status_data = data
-        key = (data.get('session'), data.get('stage'), data.get('outcome'))
-        if key == self.last_stage:
+    def voice_error(self,text):
+        self.voice_status.set_text(text)
+
+    def ensure_pet(self):
+        if self.pet is None and self.attach.get_active():
+            self.pet=DesktopPet(self,self.owner,self.speaker,self.reduced,self.pet_status.set_text)
+            self.pet.view.behaviour.automatic=self.auto.get_active()
+        if self.pet:
+            self.pet.enabled=self.attach.get_active()
+            self.pet.follow()
+
+    def pet_toggled(self,button):
+        self.speaker.save_option('pet',button.get_active())
+        self.ensure_pet()
+
+    def auto_toggled(self,button):
+        self.speaker.save_option('auto',button.get_active())
+        self.avatar.behaviour.automatic=button.get_active()
+        if self.pet:
+            self.pet.view.behaviour.automatic=button.get_active()
+
+    def pause_toggled(self,button):
+        self.avatar.behaviour.set_paused(button.get_active(),__import__('time').monotonic())
+        if self.pet:
+            self.pet.view.behaviour.set_paused(button.get_active(),__import__('time').monotonic())
+
+    def perform(self,action,speak=True):
+        self.avatar.choose(action)
+        if self.pet:
+            self.pet.choose(action)
+        if speak:
+            self.say(MOTIONS[action])
+
+    def narrate_page(self,name,force=False,text=None):
+        self.current_page=name
+        words=text or PANELS.get(name)
+        if not words or (not force and (not self.narration.get_active() or self.last_panel==name)):
             return
-        self.last_stage = key
-        messages = {
-            'preparing': ('Kurucu hazırlanıyor', 'Canlı sistem ve kurulum kaynağı kontrol ediliyor. Diskine henüz yazıldığını varsayma.', None),
-            'ready': ('Seçimlerini kontrol et', 'Dil, klavye, disk ve kullanıcı bilgilerini kurucuda seç. Son özeti sen onaylayacaksın.', 'disk'),
-            'partition': ('Disk işlemleri başladı', 'Onayladığın bölüm düzeni uygulanıyor. Bilgisayarı kapatma.', 'working'),
-            'copying': ('Dosyalar yerleşiyor', 'Dosyalar kopyalanıyor. Yüzde ve gerçek ilerleme kurucu ekranında; tahminî bir ilerleme göstermiyorum.', None),
-            'bootloader': ('Disk açılışı hazırlanıyor', 'Önyükleyici ve başlangıç dosyaları hazırlanıyor. Bu adım bitmeden başarı bildirmeyeceğim.', None),
-            'complete': ('Kurulum tamamlandı', 'Bütün kurulum işleri tamamlandı. Sonuç ekranını incele; diskten ilk açılış ayrıca denenmelidir.', 'success'),
-        }
-        title, text, clip = messages.get(data.get('stage'), ('Kurucu', 'Kurucu durumunu izliyorum.', None))
-        if data.get('outcome') in ('failed', 'incomplete', 'cancelled', 'unknown'):
-            title, text, clip = 'Sonucu birlikte inceleyelim', reply('sonuç', data)['text'], 'failure'
+        self.last_panel=name
+        self.say(words)
+
+    def installation(self,data):
+        self.status_data=data
+        key=(data.get('session'),data.get('stage'),data.get('outcome'),str(data.get('optional_drivers',[])))
+        if key==self.last_stage:
+            return
+        self.last_stage=key
+        title,text=STAGES.get(data.get('stage'),('Kurucu','Kurucu durumunu izliyorum.'))
+        finished=data.get('outcome') in ('success','failed','incomplete','cancelled','unknown')
+        if finished:
+            title,text=description(data)
+            self.avatar.behaviour.automatic=False
+            self.avatar.choose('perch')
+            if self.pet:
+                self.pet.view.behaviour.automatic=False
+                self.pet.choose('perch')
         self.stage_label.set_text(title)
-        self.say(text, clip)
+        self.say(text if not finished else title+' '+text)
+
+    def closed(self,*_):
+        self.speaker.close()
+        if self.pet:
+            self.pet.destroy()
+            self.pet=None

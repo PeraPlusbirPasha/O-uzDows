@@ -50,3 +50,5 @@ progressbar progress, scale highlight { background-image: none; background-color
 .rifki-window button { background-image: none; background-color: #263247; color: #f4f4f8; border: 1px solid #4f637a; }
 .rifki-window button:hover { background-color: #384c67; border-color: #69d4d3; }
 .rifki-window .muted { font-size: 10px; }
+/* Yalnızca kedi katmanı saydamdır; kurucu / üst çubuk saydamlaştırılmaz. */
+window.rifki-pet, .rifki-pet decoration, .rifki-pet drawingarea { background: transparent; border: none; box-shadow: none; }
