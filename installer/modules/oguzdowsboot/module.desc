@@ -1,0 +1,5 @@
+---
+type: job
+name: oguzdowsboot
+interface: python
+script: main.py

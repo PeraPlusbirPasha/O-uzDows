@@ -21,7 +21,8 @@ permissions:
   contents: read
 
 concurrency:
-  group: oguzdows-${{ github.workflow }}-${{ github.ref }}
+  # PC doğrulaması, ayrı hedefte süren bir imaj işini bekletmez veya iptal etmez.
+  group: oguzdows-${{ github.workflow }}-${{ github.ref }}-${{ github.event.inputs.target || 'pc' }}
   # Yeni bir çalıştırma, süren ISO işini yarıda kesmesin.
   cancel-in-progress: false
 
@@ -90,9 +91,42 @@ jobs:
           if-no-files-found: warn
           retention-days: 7
 
+  installed-boot:
+    name: Kurulu disk BIOS/UEFI · ${{ matrix.suite }}
+    if: github.event.inputs.target != 'raspberrypi'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        suite: [bookworm, trixie]
+    container:
+      image: debian:${{ matrix.suite }}
+      options: --privileged
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Yalnızca geçici disk imajları için boot test araçları
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends python3 grub-pc-bin grub-efi-amd64-bin \
+            grub2-common parted e2fsprogs dosfstools qemu-system-x86 seabios ovmf
+      - name: Gerçek GRUB ile BIOS ve NVRAM'siz UEFI fallback açılışı
+        run: |
+          python3 scripts/ci-run.py --title 'Kurulu disk boot ${{ matrix.suite }}' -- \
+            python3 tests/smoke-installed-boot.py --output test-results/installed-boot
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: OguzDows-kurulu-boot-${{ matrix.suite }}
+          path: test-results/installed-boot
+          if-no-files-found: warn
+          retention-days: 7
+
   build:
     name: ISO · ${{ matrix.arch }}
-    needs: verify
+    needs: [verify, installed-boot]
     if: github.event_name != 'pull_request' && github.event.inputs.target != 'raspberrypi'
     runs-on: ubuntu-latest
     timeout-minutes: 120

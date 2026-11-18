@@ -44,7 +44,8 @@ def configure(arch: str, output: Path) -> None:
     output.mkdir(parents=True, exist_ok=True)
     shutil.copytree(ROOT / "system", overlay, dirs_exist_ok=True,
                     ignore=shutil.ignore_patterns("__pycache__", "*.py[cod]"))
-    shutil.copytree(ROOT / "installer" / "modules", overlay / "etc/calamares/modules", dirs_exist_ok=True)
+    shutil.copytree(ROOT / "installer" / "modules", overlay / "etc/calamares/modules", dirs_exist_ok=True,
+                    ignore=shutil.ignore_patterns("__pycache__", "*.py[cod]"))
     shutil.copy2(ROOT / "installer/settings.conf", overlay / "etc/calamares/settings.conf")
     branding = overlay / "usr/share/calamares/branding/oguzdows"
     shutil.copytree(ROOT / "installer/branding", branding, dirs_exist_ok=True)

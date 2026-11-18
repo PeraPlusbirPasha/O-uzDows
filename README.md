@@ -136,6 +136,24 @@ GitHub Actions iki taban sürümünde **gerçek GTK penceresini Xvfb ile açar**
 
 Kurucu, standart `/etc/calamares/settings.conf` yapılandırmasını kullanır; bu dosya `--config` seçeneğine verilmez. Başlatıcı yalnızca canlı ortamda çalışır, tek kurucu kilidi alır ve gerçek squashfs kaynağını saptar. Kurucu açılamazsa masaüstünde hata gösterilir; yönetici günlüğü: `/var/log/oguzdows/installer.log`. Kurucunun açılması, gerçek diske başarılı kurulum yapıldığının kanıtı değildir.
 
+### PC kurulumu sonrası “No bootable device” kontrolü
+
+Diskte sistem dosyalarının bulunması, firmware'in diski açabildiğini tek başına göstermez. Kurucu önyükleyiciden önce hedefi, sonra diskteki sonucu ayrıca denetler:
+
+- **BIOS + MBR:** GRUB bir bölüme değil seçilen diskin tamamına kurulmalıdır. Calamares otomatik bölümlemede aktif bayrağını zaten ister; bu ek kontrol özellikle elle bölümleme veya eksik sonuç içindir, fiziksel cihazdaki hatanın sebebini tek başına kanıtlamaz. Hiçbir aktif bölüm yoksa, doğrulanmış `/boot` (yoksa `/`) bölümünün MBR aktif bayrağı tamamlanır. Bazı eski BIOS'lar bu bayrak olmadan diski atlar. Yalnızca **bir bayt** değiştirilir; disk kimliği, bölüm başlangıç/boyutları ve dosya sistemleri korunur. Önceki 512 baytın özel izinli yedeği hedefte `/var/log/oguzdows/mbr-before-active-*.bin` altında saklanır. Var olan aktif bölüm tercihi ve koruyucu/hibrit GPT MBR'ı değiştirilmez; diskte tahminî bir bölüm seçilmez.
+- **UEFI:** görünür OğuzDows adı korunur; firmware dizini/kimliği eski aygıtlarla uyum için ASCII `OguzDows` kullanır. FAT EFI bölümünün gerçekten bağlı olduğu, üretici yükleyicisi ve mevcut fallback mekanizmasının `EFI/BOOT/BOOTX64.EFI` dosyası doğrulanır. Boş/eksik dosya veya bağlanmamış ESP ile başarı bildirilmez. Secure Boot/32 bit UEFI desteği eklenmez.
+- Önyükleyici hedefi seçilmemişse veya diskte gerçek GRUB menüsü yoksa kurulum sessizce başarılı sayılmaz. Diskler yeniden bölümlenmez; tema, masaüstü, sürücü, uygulama ve performans tercihleri bu düzeltmeyle değiştirilmez.
+
+**Daha önce kurulmuş PC:** yeni kaynak/ISO, mevcut diski uzaktan veya otomatik onarmaz. Sorunun yalnızca aktif bayrak mı, eksik GRUB mu, UEFI kaydı mı olduğunu görmeden `/dev/sda` gibi tahminî bir aygıta yazmayın ve yeniden biçimlendirmeyin. Canlı USB terminalinde aşağıdaki salt-okunur çıktıları ve cihaz modelini paylaşarak mevcut kurulumu koruyan onarımı belirleyebilirsiniz:
+
+```sh
+if [ -d /sys/firmware/efi ]; then echo UEFI; else echo BIOS; fi
+lsblk -o NAME,SIZE,TYPE,FSTYPE,PTTYPE,MOUNTPOINTS
+sudo fdisk -l
+```
+
+Ek CI testi yalnızca kendisinin oluşturduğu geçici loop disklerde gerçek GRUB kurar; QEMU/SeaBIOS ve temiz NVRAM'li OVMF ile **firmware → kurulu GRUB yapılandırması** açılışını sınar. Bu, tam işletim sistemi kurulumu/çekirdek açılışı veya kullanıcının fiziksel PC'si için doğrulama değildir.
+
 ### Yayın öncesi elle kontrol
 
 - [ ] `amd64`: BIOS ve OVMF/UEFI ile menü → animasyon → Türkçe masaüstü.
