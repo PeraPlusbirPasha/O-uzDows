@@ -12,6 +12,14 @@ if [ "${MEMORY_KB:-0}" -le 2097152 ]; then LIGHT=true; fi
 case " $(cat /proc/cmdline) " in
     *' oguzdows.profile=light '*|*' nomodeset '*) LIGHT=true ;;
 esac
+if [ -f /etc/oguzdows/pi-image.json ]; then
+    # Aynı kaynak kararı zram, donanım raporu ve masaüstünde paylaşılır.
+    PROFILE=$(python3 /usr/lib/oguzdows/pi_support.py --profile)
+    case "$PROFILE" in
+        mini|light) LIGHT=true ;;
+        full) LIGHT=false ;;
+    esac
+fi
 if "$LIGHT"; then
     set_value xfwm4 /general/use_compositing bool false
     set_value xsettings /Gtk/EnableAnimations bool false

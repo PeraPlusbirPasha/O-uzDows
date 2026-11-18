@@ -20,6 +20,7 @@ from support import ROOT, load
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output", type=Path, default=Path("test-results"))
+    parser.add_argument("--pi", action="store_true", help="Pi sayfa dalını host GTK üzerinde denetle; kart taklidi değildir")
     args = parser.parse_args()
     args.output.mkdir(parents=True, exist_ok=True)
     if not Gtk.init_check([])[0]:
@@ -34,6 +35,10 @@ def main():
         notify_provider = Gtk.CssProvider()
         notify_provider.load_from_path(str(ROOT / "system/usr/share/themes/OguzDows/xfce-notify-4.0/gtk.css"))
         welcome = load("oguzdows_welcome_smoke", "system/usr/lib/oguzdows/welcome.py")
+        if args.pi:
+            welcome.is_pi = lambda: True
+            welcome.pi_model = lambda: "Raspberry Pi · arayüz kontrolü (host)"
+            welcome.current_policy = lambda: {"profile": "mini", "animations": False}
         app = welcome.Welcome()
         app.register(None)
         app.activate()
@@ -52,6 +57,11 @@ def main():
             try:
                 assert app.stack.get_visible_child_name() == "welcome"
                 assert not app.show_again.get_active()
+                if args.pi:
+                    assert app.install_button.get_sensitive(), "Pi ayar kartı etkin olmalı"
+                    assert not app.broadcom_button.get_visible(), "Pi'de PC STA düğmesi görünmemeli"
+                    assert not app.intel_button.get_visible(), "Pi'de PC firmware düğmesi görünmemeli"
+                    assert "SD/USB" in app.install_status.get_text()
                 screenshot("welcome.png")
                 app.window.resize(600, 440)
             except Exception as error:

@@ -1,0 +1,133 @@
+name: OğuzDows Raspberry Pi
+
+on:
+  workflow_dispatch:
+    inputs:
+      architecture:
+        description: Derlenecek Pi imajı
+        type: choice
+        options: [both, armhf, arm64]
+        default: both
+  push:
+    branches: [main]
+    paths:
+      - 'raspberrypi/**'
+      - 'system/**'
+      - 'boot/**'
+      - 'assets/**'
+      - 'packages/common.list'
+      - 'packages/raspberrypi.list'
+      - 'build-pi.sh'
+      - 'scripts/**'
+      - 'tests/**'
+      - '.github/workflows/raspberrypi.yml'
+  pull_request:
+    paths:
+      - 'raspberrypi/**'
+      - 'system/**'
+      - 'packages/**'
+      - 'scripts/**'
+      - 'tests/**'
+      - 'build-pi.sh'
+      - '.github/workflows/raspberrypi.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: oguzdows-pi-${{ github.ref }}-${{ github.event.inputs.architecture || 'both' }}
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    name: Pi yapılandırma ve güvenlik testleri
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Test araçları
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends python3-pil python3-yaml shellcheck \
+            fonts-dejavu-core python3-gi gir1.2-gtk-3.0 xvfb xauth dbus-x11
+      - name: Birim / kaynak / hesap güvenliği testleri
+        run: |
+          python3 -W error::ResourceWarning -m unittest discover -s tests -p 'test_*.py' -v
+          shellcheck build-pi.sh scripts/verify-pi-image.sh raspberrypi/export-check.sh \
+            raspberrypi/stage/prerun.sh raspberrypi/stage/00-desktop/*-run.sh \
+            raspberrypi/stage/00-desktop/files/configure-system.sh
+          python3 scripts/configure-pi.py --arch armhf --output /tmp/oguzdows-pi-armhf
+          python3 scripts/configure-pi.py --arch arm64 --output /tmp/oguzdows-pi-arm64
+      - name: Pi görünümünü gerçek GTK ile aç (host üzerinde, kart testi değil)
+        env:
+          GSETTINGS_BACKEND: memory
+          NO_AT_BRIDGE: '1'
+        run: |
+          sudo cp -a system/usr/share/themes/OguzDows /usr/share/themes/
+          sudo python3 scripts/render-assets.py --root /
+          xvfb-run -a -s '-screen 0 1024x768x24' dbus-run-session -- \
+            python3 tests/smoke-welcome.py --pi --output test-results/pi-ui
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: OguzDows-Pi-arayuz
+          path: test-results/pi-ui
+          if-no-files-found: warn
+          retention-days: 7
+
+  image:
+    name: Pi SD/USB imajı · ${{ matrix.arch }}
+    needs: verify
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 300
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: ${{ fromJSON(github.event.inputs.architecture == 'armhf' && '["armhf"]' || github.event.inputs.architecture == 'arm64' && '["arm64"]' || '["armhf", "arm64"]') }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Geçici runner disk alanını hazırla
+        run: |
+          # Yalnızca bu tek kullanımlık runner'ın ilgisiz SDK'ları; repo/work silinmez.
+          sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc
+          df -h .
+      - name: Yerel pi-gen ve çapraz ARM çalıştırma araçları
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            quilt parted coreutils qemu-user-static debootstrap zerofree zip dosfstools \
+            e2fsprogs libcap2-bin rsync grep udev xz-utils curl xxd file kmod bc gpg pigz \
+            arch-test binfmt-support ca-certificates fdisk git python3
+          sudo update-binfmts --enable qemu-arm
+          sudo update-binfmts --enable qemu-aarch64
+          arch-test '${{ matrix.arch }}'
+      - name: Pi imajını derle, minimum ARM CPU ve salt okunur imaj denetimleri
+        run: |
+          sudo python3 scripts/ci-run.py --title 'Pi ${{ matrix.arch }}' -- \
+            bash build-pi.sh '${{ matrix.arch }}'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: OguzDows-rpi-${{ matrix.arch }}
+          path: |
+            OguzDows-rpi-${{ matrix.arch }}.img.xz
+            OguzDows-rpi-${{ matrix.arch }}.img.xz.sha256
+            OguzDows-rpi-${{ matrix.arch }}.packages.txt
+            raspberrypi/pi-gen.lock.json
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 7
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: OguzDows-Pi-gunluk-${{ matrix.arch }}
+          path: |
+            build-rpi-${{ matrix.arch }}/build.log
+            build-rpi-${{ matrix.arch }}/pi-gen/work/**/build.log
+            build-rpi-${{ matrix.arch }}/pi-gen/work/**/debootstrap.log
+          if-no-files-found: warn
+          retention-days: 7

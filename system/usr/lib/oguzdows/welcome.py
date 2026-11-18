@@ -12,6 +12,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from hardware import is_live, light_profile, memory_kib, read_text, report, supported_broadcom, supported_intel_legacy
 import offline
 import wallpapers
+from pi_support import current_policy, is_pi, model as pi_model
 
 import gi
 
@@ -82,7 +83,7 @@ class Welcome(Gtk.Application):
         body = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
         body.set_border_width(24)
         self.stack = Gtk.Stack()
-        reduced = light_profile(read_text(Path("/proc/cmdline")), memory_kib())
+        reduced = not current_policy()["animations"] if is_pi() else light_profile(read_text(Path("/proc/cmdline")), memory_kib())
         self.stack.set_transition_type(Gtk.StackTransitionType.NONE if reduced else Gtk.StackTransitionType.CROSSFADE)
         self.stack.set_transition_duration(160)
         switcher = Gtk.StackSwitcher(stack=self.stack)
@@ -120,15 +121,19 @@ class Welcome(Gtk.Application):
         choices.set_min_children_per_line(1)
         choices.set_max_children_per_line(3)
         choices.set_homogeneous(True)
-        choices.add(self.card("OğuzDows'u dene", "Diskine dokunmadan masaüstünü ve uygulamalarını keşfet.", "user-desktop-symbolic", lambda *_: self.window.close(), primary=True))
-        self.install_button = self.card("OğuzDows'u kur", "Canlı USB'den, internet gerekmeden bilgisayarına yerleştir.", "system-software-install-symbolic", self.install)
-        self.install_button.set_sensitive(self.can_install())
-        if not is_live():
-            self.install_button.set_tooltip_text("Kurulum canlı OğuzDows USB'sinden başlatılır.")
+        choices.add(self.card("OğuzDows'u keşfet" if is_pi() else "OğuzDows'u dene", "SD/USB üzerindeki kalıcı masaüstünü ve uygulamalarını keşfet." if is_pi() else "Diskine dokunmadan masaüstünü ve uygulamalarını keşfet.", "user-desktop-symbolic", lambda *_: self.window.close(), primary=True))
+        if is_pi():
+            self.install_button = self.card("Pi masaüstü ayarları", "Sistem zaten kurulu. Görünüm, ekran, ses ve güç ayarlarını düzenle.", "preferences-system-symbolic", lambda *_: self.launch(["/usr/bin/xfce4-settings-manager"]))
+        else:
+            self.install_button = self.card("OğuzDows'u kur", "Canlı USB'den, internet gerekmeden bilgisayarına yerleştir.", "system-software-install-symbolic", self.install)
+            self.install_button.set_sensitive(self.can_install())
+            if not is_live():
+                self.install_button.set_tooltip_text("Kurulum canlı OğuzDows USB'sinden başlatılır.")
         choices.add(self.install_button)
         choices.add(self.card("Donanımını tanı", "Aygıtları, yüklü firmware'i ve gömülü ek sürücüleri gör.", "preferences-system-symbolic", lambda *_: self.show_drivers()))
         page.pack_start(choices, False, False, 0)
-        self.install_status = label("Kurulum günlüğü: /var/log/oguzdows/installer.log", "muted", 90)
+        setup_note = (f"{pi_model() or 'Raspberry Pi'} · {current_policy()['profile']} profili. Değişikliklerin SD/USB üzerinde kalıcıdır." if is_pi() else "Kurulum günlüğü: /var/log/oguzdows/installer.log")
+        self.install_status = label(setup_note, "muted", 90)
         page.pack_start(self.install_status, False, False, 0)
         page.pack_start(Gtk.Separator(), False, False, 0)
         page.pack_start(label("Türkçe dil ve Q klavye · İstanbul saat dilimi · Hafif Xfce masaüstü", "muted", 80), False, False, 0)
@@ -161,7 +166,8 @@ class Welcome(Gtk.Application):
     def hardware_page(self) -> Gtk.Box:
         page = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
         page.pack_start(label("Önce tanı, sonra kur.", "section-title"), False, False, 8)
-        page.pack_start(label("Intel, AMD/ATI, Nouveau; Intel, Realtek, Atheros, Broadcom, Atmel, ZD1211 ve Libertas firmware paketleri ISO'dadır. Aşağıdaki rapor aygıtın gerçekten hangi sürücüye bağlandığını gösterir.", "muted", 95), False, False, 0)
+        driver_note = ("Pi çekirdekleri ve DTB'leri, VC4/V3D KMS, kartta varsa Broadcom SDIO Wi-Fi / Bluetooth ve USB ağ firmware'i imajdadır. Platform ve SDIO aygıtları da raporlanır; PC için STA sürücüsü Pi Wi-Fi'ına kurulmaz." if is_pi() else "Intel, AMD/ATI, Nouveau; Intel, Realtek, Atheros, Broadcom, Atmel, ZD1211 ve Libertas firmware paketleri ISO'dadır. Aşağıdaki rapor aygıtın gerçekten hangi sürücüye bağlandığını gösterir.")
+        page.pack_start(label(driver_note, "muted", 95), False, False, 0)
         self.report_view = Gtk.TextView(editable=False, cursor_visible=False, monospace=True)
         self.report_view.set_left_margin(12)
         self.report_view.set_top_margin(12)
@@ -194,7 +200,13 @@ class Welcome(Gtk.Application):
         self.intel_button.set_sensitive(False)
         self.intel_button.connect("clicked", lambda *_: self.install_driver("intel-legacy-accept-license"))
         page.pack_start(self.intel_button, False, False, 0)
-        page.pack_start(label("Bu iki ek paket ve gerekli derleme araçları ISO'ya gömülüdür; eşleşen kartlarda internet gerekmez. Lisans ve yönetici onayı istenir. Canlıda onayladığın seçim disk kurulumuna taşınır. Gri düğme: bu sürücüyle eşleşen kart algılanmadı.", "muted", 95), False, False, 0)
+        if is_pi():
+            for button in (self.broadcom_button, self.intel_button):
+                button.set_no_show_all(True)
+                button.hide()
+            page.pack_start(label("mini: ARMv6 veya en fazla 768 MiB; light: en fazla 2 GiB; full: daha fazla RAM. LZ4 zram sınırlıdır, SD swap kapalıdır; overclock uygulanmaz. 512 MiB ile modern web/ofis ağırdır. ARMv6 tarayıcısı temel Netsurf'tür (JavaScript yok). Profil: /etc/oguzdows/pi.conf", "muted", 95), False, False, 0)
+        else:
+            page.pack_start(label("Bu iki ek paket ve gerekli derleme araçları ISO'ya gömülüdür; eşleşen kartlarda internet gerekmez. Lisans ve yönetici onayı istenir. Canlıda onayladığın seçim disk kurulumuna taşınır. Gri düğme: bu sürücüyle eşleşen kart algılanmadı.", "muted", 95), False, False, 0)
         status = Gtk.Box(spacing=10)
         self.spinner = Gtk.Spinner()
         self.status = label("Donanım bilgilerin cihazında kalır.", "muted", 90)
@@ -229,7 +241,7 @@ class Welcome(Gtk.Application):
             grid.add(button)
             self.wallpaper_buttons.append(button)
         page.pack_start(grid, False, False, 0)
-        self.wallpaper_status = label("Seçimin sonraki oturumda korunur. Canlı USB'de kalıcılık yoksa yeniden başlatmada sıfırlanır.", "muted", 90)
+        self.wallpaper_status = label("Seçimin SD/USB üzerinde kaydedilir; yeniden başlatınca korunur." if is_pi() else "Seçimin sonraki oturumda korunur. Canlı USB'de kalıcılık yoksa yeniden başlatmada sıfırlanır.", "muted", 90)
         page.pack_start(self.wallpaper_status, False, False, 0)
         return page
 
@@ -268,7 +280,8 @@ class Welcome(Gtk.Application):
         self.status.set_text("Donanım okunuyor…")
         def work():
             try:
-                text, broadcom, intel = report(), supported_broadcom(), supported_intel_legacy()
+                text = report()
+                broadcom, intel = ([], []) if is_pi() else (supported_broadcom(), supported_intel_legacy())
             except Exception:
                 text, broadcom, intel = "Donanım raporu okunamadı. Yeniden deneyebilirsin.", [], []
             GLib.idle_add(self.report_ready, text, broadcom, intel)

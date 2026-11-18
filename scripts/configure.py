@@ -25,7 +25,7 @@ BOOT_ARGS = (
 def packages_for(arch: str) -> list[str]:
     suite = ARCHITECTURES[arch]["suite"]
     packages: list[str] = []
-    for name in ("common", str(suite), arch):
+    for name in ("common", "pc", str(suite), arch):
         for line in (ROOT / "packages" / f"{name}.list").read_text().splitlines():
             package = line.partition("#")[0].strip()
             if package and package not in packages:

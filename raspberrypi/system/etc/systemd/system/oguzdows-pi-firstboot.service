@@ -1,0 +1,27 @@
+[Unit]
+Description=OğuzDows Pi Türkçe ilk açılış ve güvenli hesap
+After=local-fs.target systemd-user-sessions.service plymouth-quit.service
+Before=lightdm.service ssh.service getty@tty1.service
+Wants=systemd-user-sessions.service
+RequiresMountsFor=/home /var/lib/oguzdows /boot/firmware
+ConditionPathExists=/etc/oguzdows/pi-image.json
+
+[Service]
+Type=oneshot
+ExecStartPre=-/usr/bin/chvt 1
+ExecStart=/usr/bin/python3 /usr/lib/oguzdows/pi-firstboot.py
+StandardInput=tty-force
+StandardOutput=tty
+StandardError=journal
+TTYPath=/dev/tty1
+TTYReset=yes
+TTYVHangup=yes
+TTYVTDisallocate=yes
+RemainAfterExit=yes
+Restart=on-failure
+RestartSec=3
+TimeoutStartSec=infinity
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target

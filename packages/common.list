@@ -1,9 +1,7 @@
 # Masaüstü: yerel, hafif Xfce; 3B hızlandırma zorunlu değildir.
-xorg
 x11-xserver-utils
 xserver-xorg-input-libinput
 xserver-xorg-input-evdev
-xserver-xorg-video-all
 xfce4
 xfce4-terminal
 xfce4-settings
@@ -83,50 +81,9 @@ keyboard-configuration
 
 # Eski donanım: yerleşik açık sürücüler + sıkıştırılmış RAM
 zram-tools
-intel-microcode
-amd64-microcode
-iucode-tool
 libgl1-mesa-dri
 libglx-mesa0
 mesa-utils
 pciutils
 usbutils
 ethtool
-# ISO'ya gömülü STA paketini internet olmadan derleyebilmek için.
-dkms
-build-essential
-python3-yaml
-
-# Sık kullanılan eski/yeni kablosuz ve ekran kartı firmware'i
-firmware-linux
-firmware-linux-free
-atmel-firmware
-firmware-zd1211
-firmware-bnx2
-firmware-bnx2x
-firmware-misc-nonfree
-firmware-iwlwifi
-firmware-realtek
-firmware-atheros
-firmware-brcm80211
-firmware-amd-graphics
-# Çok eski ipw2100/ipw2200 aygıtlarının ayrı lisans onaylı paketi isteğe bağlıdır.
-firmware-sof-signed
-firmware-ti-connectivity
-
-# Bağımsız, OğuzDows markalı kurucu ve disk araçları
-calamares
-grub-common
-grub2-common
-grub-pc-bin
-os-prober
-parted
-gdisk
-dosfstools
-e2fsprogs
-ntfs-3g
-rsync
-squashfs-tools
-cryptsetup
-cryptsetup-initramfs
-initramfs-tools

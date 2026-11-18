@@ -42,6 +42,26 @@ Kendi ekranlarımızdaki ürün adı OğuzDows’tur. Paket deposu adresleri, de
 
 **Sınırlar:** her eski aygıt için garanti yoktur. PAE’siz işlemciler, 32 bit UEFI, Secure Boot ve artık güncel çekirdeklerle çalışmayan eski kapalı NVIDIA/ATI sürücüleri bu profilin kapsamında değildir. UEFI kurulumda Secure Boot kapalı olmalıdır. Wi-Fi, askıya alma, ses ve 3B hızlandırma gerçek cihazda ayrıca sınanmalıdır.
 
+## Raspberry Pi Zero–5 · ARM portu
+
+Aynı Türkçe Xfce ortamının Pi için ayrı **SD/USB imajı** akışı vardır; x86 ISO'ları değişmeden korunur:
+
+| İmaj | Hedef |
+| --- | --- |
+| `armhf` | ARMv6 uyumlu kullanıcı alanı: Zero/Zero W, Pi 1/2/3/4; 512 MB için mini profil |
+| `arm64` | Zero 2 W, Pi 2 rev 1.2, Pi 3/4/**5**; Pi 5'e özel `2712` çekirdeği |
+
+```sh
+# Sadece yapılandırma; root/ağ/imaj üretimi yok:
+./build-pi.sh armhf --configure-only
+# Gerekli araçları kurduktan sonra tam SD/USB imajı:
+sudo ./build-pi.sh arm64
+```
+
+Pi imajında ortak `oguz/oguz` hesabı, parolasız sudo, Calamares veya PC STA sürücüsü **yoktur**. İlk açılış Türkçe hesap ekranıdır; RAM'e göre mini/light/full profili, sınırlı LZ4 zram, SD swap kapatma ve platform/SDIO/DRM donanım raporu eklenir. Kimlik, görünüm, altı duvar kâğıdı ve ortak uygulamalar korunur. **ARMv6'da varsayılan Netsurf temel tarayıcıdır (JavaScript yok); 512 MB'da modern web/ofis için Pi 5 performansı vaat edilmez.**
+
+**Fiziksel Pi açılışı/çevre birimleri/performans henüz doğrulanmış değildir.** İmaj matrisi, araçlar, SD'ye yazma, güvenli ilk açılış, kaynak pinleri, kurtarma ve test sınırları: **[Raspberry Pi rehberi](raspberrypi/README.md)**. Pi derlemeleri ayrı `.github/workflows/raspberrypi.yml` akışındadır; sürmekte olan PC/Pi işleri iptal edilmez.
+
 ## ISO derleme
 
 Root erişimi, internet bağlantısı ve yeterli disk alanı olan x86_64 bir `live-build` ortamı kullanın. İki mimarinin çalışma alanları ayrıdır; en az 20 GiB boş alan ayırmanız önerilir.
@@ -88,7 +108,9 @@ Bu komutlar **ISO oluşturmaz**. Gerçek derlemeyi daha sonra temiz bir çalış
 
 Betik mevcut `build-amd64/` veya `build-i386/` dizinini otomatik silmez. İlgili dizinde önce `sudo lb clean --purge` çalıştırın. Altında bağlı chroot/dosya sistemi kalmadığını doğruladıktan sonra çalışma dizinini kendiniz kaldırın. Bağlı chroot üzerinde `rm -rf` kullanmayın. Başarısız derlemenin ayrıntıları ilgili çalışma dizinindeki `build.log` dosyasındadır.
 
-## Güvenlik ve kurulum davranışı
+## PC ISO: güvenlik ve kurulum davranışı
+
+Aşağıdaki canlı hesap yalnızca x86 PC ISO içindir; Raspberry Pi hesap kurulumu yukarıdaki ayrı rehberdedir.
 
 Canlı oturum: **`oguz` / `oguz`**, otomatik giriş ve parolasız yönetici yetkisi **yalnızca canlı ortamda**. `oguz` adı kurucuda canlı kullanıcı için ayrılmıştır.
 
@@ -129,8 +151,10 @@ Klasik BIOS menüsünde ROM yazı tipi sınırlaması nedeniyle seçim metinleri
 
 ## Kaynak düzeni
 
-- `build.sh`: mimari seçimi ve ISO derleme akışı.
-- `packages/`: ortak, taban sürümüne ve mimariye özel paketler.
+- `build.sh`: x86 mimari seçimi ve ISO derleme akışı.
+- `build-pi.sh`, `raspberrypi/`: ayrı Pi imajı, kilitli pi-gen, ilk hesap ve donanım politikası.
+- `scripts/configure-pi.py`, `scripts/verify-pi.py`: çevrimdışı Pi aşaması ve güvenlik/boot kontrolü.
+- `packages/`: ortak masaüstü, PC'ye özgü, taban sürümüne ve mimariye özel paketler.
 - `system/`: canlı/kurulu sisteme eklenen dosyalar, karşılama ve sürücü merkezi.
 - `installer/`: OğuzDows Calamares ayarları ve markalama.
 - `boot/`: Plymouth teması ve animasyonu.

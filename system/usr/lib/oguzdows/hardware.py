@@ -7,6 +7,8 @@ import platform
 import subprocess
 from pathlib import Path
 
+from pi_support import current_policy, is_pi, model as pi_model, peripheral_summary
+
 # Broadcom STA'nın desteklediği PCI kimlikleri. Diğer Broadcom aygıtları için
 # b43 / brcmsmac / brcmfmac yerleşik sürücüleri korunur.
 BROADCOM_STA_IDS = frozenset({
@@ -110,4 +112,11 @@ def report() -> str:
         "\nAğ aygıtları\n" + command_output(["/usr/bin/nmcli", "-f", "DEVICE,TYPE,STATE", "device"]),
         "\nNot: Bu rapor yerel olarak üretilir; hiçbir yere gönderilmez.",
     ]
+    if is_pi():
+        settings = current_policy()
+        sections[5] = "Profil: " + settings["profile"] + f" · LZ4 zram {settings['zram_mb']} MiB"
+        sections[6:6] = ["\nRaspberry Pi kartı\n" + (pi_model() or "Model okunamadı"),
+                         "\nPlatform / SDIO / DRM / ağ sürücüleri\n" + peripheral_summary(),
+                         "\nPi sıcaklık, besleme ve throttling bayrakları\n" + command_output(["/usr/bin/vcgencmd", "measure_temp"])
+                         + "\n" + command_output(["/usr/bin/vcgencmd", "get_throttled"])]
     return "\n".join(sections) + "\n"

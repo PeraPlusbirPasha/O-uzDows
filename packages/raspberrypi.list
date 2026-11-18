@@ -1,0 +1,33 @@
+# Temel çekirdek / DTB / boot firmware'i kilitli pi-gen stage0'dan gelir.
+# ARM üzerinde PC ekran kartı meta paketi veya mikro kod kurulmaz.
+xserver-xorg
+xinit
+xserver-xorg-video-fbdev
+policykit-1
+firmware-brcm80211
+firmware-realtek
+firmware-atheros
+firmware-libertas
+pi-bluetooth
+raspi-utils
+raspi-config
+raspberrypi-sys-mods
+wireless-regdb
+mesa-vulkan-drivers
+# ARMv6 üzerinde modern Firefox yerine temel, JavaScript'siz web erişimi.
+netsurf-gtk
+# GPIO / I2C / SPI erişimi; arayüzler kullanıcı açana kadar zorla açılmaz.
+python3-gpiozero
+python3-rpi-lgpio
+python3-spidev
+python3-smbus2
+gpiod
+python3-libgpiod
+rpicam-apps-lite
+# SD / USB diskleri ve kullanıcı depolaması
+parted
+dosfstools
+e2fsprogs
+ntfs-3g
+rsync
+initramfs-tools
