@@ -87,6 +87,21 @@ def stage(session, name, directory=RUN, firmware='', target=''):
     return data
 
 
+def driver_results(session, results, directory=RUN):
+    data = read_status(directory)
+    if data.get('session') != session:
+        raise ValueError('Ek sürücü sonucu güncel kurulum oturumuna ait değil.')
+    data['optional_drivers'] = [
+        {key: item[key] for key in ('action', 'status', 'message')}
+        for item in results[:2] if isinstance(item, dict)
+        and item.get('action') in ('broadcom', 'intel-legacy-accept-license')
+        and item.get('status') in ('installed', 'skipped', 'failed')
+        and isinstance(item.get('message'), str) and len(item['message']) <= 1000
+    ]
+    atomic_json(directory / 'status.json', data)
+    return data
+
+
 def finish(session, code, directory=RUN):
     data = read_status(directory)
     if data.get('session') != session:
@@ -126,6 +141,13 @@ def description(data):
             detail += '\nAçılış türü: ' + ('UEFI' if data['firmware'] == 'efi' else 'BIOS')
         if data.get('target'):
             detail += '\nÖnyükleyici hedefi: ' + data['target']
+        optional = data.get('optional_drivers', [])
+        warnings = [item for item in optional if item.get('status') != 'installed']
+        if warnings:
+            title = 'OğuzDows kuruldu — ek sürücü uyarısı var.'
+        for item in optional:
+            name = 'Broadcom STA' if item.get('action') == 'broadcom' else 'Intel eski Wi-Fi'
+            detail += '\n' + name + ': ' + item.get('message', '')
         return title, detail
     if outcome == 'cancelled':
         return 'Kurulum başlatılmadı / iptal edildi.', 'Başarılı disk kurulumu kaydı oluşmadı. Yetkilendirme veya kurucu kapatılmış olabilir. Canlı USB oturumundasın.'

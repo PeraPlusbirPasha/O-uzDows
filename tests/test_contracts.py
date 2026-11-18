@@ -161,10 +161,10 @@ class ContractsTests(unittest.TestCase):
         self.assertIn("--install", (ROOT / "system/usr/local/bin/oguzdows-install").read_text())
         settings = yaml.safe_load((ROOT / "installer/settings.conf").read_text())
         sequence = settings["sequence"][1]["exec"]
-        self.assertLess(sequence.index("shellprocess@drivers"), sequence.index("initramfs"))
-        self.assertLess(sequence.index("shellprocess@cleanup"), sequence.index("shellprocess@drivers"))
+        self.assertLess(sequence.index("oguzdowsdrivers@drivers"), sequence.index("initramfs"))
+        self.assertLess(sequence.index("shellprocess@cleanup"), sequence.index("oguzdowsdrivers@drivers"))
         defaults = yaml.safe_load((ROOT / "installer/modules/selected-drivers.conf").read_text())
-        self.assertEqual(defaults["script"], [])
+        self.assertEqual(defaults["actions"], [])
         workflow = yaml.safe_load((ROOT / ".github/workflows/main.yml").read_text())
         self.assertFalse(workflow["concurrency"]["cancel-in-progress"])
 

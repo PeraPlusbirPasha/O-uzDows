@@ -112,10 +112,10 @@ class OfflineDriverTests(unittest.TestCase):
             unpack = yaml.safe_load((config / "modules/unpackfs.conf").read_text())
             self.assertEqual(unpack["unpack"][0]["source"], str(medium / "live/filesystem.squashfs"))
             drivers = yaml.safe_load((config / "modules/selected-drivers.conf").read_text())
-            self.assertEqual(drivers["script"], list(prepare.COMMANDS.values()))
-            self.assertFalse(drivers["dontChroot"])
+            self.assertEqual(drivers["actions"], list(prepare.ACTIONS))
+            self.assertNotIn("script", drivers)
             prepare.prepare(config, (medium,), [])
-            self.assertEqual(yaml.safe_load((config / "modules/selected-drivers.conf").read_text())["script"], [])
+            self.assertEqual(yaml.safe_load((config / "modules/selected-drivers.conf").read_text())["actions"], [])
             with self.assertRaises(FileNotFoundError):
                 prepare.source((root / "absent",))
 
