@@ -44,3 +44,9 @@ progressbar progress, scale highlight { background-image: none; background-color
 .oguzdows-window .section-title { font-size: 16px; font-weight: 700; }
 .oguzdows-window .pill { background-color: #202d32; color: #7ad9d1; border-radius: 12px; padding: 5px 12px; font-size: 10px; }
 .oguzdows-window textview, .oguzdows-window textview text { background-color: #10131a; color: #dae0e9; font-family: monospace; font-size: 11px; }
+/* Rıfkı'nın metni ve düğmeleri saydamlaşmaz; karakter yalnızca küçük alanda çizilir. */
+.rifki-window textview, .rifki-window textview text { font-family: "Inter", sans-serif; font-size: 12px; background-color: #101722; color: #edf2fa; }
+.rifki-window entry { background-image: none; background-color: #252f40; color: #fff9ef; border: 1px solid #66788f; min-height: 30px; }
+.rifki-window button { background-image: none; background-color: #263247; color: #f4f4f8; border: 1px solid #4f637a; }
+.rifki-window button:hover { background-color: #384c67; border-color: #69d4d3; }
+.rifki-window .muted { font-size: 10px; }

@@ -34,7 +34,9 @@ class AssetTests(unittest.TestCase):
                 for state in ("active", "inactive", "prelight", "pressed"):
                     self.assertTrue((theme / f"{button}-{state}.png").is_file())
             manifest = json.loads((root / "usr/share/oguzdows/wallpapers.json").read_text())
-            self.assertEqual({item["id"] for item in manifest}, {"ay-yildiz", "istanbul", "kapadokya", "pamukkale", "kackar", "anadolu"})
+            self.assertTrue({"ay-yildiz", "istanbul", "kapadokya", "pamukkale", "kackar", "anadolu"}.issubset({item["id"] for item in manifest}))
+            self.assertEqual(len(manifest), 12)
+            self.assertEqual(sum(item.get("origin") == "AI-generated" for item in manifest), 6)
             pixels = set()
             for item in manifest:
                 with Image.open(root / item["path"].lstrip("/")) as image:
@@ -42,13 +44,23 @@ class AssetTests(unittest.TestCase):
                     pixels.add(image.tobytes())
                 with Image.open(root / item["preview"].lstrip("/")) as preview:
                     self.assertEqual(preview.size, (320, 180))
-            self.assertEqual(len(pixels), 6)
+            self.assertEqual(len(pixels), 12)
             for state in ("active", "inactive"):
                 with Image.open(theme / f"close-{state}.png") as close:
                     self.assertEqual(close.getchannel("A").getextrema(), (255, 255))
             original = bios.read_bytes()
             renderer.render(root)
             self.assertEqual(bios.read_bytes(), original)
+
+    def test_nazar_reveals_monotonically_and_keeps_charging_distinct(self):
+        blue_counts = []
+        for percentage in range(0, 101, 10):
+            image = renderer.nazar(percentage)
+            blue_counts.append(sum(b > 110 and b > r * 1.5 and a > 100 for r, g, b, a in image.getdata()))
+        self.assertEqual(blue_counts, sorted(blue_counts))
+        self.assertGreater(blue_counts[-1], blue_counts[0])
+        self.assertNotEqual(renderer.nazar(50).tobytes(), renderer.nazar(50, charging=True).tobytes())
+        self.assertEqual(renderer.nazar(100).getpixel((0, 0))[3], 0)
 
     def test_mark_has_transparent_background_and_native_small_icons(self):
         mark = renderer.emblem(128)

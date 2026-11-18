@@ -12,6 +12,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from hardware import is_live, light_profile, memory_kib, read_text, report, supported_broadcom, supported_intel_legacy
 import offline
 import wallpapers
+import boot_report
+import install_status as installer_state
+from rifki import Avatar, Companion
 from pi_support import current_policy, is_pi, model as pi_model
 
 import gi
@@ -42,11 +45,14 @@ class Welcome(Gtk.Application):
         self.report_text = ""
         self.mark_on_close = False
         self.wallpaper_buttons = []
+        self.rifki = None
+        self.install_data = {}
+        self.previous_session = None
 
     def do_command_line(self, command_line: Gio.ApplicationCommandLine) -> int:
         args = set(command_line.get_arguments()[1:])
-        if args - {"--autostart", "--drivers", "--wallpapers", "--install"}:
-            print("Kullanım: oguzdows-welcome [--autostart|--drivers|--wallpapers|--install]", file=sys.stderr)
+        if args - {"--autostart", "--drivers", "--wallpapers", "--install", "--assistant"}:
+            print("Kullanım: oguzdows-welcome [--autostart|--drivers|--wallpapers|--install|--assistant]", file=sys.stderr)
             return 2
         if "--autostart" in args and self.state_file.exists():
             return 0
@@ -56,6 +62,8 @@ class Welcome(Gtk.Application):
             self.show_drivers()
         if "--wallpapers" in args:
             self.stack.set_visible_child_name("wallpapers")
+        if "--assistant" in args or "--autostart" in args:
+            self.open_assistant()
         if "--install" in args:
             self.stack.set_visible_child_name("welcome")
             GLib.idle_add(self.install)
@@ -80,10 +88,14 @@ class Welcome(Gtk.Application):
         header.set_show_close_button(True)
         self.window.set_titlebar(header)
         header.pack_end(label("Canlı oturum" if is_live() else "Senin masaüstün", "pill"))
+        help_button = Gtk.Button(label="Rıfkı’ya sor")
+        help_button.connect("clicked", lambda *_: self.open_assistant())
+        header.pack_start(help_button)
         body = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
         body.set_border_width(24)
         self.stack = Gtk.Stack()
         reduced = not current_policy()["animations"] if is_pi() else light_profile(read_text(Path("/proc/cmdline")), memory_kib())
+        self.reduced = reduced
         self.stack.set_transition_type(Gtk.StackTransitionType.NONE if reduced else Gtk.StackTransitionType.CROSSFADE)
         self.stack.set_transition_duration(160)
         switcher = Gtk.StackSwitcher(stack=self.stack)
@@ -93,6 +105,7 @@ class Welcome(Gtk.Application):
         self.stack.add_titled(self.hardware_page(), "hardware", "Donanım ve Sürücüler")
         self.stack.add_titled(self.wallpapers_page(), "wallpapers", "Duvar Kâğıtları")
         self.stack.connect("notify::visible-child-name", self.page_changed)
+        self.stack.add_named(self.result_page(), "install-result")
         body.pack_start(self.stack, True, True, 0)
         scroll = Gtk.ScrolledWindow()
         scroll.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
@@ -103,14 +116,13 @@ class Welcome(Gtk.Application):
     def welcome_page(self) -> Gtk.Box:
         page = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=18)
         hero = Gtk.Box(spacing=22)
-        image = Gtk.Image.new_from_file("/usr/share/oguzdows/brand/oguzdows.png")
+        image = Avatar(reduced=self.reduced, size=156)
         image.set_valign(Gtk.Align.CENTER)
-        image.get_accessible().set_name("OğuzDows ay yıldız amblemi")
         hero.pack_start(image, False, False, 0)
         words = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=9)
-        words.pack_start(label("TÜRKÇE · YALIN · ÖZGÜR", "eyebrow"), False, False, 0)
+        words.pack_start(label("RIFKI · YANINDAYIM", "eyebrow"), False, False, 0)
         words.pack_start(label("OğuzDows'a hoş geldin.", "heading", 28), False, False, 0)
-        words.pack_start(label("Köklerinden güç alan, seninle hayat bulan masaüstü.", "muted", 50), False, False, 0)
+        words.pack_start(label("Ben Rıfkı. Kurulumdan ilk adımlarına kadar birlikte bakalım.", "muted", 50), False, False, 0)
         hero.pack_start(words, True, True, 0)
         page.pack_start(hero, False, False, 12)
         page.pack_start(label("Nasıl başlamak istersin?", "section-title"), False, False, 0)
@@ -218,7 +230,7 @@ class Welcome(Gtk.Application):
     def wallpapers_page(self) -> Gtk.Box:
         page = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=14)
         page.pack_start(label("Türkiye'nin renkleri masaüstünde.", "section-title"), False, False, 6)
-        page.pack_start(label("Özgün çizimlerden oluşan altı duvar kâğıdı. Tamamı çevrimdışı; animasyon veya ek arka plan servisi yok.", "muted", 90), False, False, 0)
+        page.pack_start(label("Altı çizim ve altı yeni foto-gerçekçi Türkiye manzarası. Yeni manzaralar yapay zekâ üretimidir, gerçek çekim değildir. Tamamı çevrimdışı; arka plan servisi yok.", "muted", 90), False, False, 0)
         grid = Gtk.FlowBox()
         grid.set_selection_mode(Gtk.SelectionMode.NONE)
         grid.set_min_children_per_line(1)
@@ -324,6 +336,10 @@ class Welcome(Gtk.Application):
             self.message("Kurulum canlı USB'den başlatılır.", "Canlı OğuzDows USB'siyle açıldığından emin ol.")
             return GLib.SOURCE_REMOVE
         self.install_busy = True
+        self.previous_session = installer_state.read_status().get('session')
+        self.install_data = {}
+        self.open_assistant()
+        GLib.timeout_add(800, self.poll_installation)
         self.install_button.set_sensitive(False)
         self.broadcom_button.set_sensitive(False)
         self.intel_button.set_sensitive(False)
@@ -331,24 +347,122 @@ class Welcome(Gtk.Application):
         def work():
             try:
                 result = subprocess.run(["/usr/bin/pkexec", "/usr/local/sbin/oguzdows-installer"], capture_output=True, text=True, errors="replace", check=False)
-                code, detail = result.returncode, (result.stderr or result.stdout).strip()[-5000:]
+                code, detail, output = result.returncode, result.stderr.strip()[-5000:], result.stdout
             except OSError as error:
-                code, detail = 1, str(error)
-            GLib.idle_add(self.install_finished, code, detail)
+                code, detail, output = 1, str(error), ''
+            GLib.idle_add(self.install_finished, code, detail, output)
         threading.Thread(target=work, daemon=True).start()
         return GLib.SOURCE_REMOVE
 
-    def install_finished(self, code, detail):
+    def result_page(self):
+        page = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=16)
+        self.result_title = label("Kurulum sonucu", "heading", 40)
+        self.result_detail = label("Henüz sonuç yok.", "", 90)
+        page.pack_start(self.result_title, False, False, 0)
+        page.pack_start(self.result_detail, False, False, 0)
+        page.pack_start(label("Günlük: /var/log/oguzdows/installer.log", "muted", 80), False, False, 0)
+        self.result_log = Gtk.TextView(editable=False, cursor_visible=False, wrap_mode=Gtk.WrapMode.WORD_CHAR)
+        self.result_log.set_left_margin(10)
+        self.result_log.set_top_margin(10)
+        scroll = Gtk.ScrolledWindow()
+        scroll.set_size_request(-1, 150)
+        scroll.add(self.result_log)
+        page.pack_start(scroll, True, True, 0)
+        back = Gtk.Button(label="Rehbere dön")
+        back.connect("clicked", lambda *_: self.stack.set_visible_child_name("welcome"))
+        page.pack_start(back, False, False, 0)
+        report = Gtk.Button(label="Salt-okunur disk açılış raporu")
+        report.connect("clicked", lambda *_: self.show_boot_report())
+        page.pack_start(report, False, False, 0)
+        self.restart_button = Gtk.Button(label="Bilgisayarı yeniden başlat…")
+        self.restart_button.set_no_show_all(True)
+        self.restart_button.connect("clicked", self.restart)
+        page.pack_start(self.restart_button, False, False, 0)
+        return page
+
+    def restart(self, *_):
+        if self.install_data.get('outcome') != 'success' or self.install_data.get('complete') is not True:
+            return
+        dialog = Gtk.MessageDialog(transient_for=self.window, modal=True,
+                                   message_type=Gtk.MessageType.QUESTION, buttons=Gtk.ButtonsType.YES_NO,
+                                   text="Kurulum tamamlandı. Şimdi yeniden başlatılsın mı?")
+        dialog.format_secondary_text("Açık dosyalarını kaydet. Bilgisayar kapanırken USB'yi çıkar; sonraki açılışta iç diski seç. Bu işlem otomatik yapılmaz.")
+        answer = dialog.run()
+        dialog.destroy()
+        if answer == Gtk.ResponseType.YES:
+            self.launch(['/usr/bin/xfce4-session-logout', '--reboot'])
+
+    def poll_installation(self):
+        if not self.install_busy:
+            return GLib.SOURCE_REMOVE
+        data = installer_state.read_status()
+        if data and data.get('session') != self.previous_session:
+            self.install_data = data
+            if self.rifki:
+                self.rifki.installation(data)
+        return GLib.SOURCE_CONTINUE
+
+    def install_finished(self, code, detail, output=''):
         self.install_busy = False
         self.install_button.set_sensitive(self.can_install())
         self.broadcom_button.set_sensitive(bool(supported_broadcom()))
         self.intel_button.set_sensitive(bool(supported_intel_legacy()))
-        if code == 0:
-            self.install_status.set_text("Kurucu kapandı. Kurulum yaptıysan USB'yi çıkarıp yeniden başlatabilirsin.")
-        else:
-            self.install_status.set_text("Kurucu tamamlanamadı; hata ayrıntılarını kontrol et.")
-            title = "Yetkilendirme iptal edildi." if code in (126, 127) else "OğuzDows kurucusu hata ile kapandı."
-            self.message(title, (detail + "\n\nGünlük: /var/log/oguzdows/installer.log").strip())
+        data = installer_state.from_output(code, output)
+        self.install_data = data
+        title, explanation = installer_state.description(data)
+        self.install_status.set_text(title)
+        self.result_title.set_text(title)
+        self.result_detail.set_text(explanation)
+        self.result_log.get_buffer().set_text(detail or 'Kurucunun kapanışında ek hata çıktısı yok. Ayrıntılı günlük yukarıdaki yoldadır.')
+        success = data.get('outcome') == 'success' and data.get('complete') is True
+        self.restart_button.set_visible(success)
+        self.stack.set_visible_child_name('install-result')
+        self.window.present()
+        if self.rifki:
+            self.rifki.set_keep_above(False)
+            self.rifki.installation(data)
+        if not success:
+            self.message(title, (explanation + '\n\n' + detail + '\n\nGünlük: /var/log/oguzdows/installer.log').strip())
+        return GLib.SOURCE_REMOVE
+
+    def open_assistant(self):
+        if self.rifki is None:
+            callbacks = {
+                'boot-report': self.show_boot_report,
+                'network': lambda: self.launch(['/usr/bin/nm-connection-editor']),
+                'drivers': self.show_drivers,
+                'wallpapers': lambda: self.navigate('wallpapers'),
+                'install': lambda: self.navigate('welcome'),
+            }
+            self.rifki = Companion(self, callbacks, reduced=self.reduced)
+            self.rifki.connect('destroy', self.assistant_closed)
+            self.rifki.show_all()
+        self.rifki.set_keep_above(self.install_busy)
+        self.rifki.present()
+        if self.install_data:
+            self.rifki.installation(self.install_data)
+
+    def navigate(self, page):
+        self.stack.set_visible_child_name(page)
+        self.window.present()
+
+    def assistant_closed(self, *_):
+        self.rifki = None
+
+    def show_boot_report(self):
+        if self.report_loading:
+            return
+        self.report_loading = True
+        self.stack.set_visible_child_name('hardware')
+        self.status.set_text('Disk ve açılış bilgileri yalnızca okunuyor…')
+        def work():
+            text = boot_report.report()
+            GLib.idle_add(self.boot_report_ready, text)
+        threading.Thread(target=work, daemon=True).start()
+
+    def boot_report_ready(self, text):
+        self.report_ready(text, [], [])
+        self.status.set_text('Salt-okunur açılış raporu hazır. Disk veya firmware ayarı değiştirilmedi; istersen raporu kaydet.')
         return GLib.SOURCE_REMOVE
 
     def launch(self, command):
@@ -441,6 +555,8 @@ class Welcome(Gtk.Application):
                     self.state_file.write_text("OğuzDows\n", encoding="utf-8")
             except OSError:
                 print("OğuzDows karşılama tercihi kaydedilemedi.", file=sys.stderr)
+        if self.rifki:
+            self.rifki.destroy()
         self.window = None
         return False
 

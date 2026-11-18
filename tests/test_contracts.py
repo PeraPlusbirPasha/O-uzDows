@@ -25,7 +25,7 @@ class ContractsTests(unittest.TestCase):
     def test_user_facing_product_files_are_branded(self):
         for directory in ("system", "installer", "boot", "assets"):
             for path in (ROOT / directory).rglob("*"):
-                if not path.is_file() or "__pycache__" in path.parts:
+                if not path.is_file() or "__pycache__" in path.parts or path.suffix in {".png", ".jpg", ".wav"}:
                     continue
                 text = path.read_text().replace("DEBIAN_FRONTEND", "PACKAGE_FRONTEND").lower()
                 with self.subTest(path=path.relative_to(ROOT)):
@@ -53,7 +53,7 @@ class ContractsTests(unittest.TestCase):
         self.assertLess(sequence.index("grubcfg"), sequence.index("bootloader"))
         self.assertLess(sequence.index("initramfscfg"), sequence.index("initramfs"))
         self.assertLess(sequence.index("initramfs"), sequence.index("bootloader"))
-        self.assertEqual(sequence[-1], "umount")
+        self.assertEqual(sequence[-2:], ["umount", "oguzdowsresult@result-complete"])
         cleanup = yaml.safe_load((ROOT / "installer/modules/cleanup.conf").read_text())
         self.assertFalse(cleanup["dontChroot"])
         users = yaml.safe_load((ROOT / "installer/modules/users.conf").read_text())
@@ -62,6 +62,13 @@ class ContractsTests(unittest.TestCase):
         partition = yaml.safe_load((ROOT / "installer/modules/partition.conf").read_text())
         self.assertEqual(partition["initialPartitioningChoice"], "none")
 
+    def test_installer_keeps_its_result_page_visible_without_automatic_reboot(self):
+        settings = yaml.safe_load((ROOT / "installer/settings.conf").read_text())
+        self.assertFalse(settings["quit-at-end"])
+        self.assertEqual(settings["sequence"][-1], {"show": ["finished"]})
+        finished = yaml.safe_load((ROOT / "installer/modules/finished.conf").read_text())
+        self.assertEqual(finished["restartNowMode"], "user-unchecked")
+
     def test_no_silent_network_theme_download_or_global_driver_blacklist(self):
         for path in (ROOT / "hooks").iterdir():
             text = path.read_text()
@@ -69,7 +76,7 @@ class ContractsTests(unittest.TestCase):
             self.assertNotIn("curl ", text)
             self.assertNotIn("apt-get", text)
         for path in (ROOT / "system").rglob("*"):
-            if path.is_file() and path.suffix != ".pyc":
+            if path.is_file() and path.suffix not in {".pyc", ".png", ".jpg", ".wav"}:
                 text = path.read_text()
                 self.assertNotIn("blacklist brcmfmac", text)
                 self.assertNotIn("blacklist b43", text)
@@ -145,7 +152,9 @@ class ContractsTests(unittest.TestCase):
 
     def test_live_installer_uses_system_configuration_and_exposes_errors(self):
         script = (ROOT / "system/usr/local/sbin/oguzdows-installer").read_text()
-        self.assertIn("/usr/bin/calamares -D", script)
+        self.assertIn("/usr/bin/python3 -I /usr/lib/oguzdows/run-installer.py", script)
+        runner = (ROOT / "system/usr/lib/oguzdows/run-installer.py").read_text()
+        self.assertIn("['/usr/bin/calamares', '-D', '6']", runner)
         self.assertNotIn("--config /etc/calamares/settings.conf", script)
         self.assertIn("flock -n", script)
         self.assertIn("installer.log", script)

@@ -1,0 +1,5 @@
+---
+type: job
+name: oguzdowsresult
+interface: python
+script: main.py

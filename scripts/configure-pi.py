@@ -15,6 +15,7 @@ PC_ONLY = (
     "etc/systemd/system/oguzdows-live-setup.service",
     "usr/lib/oguzdows/live-setup.sh", "usr/lib/oguzdows/finish-install.sh",
     "usr/lib/oguzdows/prepare-install.py", "usr/lib/oguzdows/cache-drivers.py",
+    "usr/lib/oguzdows/run-installer.py",
     "usr/local/bin/oguzdows-install", "usr/local/sbin/oguzdows-installer",
     "usr/local/sbin/oguzdows-driver-helper", "usr/share/applications/oguzdows-install.desktop",
     "usr/share/polkit-1/actions/org.oguzdows.install.policy",

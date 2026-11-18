@@ -13,18 +13,9 @@ umask 077
 install -d -m 0755 /var/log/oguzdows
 LOG=$(mktemp /var/log/oguzdows/installer.XXXXXX.log)
 ln -sfn "${LOG##*/}" /var/log/oguzdows/installer.log
-if ! python3 -I /usr/lib/oguzdows/prepare-install.py >>"$LOG" 2>&1; then
-    tail -n 15 "$LOG" >&2
-    exit 1
-fi
 export LANG=tr_TR.UTF-8 LANGUAGE=tr LC_MESSAGES=tr_TR.UTF-8
 export QT_QPA_PLATFORMTHEME=gtk3
 # Standart /etc/calamares/settings.conf otomatik okunur. --config'e dosya
 # vermek geçersizdi; dizinle override etmek de varsayılan kaynak aramasını daraltır.
-STATUS=0
-/usr/bin/calamares -D 6 >>"$LOG" 2>&1 || STATUS=$?
-if [ "$STATUS" -ne 0 ]; then
-    printf 'OğuzDows kurucusu tamamlanamadı. Günlük: /var/log/oguzdows/installer.log\n' >&2
-    tail -n 20 "$LOG" >&2
-fi
-exit "$STATUS"
+# Gözetmen, yalnızca son Calamares işinin ürettiği yeni başarı kaydını kabul eder.
+exec /usr/bin/python3 -I /usr/lib/oguzdows/run-installer.py --log "$LOG"

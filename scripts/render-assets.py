@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 import math
+import shutil
 from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFont
@@ -257,6 +258,27 @@ def render_wallpapers(root: Path) -> None:
         save(image, root, path)
         save(image.resize((320, 180), Image.Resampling.LANCZOS), root, preview)
         entries.append({"id": identifier, "name": name, "path": path, "preview": preview})
+    photographs = (
+        ("bogaz-sabahi", "Boğaz · Sabah Işığı"),
+        ("kackar-sisi", "Kaçkar · Sis Denizinde"),
+        ("kapadokya-isigi", "Kapadokya · Gün Doğumu"),
+        ("oludeniz-kiyisi", "Ölüdeniz · Turkuaz Kıyı"),
+        ("tuz-golu-aksami", "Tuz Gölü · Akşam Aynası"),
+        ("ani-kisi", "Ani · Kış Sessizliği"),
+    )
+    for identifier, name in photographs:
+        relative = "usr/share/backgrounds/oguzdows/" + identifier + ".jpg"
+        source = root / relative
+        if not source.is_file():
+            source = Path(__file__).resolve().parents[1] / "system" / relative
+        target_image = root / relative
+        target_image.parent.mkdir(parents=True, exist_ok=True)
+        if source.resolve() != target_image.resolve():
+            shutil.copyfile(source, target_image)
+        with Image.open(source) as image:
+            preview = "/usr/share/oguzdows/wallpaper-previews/" + identifier + ".jpg"
+            save(image.resize((320, 180), Image.Resampling.LANCZOS), root, preview)
+        entries.append({"id": identifier, "name": name, "path": "/" + relative, "preview": preview, "origin": "AI-generated"})
     target = root / "usr/share/oguzdows/wallpapers.json"
     target.write_text(json.dumps(entries, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
@@ -327,8 +349,66 @@ shadow_delta_y=2
 """)
 
 
+def nazar(level: int, size: int = 48, charging: bool = False) -> Image.Image:
+    """Mavi cam boncuk aşağıdan yukarı açılır; güç politikası değişmez."""
+    level = max(0, min(100, level))
+    n = size * 3
+    image = Image.new("RGBA", (n, n))
+    for y in range(n):
+        for x in range(n):
+            r = math.hypot(x - n * .47, y - n * .5) / (n * .43)
+            if r > 1:
+                continue
+            if y < n * (1 - level / 100):
+                color = (48, 57, 74, 255)
+            else:
+                color = (9, 64, 178) if r > .70 else ((245, 242, 216) if r > .46 else ((52, 179, 227) if r > .23 else (9, 22, 39)))
+                glow = 1 - .30 * r + .12 * (1 - y / n)
+                color = tuple(min(255, round(channel * glow)) for channel in color) + (255,)
+            image.putpixel((x, y), color)
+    draw = ImageDraw.Draw(image)
+    if level:
+        draw.arc((n*.1, n*.12, n*.8, n*.88), 195, 250, fill=(200, 237, 255, 220), width=max(1, n//30))
+    if charging:
+        draw.polygon([(n*.79,n*.08),(n*.64,n*.43),(n*.77,n*.43),(n*.68,n*.70),(n*.96,n*.33),(n*.82,n*.33),(n*.94,n*.08)], fill="#ffda71", outline="#3e331d", width=max(1,n//48))
+    elif level <= 10:
+        draw.ellipse((n*.65,n*.64,n*.97,n*.96), fill="#d63c53")
+        draw.line((n*.81,n*.69,n*.81,n*.83), fill="white", width=max(2,n//24))
+        draw.ellipse((n*.79,n*.87,n*.83,n*.91), fill="white")
+    return image.resize((size, size), Image.Resampling.LANCZOS)
+
+
+def render_nazar(root: Path) -> None:
+    sizes = (16, 24, 32, 48)
+    base = root / "usr/share/icons/OguzDows"
+    base.mkdir(parents=True, exist_ok=True)
+    directories = [f"{size}x{size}/status" for size in sizes]
+    index = "[Icon Theme]\nName=OguzDows\nComment=Nazar boncuğu pil göstergeleri\nInherits=Adwaita,hicolor\nDirectories=" + ",".join(directories) + "\n"
+    for size, directory in zip(sizes, directories):
+        index += f"\n[{directory}]\nSize={size}\nContext=Status\nType=Fixed\n"
+        for level in range(0, 101, 10):
+            # Xfce son dilimde 100 adını kullanır; tam dolu durumu ayrı ikondur.
+            shown = min(level, 95)
+            for suffix, charging in (("", False), ("-charging", True)):
+                image = nazar(shown, size, charging)
+                for name in (f"battery-level-{level}{suffix}-symbolic", f"battery-level-{level}{suffix}", f"xfpm-primary-{level:03}{suffix}"):
+                    save(image, root, f"usr/share/icons/OguzDows/{directory}/{name}.png")
+        for name, level in (("empty", 0), ("caution", 10), ("low", 20), ("good", 60), ("full", 95), ("full-charged", 100)):
+            for suffix in ("", "-symbolic"):
+                save(nazar(level, size), root, f"usr/share/icons/OguzDows/{directory}/battery-{name}{suffix}.png")
+                save(nazar(level, size, True), root, f"usr/share/icons/OguzDows/{directory}/battery-{name}-charging{suffix}.png")
+        for name in ("battery-level-100-charged-symbolic", "battery-level-100-charged", "xfpm-primary-charged"):
+            save(nazar(100, size), root, f"usr/share/icons/OguzDows/{directory}/{name}.png")
+    (base / "index.theme").write_text(index, encoding="utf-8")
+
+
 def render(root: Path) -> None:
     render_wallpapers(root)
+    render_nazar(root)
+    source = Path(__file__).resolve().parents[1] / "system/usr/share/oguzdows/rifki"
+    target = root / "usr/share/oguzdows/rifki"
+    if source.is_dir() and source.resolve() != target.resolve():
+        shutil.copytree(source, target, dirs_exist_ok=True)
     for size in (24, 32, 48, 64, 128, 256):
         save(emblem(size, tile=True), root, f"usr/share/icons/hicolor/{size}x{size}/apps/oguzdows.png")
     brand = "usr/share/oguzdows/brand/"

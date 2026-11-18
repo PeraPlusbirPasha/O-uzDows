@@ -26,10 +26,22 @@ def main():
     if not Gtk.init_check([])[0]:
         raise RuntimeError("GTK için bir görüntü sunucusu gerekli; Xvfb ile çalıştırın.")
     errors = []
+    original_hook = sys.excepthook
+    sys.excepthook = lambda kind, value, trace: errors.append(str(value))
     with tempfile.TemporaryDirectory(prefix="oguzdows-ui-") as state:
         os.environ["XDG_STATE_HOME"] = state
+        os.environ["XDG_CONFIG_HOME"] = state
+        os.environ["OGUZDOWS_TESTING"] = "1"
         settings = Gtk.Settings.get_default()
         settings.set_property("gtk-theme-name", "OguzDows")
+        settings.set_property("gtk-icon-theme-name", "OguzDows")
+        icons = Gtk.IconTheme.get_default()
+        for name in ("battery-level-0-symbolic", "battery-level-50-charging-symbolic", "battery-level-100-charged-symbolic"):
+            info = icons.lookup_icon(name, 24, 0)
+            assert info and '/OguzDows/' in info.get_filename(), name
+            assert not info.is_symbolic(), "Nazar PNG renkleri sembolik renge dönüşmemeli"
+            assert icons.load_icon(name, 24, 0).get_width() == 24
+        assert icons.lookup_icon("battery-missing-symbolic", 24, 0), "Eksik pil için Adwaita mirası korunmalı"
         provider = Gtk.CssProvider()
         provider.load_from_path(str(ROOT / "system/usr/share/themes/OguzDows/gtk-3.0/gtk.css"))
         notify_provider = Gtk.CssProvider()
@@ -46,6 +58,11 @@ def main():
         loop = GLib.MainLoop()
 
         def screenshot(name):
+            for _ in range(20):
+                if not Gtk.events_pending():
+                    break
+                Gtk.main_iteration_do(False)
+            app.window.get_window().process_updates(True)
             window = app.window.get_window()
             width, height = app.window.get_size()
             pixbuf = Gdk.pixbuf_get_from_window(window, 0, 0, width, height)
@@ -71,7 +88,7 @@ def main():
         def gallery():
             try:
                 screenshot("welcome-small.png")
-                assert len(app.wallpaper_buttons) == 6, "Türkiye galerisinde altı seçim bulunmalı"
+                assert len(app.wallpaper_buttons) == 12, "Türkiye galerisinde on iki seçim bulunmalı"
                 app.stack.set_visible_child_name("wallpapers")
             except Exception as error:
                 errors.append(str(error))
@@ -110,11 +127,42 @@ def main():
                 messages = []
                 app.message = lambda *args: messages.append(args)
                 app.install_finished(1, "Kurucu başlatma hata testi")
-                app.message = original_message
                 assert messages and "Kurucu başlatma hata testi" in messages[0][1]
-                screenshot("hardware.png")
-                app.window.connect("destroy", closed)
-                app.window.close()
+                assert app.stack.get_visible_child_name() == "install-result"
+                assert not app.restart_button.get_visible()
+                screenshot("install-failure.png")
+                app.install_finished(0, "")
+                assert "doğrulanamadı" in app.result_title.get_text()
+                data = {"version": 1, "session": "a" * 32, "outcome": "success", "complete": True, "stage": "complete"}
+                import json
+                app.install_finished(0, "", welcome.installer_state.PREFIX + json.dumps(data))
+                assert "başarıyla" in app.result_title.get_text()
+                assert app.restart_button.get_visible()
+                screenshot("install-success.png")
+                app.open_assistant()
+                assert len(app.rifki.avatar.frames) == 4
+                app.rifki.ask("diskten açılmıyor")
+                assert app.rifki.action_name == 'boot-report'
+                app.rifki.speaker.set_enabled(False)
+                app.rifki.avatar.queue_draw()
+                def final_close():
+                    try:
+                        window = app.rifki.get_window()
+                        width, height = app.rifki.get_size()
+                        pixbuf = Gdk.pixbuf_get_from_window(window, 0, 0, width, height)
+                        assert pixbuf is not None
+                        pixbuf.savev(str(args.output / 'rifki.png'), 'png', [], [])
+                        app.rifki.destroy()
+                        app.show_drivers()
+                        screenshot("hardware.png")
+                        app.message = original_message
+                        app.window.connect("destroy", closed)
+                        app.window.close()
+                    except Exception as error:
+                        errors.append(str(error))
+                        loop.quit()
+                    return GLib.SOURCE_REMOVE
+                GLib.timeout_add(450, final_close)
             except Exception as error:
                 errors.append(str(error))
                 loop.quit()
@@ -131,6 +179,7 @@ def main():
         GLib.timeout_add(5000, finish)
         GLib.timeout_add(45000, timed_out)
         loop.run()
+    sys.excepthook = original_hook
     if errors:
         print("\n".join(errors), file=sys.stderr)
         return 1

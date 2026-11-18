@@ -20,7 +20,7 @@ Kendi ekranlarımızdaki ürün adı OğuzDows’tur. Paket deposu adresleri, de
 ## Görünüm ve Türkiye duvar kâğıtları
 
 - Pencere başlıkları, kapatma **X** düğmesi, üst panel ve bildirimler opaktır. Odak başka pencereye geçince başlık/düğme solmaz; bildirimlerin solma animasyonu varsayılan kapalıdır. Birleştirme kapalı eski GPU profilinde de okunaklılık hedeflenir.
-- Rehberdeki **Duvar Kâğıtları** sekmesi veya uygulamalar menüsündeki **Türkiye Duvar Kâğıtları** ile altı seçenek: **Ay Yıldız, İstanbul · Boğaz, Kapadokya · Şafak, Pamukkale · Traverten, Kaçkar · Yaylalar, Anadolu · Kilim**.
+- Rehberdeki **Duvar Kâğıtları** sekmesi veya uygulamalar menüsündeki **Türkiye Duvar Kâğıtları** ile korunan altı çizim: **Ay Yıldız, İstanbul · Boğaz, Kapadokya · Şafak, Pamukkale · Traverten, Kaçkar · Yaylalar, Anadolu · Kilim**.
 - Manzaralar fotoğraf iddiası taşımayan özgün, sade çizimlerdir; Pillow ile yerel ve tekrarlanabilir biçimde üretilir. Her biri 1920×1080; küçük önizlemeler ayrı tutulur. Ağ indirmesi, animasyon, döngüsel arka plan servisi veya ek GPU yükü yoktur.
 - Seçim algılanan monitör/çalışma alanlarına uygulanır ve Xfce'de saklanır. Oturum betiği her girişte varsayılanı yeniden dayatmaz. Kalıcılıksız canlı USB'deki seçimler yeniden başlatmada silinir.
 
@@ -58,7 +58,7 @@ Aynı Türkçe Xfce ortamının Pi için ayrı **SD/USB imajı** akışı vardı
 sudo ./build-pi.sh arm64
 ```
 
-Pi imajında ortak `oguz/oguz` hesabı, parolasız sudo, Calamares veya PC STA sürücüsü **yoktur**. İlk açılış Türkçe hesap ekranıdır; RAM'e göre mini/light/full profili, sınırlı LZ4 zram, SD swap kapatma ve platform/SDIO/DRM donanım raporu eklenir. Kimlik, görünüm, altı duvar kâğıdı ve ortak uygulamalar korunur. **ARMv6'da varsayılan Netsurf temel tarayıcıdır (JavaScript yok); 512 MB'da modern web/ofis için Pi 5 performansı vaat edilmez.**
+Pi imajında ortak `oguz/oguz` hesabı, parolasız sudo, Calamares veya PC STA sürücüsü **yoktur**. İlk açılış Türkçe hesap ekranıdır; RAM'e göre mini/light/full profili, sınırlı LZ4 zram, SD swap kapatma ve platform/SDIO/DRM donanım raporu eklenir. Kimlik, görünüm, duvar kâğıdı galerisi ve ortak uygulamalar korunur. **ARMv6'da varsayılan Netsurf temel tarayıcıdır (JavaScript yok); 512 MB'da modern web/ofis için Pi 5 performansı vaat edilmez.**
 
 **Fiziksel Pi açılışı/çevre birimleri/performans henüz doğrulanmış değildir.** İmaj matrisi, araçlar, SD'ye yazma, güvenli ilk açılış, kaynak pinleri, kurtarma ve test sınırları: **[Raspberry Pi rehberi](raspberrypi/README.md)**. Pi derlemeleri ayrı `.github/workflows/raspberrypi.yml` akışındadır; sürmekte olan PC/Pi işleri iptal edilmez.
 
@@ -118,6 +118,20 @@ Kurulum sırasında hedefteki canlı kullanıcı kaldırılır; canlı oturum se
 
 Canlı oturumdaki değişiklikler, kalıcılık ayrıca ayarlanmadıkça yeniden başlatmada kaybolur. Donanım sürücülerini kalıcı kullanmak için kurulu sistemde işlem yapın.
 
+## Rıfkı, nazar boncuğu ve açık kurulum sonucu
+
+- **Rıfkı:** gerçekçi Van kedisi görselleriyle 2B masaüstü yardımcısı. Göz kırpar, hafifçe nefes alır / başını hareket ettirir; konuşma sırasında ağız kareleri sesin genliğiyle değişir. Tam 3B iskelet animasyonu veya gerçek kedi videosu değildir. Hafif profilde hareket ve çizim sıklığı azaltılır.
+- İlk karşılama Rıfkı'yı açar; sonradan üstteki **Rıfkı’ya sor** veya uygulamalar menüsünden geri çağrılır. Kendi penceresi taşınabilir / kapatılabilir. **Rıfkı konuşsun** seçimi kalıcıdır; ses seviyesi zorlanmaz. Altı yerel Türkçe sesli yönlendirme vardır; metin yanıtlarının tamamı dinamik seslendirilmez.
+- Kurulum, disk, açılış, ağ, sürücüler, pil ve duvar kâğıdı konularında yazılı sorular / yardım düğmeleri çalışır. Bu **çevrimdışı, konu sınırlı bir rehberdir**, genel amaçlı sohbet modeli değildir. Mikrofon açmaz, mesaj göndermez, yazılan komutları çalıştırmaz; disk seçmez / biçimlendirmez. Sistem eylemleri sabit düğmelerdir; kurucu ve sürücüler mevcut yönetici onayını kullanır.
+- **Nazar boncuğu pil göstergesi:** mevcut Xfce güç eklentisinin ikonlarını değiştirir, güç yönetimini değiştirmez. Boncuk aşağıdan yukarı açılır. Xfce'nin yerel **10 puanlık seviye adımları** kullanılır; kesin yüzde mevcut araç ipucundadır. Tam dolu durumunda tamamı, şarj olurken şimşek, düşük pilde uyarı görünür. Pil yoksa / bilgi alınamıyorsa mevcut simgeler korunur. Kritik pil eylemleri ve uyku ayarları aynı kalır.
+- **Altı yeni foto-gerçekçi manzara:** Boğaz Sabahı, Kaçkar Sisi, Kapadokya Işığı, Ölüdeniz Kıyısı, Tuz Gölü Akşamı ve Ani Kışı. Önceki altı çizimle **12 seçenek** vardır. Yeni manzaralar yapay zekâ üretimidir; doğrulanmış gerçek fotoğraf / birebir yer belgesi değildir. Her biri 1920×1080 olarak paketlenir, önizlemeleri 320×180'dir; ağ gerekmez.
+
+### Kurulum sonucu artık kaybolmaz
+
+`quit-at-end: false` sayesinde Calamares'in son sayfası kendiliğinden kapanmaz; yeniden başlatma kutusu varsayılan olarak işaretli değildir. Her deneme için yeni bir rastgele oturum kimliği oluşturulur. Sadece **umount sonrasındaki son iş**, aynı oturuma ait başarı kaydını oluşturabilir. İşlem çıkış kodu `0` veya önceki denemenin kaydı tek başına başarı değildir. Sonuçlar **başarı / başlatılmadı-iptal / tamamlanamadı / doğrulanamadı** olarak ayrı gösterilir. Rehber kendiliğinden ilk seçim ekranına dönmez; kullanıcı sonuç sayfasını kapatır. Yeniden başlatma ancak doğrulanmış sonuçtan sonra, ayrıca onayla istenir.
+
+Durum: `/run/oguzdows-installer/status.json` (yalnızca root yazar, parola içermez). Ayrıntılı günlük: `/var/log/oguzdows/installer.log`. Rıfkı'nın **salt-okunur açılış raporu** diskleri, mevcut oturumun BIOS/UEFI kipini ve sürüm bilgisini gösterir; mevcut diski veya firmware'i onarmaz. Başarılı kurulum kaydı, fiziksel cihazda diskten açılışın ayrıca doğrulandığı anlamına gelmez.
+
 ## Testler
 
 ```sh
@@ -132,7 +146,7 @@ python3 scripts/render-assets.py --root preview
 
 Testler iki mimarinin paket ayrımını, ilk açılış/kurulum temizliğini, dar yetkili sürücü yardımcısını, gerçek ilerleme geri çağrılarını, BIOS/UEFI menülerini, XML/YAML/JSON dosyalarını ve yerel tema üretimini kontrol eder. APT/dpkg-deb varsa gerçek küçük .deb dosyaları ve izole bir paket diziniyle aynı sürümün depoda da bulunması durumu sınanır: yanlış önbellek hatası yeniden üretilir, doğru gömülü önbellek doğrulanır ve eksik bağımlılıkların sessizce indirilmediği gösterilir. Bu testler yalnızca simülasyon yapar; ağa veya sistem paket veritabanına erişmez. `--configure-only` akışı sahte bir `lb` ile sınanır; testler gerçek disklere veya paket yöneticisine yazmaz.
 
-GitHub Actions iki taban sürümünde **gerçek GTK penceresini Xvfb ile açar**; küçük ekran, donanım, altı duvar kâğıdı ve görünür kurucu hata yolunu kontrol eder. Ayrıca **gerçek Calamares'i** kendi markalama/ayarlarıyla açıp bütün modüllerin yüklenmesini ve pencerenin görünmesini doğrular; hiçbir kurulum düğmesine basmaz veya disk kurmaz. Ekran görüntüleri ve kurucu açılış günlüğü artefakt olarak saklanır. PR’larda testler, `main` güncellemesinde veya elle `target=pc` çalıştırmada testlerden sonra iki ISO derlemesi çalışır. `target=pc-tests` yalnızca PC doğrulamalarını çalıştırır; ISO üretmez. Yeni bir çalıştırma **sürmekte olan ISO işini iptal etmez**. `.github/workflows/main.yml` etkin iş akışıdır; kökteki `build.yml` eş kopyasıdır.
+GitHub Actions iki taban sürümünde **gerçek GTK penceresini Xvfb ile açar**; küçük ekran, donanım, on iki duvar kâğıdı, Rıfkı ve görünür kurucu sonuç yollarını kontrol eder. Ayrıca **gerçek Calamares'i** kendi markalama/ayarlarıyla açıp bütün modüllerin yüklenmesini ve pencerenin görünmesini doğrular; hiçbir kurulum düğmesine basmaz veya disk kurmaz. Ekran görüntüleri ve kurucu açılış günlüğü artefakt olarak saklanır. PR’larda testler, `main` güncellemesinde veya elle `target=pc` çalıştırmada testlerden sonra iki ISO derlemesi çalışır. `target=pc-tests` yalnızca PC doğrulamalarını çalıştırır; ISO üretmez. Yeni bir çalıştırma **sürmekte olan ISO işini iptal etmez**. `.github/workflows/main.yml` etkin iş akışıdır; kökteki `build.yml` eş kopyasıdır.
 
 Kurucu, standart `/etc/calamares/settings.conf` yapılandırmasını kullanır; bu dosya `--config` seçeneğine verilmez. Başlatıcı yalnızca canlı ortamda çalışır, tek kurucu kilidi alır ve gerçek squashfs kaynağını saptar. Kurucu açılamazsa masaüstünde hata gösterilir; yönetici günlüğü: `/var/log/oguzdows/installer.log`. Kurucunun açılması, gerçek diske başarılı kurulum yapıldığının kanıtı değildir.
 
