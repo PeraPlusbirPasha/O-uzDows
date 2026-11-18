@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import os
 import stat
+import subprocess
 import tempfile
 from pathlib import Path
 
@@ -136,19 +137,31 @@ def is_partition_mounted(device: str, mount: Path) -> bool:
     return os.path.ismount(mount) and mount.stat().st_dev == os.stat(device).st_rdev
 
 
+def require_esp_type(device: str) -> None:
+    # KPMcore'un parttype önbelleği ESP bayrağı değişmeden önceki tür olabilir.
+    # -p, blkid önbelleği yerine diskteki güncel bölüm tablosunu salt-okunur yoklar.
+    try:
+        kind = subprocess.check_output(
+            ["blkid", "-p", "-s", "PART_ENTRY_TYPE", "-o", "value", "--", device],
+            text=True, stderr=subprocess.PIPE, timeout=10).strip().lower().strip("{}")
+    except (OSError, subprocess.SubprocessError) as error:
+        raise BootError("EFI bölümünün diskteki türü okunamadı: " + device) from error
+    if kind not in ("c12a7328-f81f-11d2-ba4b-00a0c93ec93b", "ef", "0xef", "239"):
+        raise BootError("EFI bölümü ESP türünde değil; başka bir bölümün türü otomatik değiştirilmedi.")
+
+
 def efi_partition(root: Path, partitions: list[dict], mount: str) -> Path:
     if mount != "/boot/efi":
         raise BootError("Beklenmeyen EFI bağlama yolu; disk hedefi değiştirilmedi.")
     matches = [p for p in partitions if p.get("mountPoint") == mount]
     if len(matches) != 1 or matches[0].get("fs", "").lower() not in ("fat32", "fat16", "vfat"):
         raise BootError("UEFI için FAT EFI sistem bölümü seçilmemiş; kurulum önyükleyicisiz tamamlanamaz.")
-    kind = str(matches[0].get("parttype") or "").lower().strip("{}")
-    if kind and kind not in ("c12a7328-f81f-11d2-ba4b-00a0c93ec93b", "ef", "0xef", "239"):
-        raise BootError("EFI bölümü ESP türünde değil; başka bir bölümün türü otomatik değiştirilmedi.")
-    block_node(matches[0].get("device", ""))
+    device = matches[0].get("device", "")
+    block_node(device)
     esp = root / mount.lstrip("/")
-    if not is_partition_mounted(matches[0]["device"], esp):
+    if not is_partition_mounted(device, esp):
         raise BootError("Seçilen EFI bölümü hedef sisteme bağlı değil; dosyalar yanlışlıkla başka bölüme yazılmadı.")
+    require_esp_type(device)
     return esp
 
 

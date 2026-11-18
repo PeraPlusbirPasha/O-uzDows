@@ -173,23 +173,34 @@ class InstalledBootIntegrationTests(unittest.TestCase):
             put(esp, "EFI/OguzDows/grubx64.efi", b"MZ-vendor-efi-fixture")
             fallback = put(esp, "EFI/BOOT/BOOTX64.EFI", b"MZ-fallback-efi-fixture")
             parts = [{"mountPoint": "/", "device": "/dev/test2", "fs": "ext4"}, {"mountPoint": "/boot/efi", "device": "/dev/test1", "fs": "fat32"}]
-            with patch.object(boot, "block_node"), patch.object(boot, "is_partition_mounted", return_value=True), patch.object(boot, "open_disk") as opened:
+            with patch.object(boot, "block_node"), patch.object(boot, "is_partition_mounted", return_value=True), patch.object(boot, "require_esp_type"), patch.object(boot, "open_disk") as opened:
                 boot.check(root, "efi", parts, None, "prepare")
                 boot.check(root, "efi", parts, None, "verify")
                 opened.assert_not_called()  # UEFI yolunda MBR/aktif bayrak yazılmaz.
                 fallback.unlink()
                 with self.assertRaisesRegex(boot.BootError, "BOOTX64"):
                     boot.check(root, "efi", parts, None, "verify")
-                parts[1]["parttype"] = "EBD0A0A2-B9E5-4433-87C0-68B6B72699C7"  # veri, ESP değil
-                with self.assertRaisesRegex(boot.BootError, "ESP türünde değil"):
-                    boot.check(root, "efi", parts, None, "prepare")
-                parts[1]["parttype"] = "{C12A7328-F81F-11D2-BA4B-00A0C93EC93B}"
+                # Calamares/KPMcore önbelleği eski Basic Data türünü taşıyabilir;
+                # bu alan değil, yukarıda ayrı yoklanan gerçek disk türü kullanılır.
+                parts[1]["parttype"] = "EBD0A0A2-B9E5-4433-87C0-68B6B72699C7"
                 boot.check(root, "efi", parts, None, "prepare")
             with patch.object(boot, "block_node"), patch.object(boot.os.path, "ismount", return_value=False):
                 with self.assertRaisesRegex(boot.BootError, "bağlı değil"):
                     boot.check(root, "efi", parts, None, "prepare")
             with self.assertRaises(boot.BootError):
                 boot.check(root, "efi", parts[:1], None, "prepare")
+
+    def test_esp_type_is_read_from_disk_without_a_cache_or_any_partition_write(self):
+        for kind in ("C12A7328-F81F-11D2-BA4B-00A0C93EC93B", "0xef", "ef"):
+            with patch.object(boot.subprocess, "check_output", return_value=kind + "\n") as probe:
+                boot.require_esp_type("/dev/test1")
+                probe.assert_called_once_with(["blkid", "-p", "-s", "PART_ENTRY_TYPE", "-o", "value", "--", "/dev/test1"], text=True, stderr=boot.subprocess.PIPE, timeout=10)
+        for kind in ("", "0x83", "EBD0A0A2-B9E5-4433-87C0-68B6B72699C7"):
+            with patch.object(boot.subprocess, "check_output", return_value=kind), self.assertRaisesRegex(boot.BootError, "ESP türünde değil"):
+                boot.require_esp_type("/dev/test1")
+        for error in (FileNotFoundError("blkid"), boot.subprocess.CalledProcessError(2, ["blkid"]), boot.subprocess.TimeoutExpired(["blkid"], 10)):
+            with patch.object(boot.subprocess, "check_output", side_effect=error), self.assertRaisesRegex(boot.BootError, "okunamadı"):
+                boot.require_esp_type("/dev/test1")
 
     def test_another_mounted_device_does_not_count_as_the_selected_esp(self):
         for mounted, selected, expected in ((8, 8, True), (8, 9, False)):
@@ -232,10 +243,15 @@ class InstalledBootIntegrationTests(unittest.TestCase):
         self.assertIn("udev util-linux mount", str(job["steps"]))  # GRUB 2.06 loop/sysfs sorgusu
         self.assertFalse(workflow["concurrency"]["cancel-in-progress"])
         self.assertIn("inputs.target", workflow["concurrency"]["group"])
+        self.assertIn("target != 'pc-tests'", workflow["jobs"]["build"]["if"])
 
     def test_staged_module_and_sequence_preserve_existing_desktop_and_install_steps(self):
         settings = yaml.safe_load((ROOT / "installer/settings.conf").read_text())
         self.assertEqual(settings["modules-search"], ["/etc/calamares/modules", "local"])
+        for phase in ("prepare", "verify"):
+            instance = next(item for item in settings["instances"] if item["id"] == "boot-" + phase)
+            self.assertEqual(instance["module"], "oguzdowsboot")
+            self.assertEqual(yaml.safe_load((ROOT / "installer/modules" / instance["config"]).read_text()), {"phase": phase})
         sequence = settings["sequence"][1]["exec"]
         self.assertEqual(sequence[sequence.index("initramfs") + 1:sequence.index("umount")], ["oguzdowsboot@boot-prepare", "bootloader", "oguzdowsboot@boot-verify"])
         self.assertEqual(settings["sequence"][0]["show"], ["welcome", "locale", "keyboard", "partition", "users", "summary"])

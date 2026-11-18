@@ -4,9 +4,9 @@ on:
   workflow_dispatch:
     inputs:
       target:
-        description: PC ISO veya Raspberry Pi imajları
+        description: PC ISO, yalnızca PC testleri veya Raspberry Pi imajları
         type: choice
-        options: [pc, raspberrypi]
+        options: [pc, pc-tests, raspberrypi]
         default: pc
       architecture:
         description: Yalnızca Raspberry Pi hedefi için
@@ -129,7 +129,7 @@ jobs:
   build:
     name: ISO · ${{ matrix.arch }}
     needs: [verify, installed-boot]
-    if: github.event_name != 'pull_request' && github.event.inputs.target != 'raspberrypi'
+    if: github.event_name != 'pull_request' && github.event.inputs.target != 'raspberrypi' && github.event.inputs.target != 'pc-tests'
     runs-on: ubuntu-latest
     timeout-minutes: 120
     strategy:
