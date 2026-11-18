@@ -75,6 +75,10 @@ class OfflineDriverTests(unittest.TestCase):
         self.assertIn("--no-remove", commands[0])
         self.assertNotIn("update", commands[0])
         self.assertEqual(commands[0][-1], str(archive))
+        self.assertIn("Dir::Cache::archives=" + str(archive.parent), commands[0])
+        self.assertEqual(offline.install_command(archive, simulate=True), [argument if argument != "-y" else "--simulate" for argument in commands[0]])
+        with self.assertRaises(ValueError):
+            offline.install_command(Path("relative/package.deb"))
         with self.assertRaises(RuntimeError):
             helper.commands("intel-legacy-accept-license", None, True)
         with patch.object(helper, "headers_available", return_value=False), self.assertRaises(RuntimeError):

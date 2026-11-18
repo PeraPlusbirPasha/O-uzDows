@@ -12,7 +12,7 @@ import tempfile
 from pathlib import Path
 
 sys.path.insert(0, "/usr/lib/oguzdows")
-from offline import DIRECTORY, PACKAGES
+from offline import DIRECTORY, PACKAGES, install_command
 
 
 def run(command, **kwargs):
@@ -57,7 +57,7 @@ def cache(directory: Path = DIRECTORY, modules: Path = Path("/lib/modules")) -> 
             (licenses / (package + ".txt")).write_text(text, encoding="utf-8")
         # Sadece çözümleme: kurulum/postinst/lisans kabulü çalıştırılmaz.
         # Gerekli bağımlılıklar ISO'da yoksa internet gerektiren bir imaj üretme.
-        run(["/usr/bin/apt-get", "--simulate", "--no-download", "--no-remove", "--no-install-recommends", "install", str(archive)], env=env)
+        run(install_command(archive, simulate=True), env=env)
         manifest["packages"][package] = {"filename": archive.name, "sha256": digest, "metadata": fields}
     (directory / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
     for path in directory.rglob("*"):

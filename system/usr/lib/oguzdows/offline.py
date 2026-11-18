@@ -18,6 +18,20 @@ PACKAGES = {
 }
 
 
+def install_command(archive: Path, *, simulate: bool = False) -> list[str]:
+    if not archive.is_absolute():
+        raise ValueError("Çevrimdışı paket yolu mutlak olmalıdır.")
+    # Paket aynı sürümle depo dizininde de bulunduğunda APT, .deb yoluna
+    # rağmen depo kaydını seçebilir. --no-download, simülasyonda bile önce
+    # arşiv önbelleğine bakar. Gömülü dizini her iki akışta da açıkça tanıt.
+    # İndirme veya eksik bağımlılık denetimini gevşetme.
+    return [
+        "/usr/bin/apt-get", "-o", "Dir::Cache::archives=" + str(archive.parent),
+        "--no-download", "--no-remove", "--no-install-recommends",
+        "--simulate" if simulate else "-y", "install", str(archive),
+    ]
+
+
 def payload(action: str, directory: Path = DIRECTORY) -> Path | None:
     package = PACKAGES.get(action)
     if package is None:

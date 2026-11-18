@@ -10,7 +10,7 @@ from pathlib import Path
 
 sys.path.insert(0, "/usr/lib/oguzdows")
 from hardware import is_live, supported_broadcom, supported_intel_legacy
-from offline import headers_available, payload, remember
+from offline import headers_available, install_command, payload, remember
 
 ENV = {"PATH": "/usr/sbin:/usr/bin:/sbin:/bin", "LC_ALL": "C.UTF-8", "DEBIAN_FRONTEND": "noninteractive"}
 
@@ -18,7 +18,7 @@ ENV = {"PATH": "/usr/sbin:/usr/bin:/sbin:/bin", "LC_ALL": "C.UTF-8", "DEBIAN_FRO
 def commands(action: str, archive: Path | None, offline_only: bool) -> list[list[str]]:
     if archive is not None and (action != "broadcom" or headers_available()):
         # Eksik bağımlılık varsa internete düşmez; ISO derlemesi bunları içerir.
-        return [["/usr/bin/apt-get", "install", "-y", "--no-download", "--no-remove", "--no-install-recommends", str(archive)]]
+        return [install_command(archive)]
     if offline_only or action != "broadcom":
         raise RuntimeError("Gömülü sürücü paketi veya çalışan çekirdeğin başlıkları eksik/bozuk.")
     headers = "linux-headers-" + os.uname().release
