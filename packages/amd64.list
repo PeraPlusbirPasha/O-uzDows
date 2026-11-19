@@ -1,0 +1,5 @@
+# 64 bit ISO: BIOS + UEFI (Secure Boot kapalı)
+grub-efi-amd64-bin
+efibootmgr
+# Çevrimdışı DKMS için ISO çekirdeğiyle eşleşen başlıklar.
+linux-headers-amd64

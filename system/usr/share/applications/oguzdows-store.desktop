@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=OğuzDows Mağaza
+Comment=GNOME Yazılımlar ile sistem ve Flatpak uygulamalarını keşfet
+Exec=/usr/local/bin/oguzdows-store
+Icon=org.gnome.Software
+Terminal=false
+Categories=System;PackageManager;
+StartupNotify=true

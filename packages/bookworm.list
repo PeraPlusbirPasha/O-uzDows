@@ -1,0 +1,4 @@
+# 32 bit sistemin firmware ve yetkilendirme paketleri
+firmware-intel-sound
+firmware-libertas
+policykit-1

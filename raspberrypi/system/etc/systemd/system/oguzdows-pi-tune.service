@@ -1,0 +1,13 @@
+[Unit]
+Description=OğuzDows Pi bellek profili ve LZ4 zram
+After=local-fs.target
+Before=zramswap.service lightdm.service
+ConditionPathExists=/etc/oguzdows/pi-image.json
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 /usr/lib/oguzdows/pi-tune.py --apply
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

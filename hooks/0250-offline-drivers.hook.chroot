@@ -1,0 +1,5 @@
+#!/bin/sh
+set -eu
+# Kurulum değil: yalnızca imzalı depodan sabit iki paketin arşivini önbellekle.
+# Broadcom varsayılan açık sürücüleri değiştirmez; Intel lisansı kabul edilmez.
+python3 -I /usr/lib/oguzdows/cache-drivers.py

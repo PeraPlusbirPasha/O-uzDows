@@ -1,0 +1,5 @@
+#!/bin/sh
+# live-build bu kancayı binary/ içinde ve imajın sağlama toplamlarından ÖNCE çalıştırır.
+set -eu
+python3 ../config/oguzdows/configure-boot.py \
+    --binary . --root ../chroot --config ../config/oguzdows/boot.json

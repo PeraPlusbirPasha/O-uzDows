@@ -1,0 +1,68 @@
+[
+  {
+    "file": "bogaz-sabahi.jpg",
+    "source_size": [
+      1376,
+      768
+    ],
+    "source_sha256": "54290d58ceb4b604f1a37686e49b3afb1b22cc4d56918e81ec34a8225a90234f",
+    "packaged_sha256": "652d0a2c7370905f2fb0b5645377ff6b874c8cdb629aea5d9c038b8146bc690e",
+    "origin": "AI-generated; not a camera photograph",
+    "logo": "bottom-right"
+  },
+  {
+    "file": "kackar-sisi.jpg",
+    "source_size": [
+      1376,
+      768
+    ],
+    "source_sha256": "7147780f7caec0d1e879102450f84cebdb5af87f2de6bbb5342fa2946c18dd6b",
+    "packaged_sha256": "7d5ae41d7ecf9790033a60b2e25da34318ff2e8d091bb49e9e801d47755de0d4",
+    "origin": "AI-generated; not a camera photograph",
+    "logo": "bottom-right"
+  },
+  {
+    "file": "kapadokya-isigi.jpg",
+    "source_size": [
+      1376,
+      768
+    ],
+    "source_sha256": "9ce30a0c923c283690a5c26a238b404193bb5250af4ccfc9d413ebdf596936bc",
+    "packaged_sha256": "7e732d5c25359bdefca5cb078d646afff6f32571e8bde3605fd8278ae4ef81a4",
+    "origin": "AI-generated; not a camera photograph",
+    "logo": "bottom-right"
+  },
+  {
+    "file": "oludeniz-kiyisi.jpg",
+    "source_size": [
+      1376,
+      768
+    ],
+    "source_sha256": "57c3af016e89928da1a9e19b8cfe5b0b3b5e9f85be738c68d031722eab111266",
+    "packaged_sha256": "ce472256b99a54ae0f4f20e2fb239a46e504ed21b692d948fedccdb6d72dab02",
+    "origin": "AI-generated; not a camera photograph",
+    "logo": "bottom-right"
+  },
+  {
+    "file": "tuz-golu-aksami.jpg",
+    "source_size": [
+      1376,
+      768
+    ],
+    "source_sha256": "359e4182a16e3476c8b10a1733a287cad0f9b924008bdd1a79b1a2e17551ad73",
+    "packaged_sha256": "a282898b52c9950e7cdb9c9714afc46b86133e8be049ee4c5b945f4ecdb42fd6",
+    "origin": "AI-generated; not a camera photograph",
+    "logo": "bottom-right"
+  },
+  {
+    "file": "ani-kisi.jpg",
+    "source_size": [
+      1376,
+      768
+    ],
+    "source_sha256": "45216497cafe5adac2e5e2b4ec759759289d46a6a5c41c7cefc03ab0c697a216",
+    "packaged_sha256": "93cff2d2ad3b684ae1b419c143f2a1684ee48671839046d0c3444dc689fb08fa",
+    "origin": "AI-generated; not a camera photograph",
+    "logo": "bottom-right"
+  }
+]

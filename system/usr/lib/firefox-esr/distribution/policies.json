@@ -1,0 +1,22 @@
+{
+  "policies": {
+    "Homepage": {
+      "URL": "file:///usr/share/oguzdows/start.html",
+      "StartPage": "homepage",
+      "Locked": false
+    },
+    "OverrideFirstRunPage": "file:///usr/share/oguzdows/start.html",
+    "OverridePostUpdatePage": "",
+    "RequestedLocales": ["tr"],
+    "DontCheckDefaultBrowser": true,
+    "DisableTelemetry": true,
+    "DisablePocket": true,
+    "FirefoxHome": {
+      "Search": true,
+      "TopSites": false,
+      "Highlights": false,
+      "Pocket": false,
+      "Snippets": false
+    }
+  }
+}

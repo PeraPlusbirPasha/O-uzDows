@@ -1,0 +1,5 @@
+---
+type: job
+name: oguzdowsdrivers
+interface: python
+script: main.py

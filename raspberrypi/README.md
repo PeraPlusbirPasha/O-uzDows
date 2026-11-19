@@ -1,0 +1,162 @@
+# OğuzDows · Raspberry Pi portu
+
+Aynı Ay Yıldız kimliği, Türkçe Xfce/X11 masaüstü, net pencere/panel düğmeleri, Plymouth animasyonu, karşılama/donanım merkezi ve altı Türkiye duvar kâğıdı; Pi'ye özgü çekirdek, boot firmware'i ve güvenli ilk açılış ile.
+
+**Bu bir PC ISO'su değildir.** Doğrudan SD/USB'ye yazılan, değişiklikleri kalıcı tutan iki `.img.xz` tarifi vardır. ARMv6 ile ARM64 aynı dosya gibi ele alınmaz. Yapılandırmanın/testlerin geçmesi, bütün kartların açıldığı veya ölçülmüş yüksek performans elde edildiği anlamına gelmez. Fiziksel kart testleri aşağıdaki tabloda henüz yapılmamıştır.
+
+## İmaj seçimi
+
+| Kart / işlemci | İmaj | Otomatik profil | Fiziksel test |
+| --- | --- | --- | --- |
+| Zero / Zero W / Zero WH · ARM1176, ARMv6, 512 MB | **armhf** | mini | Yapılmadı |
+| Pi 1 A/A+/B/B+ · ARMv6, 256–512 MB | **armhf** | mini | Yapılmadı; 256 MB masaüstü deneysel |
+| Pi 2 B rev 1.0/1.1 · Cortex-A7, ARMv7 | **armhf** | light | Yapılmadı |
+| Pi 2 B rev 1.2 · Cortex-A53 | armhf veya arm64 | light | Yapılmadı |
+| Zero 2 W · Cortex-A53, 512 MB | RAM tasarrufu için **armhf**; arm64 alternatifi | mini | Yapılmadı |
+| Pi 3 A+ · 512 MB / 3 B / 3 B+ · 1 GB | armhf veya arm64 | mini / light | Yapılmadı |
+| Pi 4 / 400 · Cortex-A72 | **arm64**; az RAM'de armhf alternatifi | ≤2 GiB light, daha fazlası full | Yapılmadı |
+| Pi 5 · Cortex-A76 | **arm64** | RAM'e göre light / full | Yapılmadı |
+
+- **armhf**: Raspbian tabanlı, ARMv6 uyumlu kullanıcı alanı; resmî `v6`, `v7`, `v7l`, `v8` Pi çekirdekleri. Sıradan ARMv7 tabanlı bir armhf kök sistemi eski Zero'ya kopyalanmaz. **Pi 5 bu imajın hedefi değildir.** 32 bit uygulamaların adres alanı sınırı vardır.
+- **arm64**: ARMv8 kullanıcı alanı; resmî `v8` ve Pi 5'e özgü **`2712`** çekirdekleri. Pi 5'in özel çekirdeği/16 KiB sayfa optimizasyonu korunur; bütün kartlara tek `kernel8.img` zorlanmaz. Eski Zero / Pi 1 / erken Pi 2'de açılmaz.
+- Compute Module türevleri ve Pi 500 gibi aynı SoC ailesindeki ek modellerin firmware desteği üreticiden gelir; taşıyıcı kart, eMMC/rpiboot, ekran ve çevre birimleri ayrıca doğrulanmalıdır. Bu tabloda doğrulanmış yeni kartlar gibi sunulmazlar.
+
+### “Aynı özellikler” ve donanım sınırları
+
+Ortak masaüstü/uygulama listesi iki PC imajıyla paylaşılır: Türkçe Firefox ESR, LibreOffice Writer/Calc/Impress, VLC, dosya yöneticisi, ağ/Bluetooth/ses, temalar ve galeri korunur. Pi'ye GPIO/I2C/SPI kitaplıkları ve kamera komut satırı araçları da eklenir. Kamera/HAT arabirimleri kullanıcı istemeden zorla etkinleştirilmez.
+
+**512 MB + tek ARMv6 çekirdeğinde güncel web/ofis, Pi 5 hızında çalışamaz.** Modern Firefox'un ARMv7/NEON gereksinimlerini ARMv6'ya dayatmamak için varsayılan tarayıcı başlatıcısı eski Zero/Pi 1'de **Netsurf GTK** seçer. Bu tarayıcı temel web içindir; **JavaScript ve modern sitelerle tam uyumluluk yoktur**. Yeni kartlarda Firefox açılır. Firefox paketi imajda bulunsa da ARMv6'da doğrudan `firefox-esr` çalıştırmak desteklenmez. Ofis ve video uygulamalarının özellikle 512 MB'da büyük dosya/çoklu sekme/yüksek çözünürlük performansı garanti edilmez. Modern web/ofis için **Pi 4/5 ve en az 2 GB, tercihen 4 GB RAM** önerilir.
+
+PC'ye özgü Calamares, BIOS/UEFI/GRUB menüsü, Intel/AMD mikro kodları ve Broadcom STA/Intel 2100 PCI ek paket kurucuları Pi'ye taşınmaz. Pi Wi-Fi'ı **brcmfmac/SDIO + doğru kart firmware'i** kullanır; STA kurulmaz, açık sürücüler kara listeye alınmaz. Pi'de kurulumun karşılığı imajı yazma ve ilk açılışta hesap oluşturmadır. Rehberde sahte/çalışmayan PC kurucu düğmesi yerine masaüstü ayarları bulunur.
+
+## SD / USB'ye yazma ve ilk açılış
+
+1. Kartınıza uygun `OguzDows-rpi-armhf.img.xz` veya `OguzDows-rpi-arm64.img.xz` ile SHA-256 dosyasını indirin. Actions artefaktı ZIP ise önce ZIP'i açın.
+2. Aynı dizinde `sha256sum -c OguzDows-rpi-armhf.img.xz.sha256` (veya arm64) çalıştırın.
+3. Raspberry Pi Imager'da **özel imaj kullan** ile `.img.xz` dosyasını seçin. Hedefin tüm verileri silinir; doğru SD/USB'yi seçtiğinizi iki kez kontrol edin. En az **16 GB**, tercihen kaliteli **32 GB A1/A2** kart kullanın. Pi 4/5'te desteklenen USB 3 SSD, SD'ye göre daha iyi uygulama deneyimi sağlayabilir.
+4. **Imager'ın kullanıcı/SSH/ileri özelleştirme seçeneklerini uygulamayın.** Bu port kendi hesap adımını kullanır. Mevcut imaj dosyası için Imager'ın kimlik özelleştirme uyumluluğu test edilmemiştir.
+5. Monitör/klavye bağlayıp üreticinin uygun güç kaynağıyla açın. Eski Zero'da mini-HDMI ve USB OTG/hub gerekebilir. Ağ için internet zorunlu değildir. Kartta yerleşik Wi-Fi/Ethernet yoksa uygun adaptör gerekir.
+6. Resmî ilk açılış/bölüm büyütme mekanizması korunur; ilk açılış daha uzun sürebilir ve yeniden başlatabilir. Gücü kesmeyin. Ardından **Türkçe yerel hesap ekranında** kullanıcı adı ve en az 10 karakterli parola belirleyin. Parola yazılırken görünmez.
+7. OğuzDows giriş ekranında hesabınızla giriş yapın. Otomatik giriş yoktur; `sudo` kendi parolanızı ister. SD/USB'deki ayarlar ve dosyalar kalıcıdır. Başka diske Calamares kurulumu gerekmez.
+
+**Pi için `oguz/oguz` hesabı yoktur.** `root` kilitlidir, SSH varsayılan olarak kapalıdır ve parolasız yönetici kuralı yoktur. İlk hesap tamamlanmadan hem LightDM hem SSH başlatılması engellenir. Parola/özet komut satırına, günlüğe veya kalıcı durum dosyasına yazılmaz. Kesintide yarım kalan hesap aynı adla güvenle tamamlanabilir. İlk kurulum tekrar soruluyorsa başka bir hesabı devralmak yerine yerel hata gösterilir.
+
+### Ekransız hesap hazırlama (isteğe bağlı)
+
+Güvendiğiniz bir bilgisayarda `openssl passwd -6` ile **etkileşimli** olarak güçlü parolanızın SHA-512 özetini üretin (parolayı komut argümanına yazmayın). FAT boot bölümünün köküne **`oguzdows-userconf.txt`** adlı tek satırlık dosyayı yerleştirin:
+
+```text
+kullaniciadi:$6$...ürettiğiniz_tam_özet...
+```
+
+Bu örnek yer tutucudur; olduğu gibi çalışmaz. Yalnızca geçerli SHA-512 / yescrypt özetleri kabul edilir; açık metin parola, çoklu hesap, symlink veya kod çalıştırılmaz. Dosya hesap açıldıktan sonra kaldırılır. **FAT/flash üzerinde fiziksel güvenli silme garantisi yoktur**; özeti de hassas kabul edin ve ilk kullanımda parolanızı değiştirin.
+
+Bu dosya **ağı veya SSH'yi kendiliğinden açmaz**. Ağ için kablolu/USB Ethernet veya önceden güvenle hazırlanmış NetworkManager profili gerekir. Kurulumdan sonra yerelde `sudo systemctl enable --now ssh` ile açıkça etkinleştirebilirsiniz. Tamamen ekransız ilk kurulum gerekiyorsa resmî `ssh` boot işaret dosyası mekanizması ayrıca kullanılabilir; bunun ilk açılış sıralaması ve Wi-Fi profili gerçek kartta ayrıca test edilmelidir. SSH için de hesap tamamlanma engeli geçerlidir; root girişi kapalı kalır. İnternete parola ile SSH açmak yerine anahtar ve güvenlik duvarı kullanın.
+
+## Otomatik performans profilleri
+
+`/etc/oguzdows/pi.conf` yalnızca veri olarak okunur; shell olarak çalıştırılmaz:
+
+```ini
+profile=auto
+```
+
+| Profil | Seçim | Efektler | LZ4 zram |
+| --- | --- | --- | --- |
+| mini | ARMv6 veya kullanılabilir RAM ≤768 MiB | Compositor ve GTK animasyonları kapalı | RAM'in %75'i, en fazla 384 MiB |
+| light | RAM ≤2 GiB | Compositor ve GTK animasyonları kapalı | RAM'in %50'si, en fazla 1 GiB |
+| full | Daha fazla RAM | Ortak masaüstü varsayılanları; kullanıcının tercihi korunur | RAM'in %50'si, en fazla 1 GiB |
+
+`MemTotal` GPU/kernel için ayrılan belleği dışladığından etiketteki RAM'den az görünebilir. Zram boyutu sanal sıkıştırılmamış kapasitedir, bedava gerçek RAM değildir; doldukça RAM/CPU kullanır. Disk swap servisi maskelidir; aşırı yükte yine bellek yetersizliği olabilir. Loglar SD'yi yormamak için en fazla 32 MiB uçucu journal'dadır. `journalctl` kayıtları yeniden açılışta kaybolur; sorun raporunu önceden kaydedin. Firefox disk önbelleği varsayılanı kapalı ve oturum kayıt aralığı 60 saniyedir; sandbox kapatılmaz.
+
+`mini`, `light` veya `full` seçip yeniden başlatarak profili değiştirebilirsiniz. `/etc/default/zramswap` otomatik üretilir; kalıcı tercihi oraya değil `pi.conf` dosyasına yazın. Daha önce kapattığınız efektler full profilde zorla yeniden açılmaz; Xfce ayarlarından açabilirsiniz.
+
+**CPU frekansı/voltajı, termal kısıtlama ve fan korumaları değiştirilmez; zorunlu performance governor/overclock yoktur.** Resmî `arm_boost`, DRM/KMS ve model bazlı çekirdek seçimi korunur. Pi 5'te soğutucu/fan, yeterli güç ve hızlı depolama yazılım ayarlarından daha belirleyici olabilir. Ölçülmüş FPS/açılış süresi iddiası yoktur.
+
+### Görüntü / açılış kurtarma
+
+Pi firmware'i PC GRUB menüsü sunmaz. Boot bölümündeki `cmdline.txt` **tek satır** kalmalıdır; mevcut `root=PARTUUID=...`, `rootwait` ve ilk açılış `init=...` değerlerini silmeyin.
+
+- Az efekt için satırın sonuna `oguzdows.profile=light` ekleyin (veya `mini`).
+- Günlükleri görmek için `quiet splash` sözcüklerini kaldırıp `plymouth.enable=0 systemd.show_status=1` ekleyin.
+- Ek ekran/firmware ayarları `/boot/firmware/oguzdows-config.txt` dosyasına yazılabilir. Varsayılan KMS bütün kartlara körlemesine `nomodeset` ile kapatılmaz; ekran/HDMI sorunu kart ve bağlantıya göre teşhis edilmelidir.
+- Üretici EEPROM/USB boot yeteneği özellikle Pi 4/5 USB/SSD açılışını etkiler. Bu tarif EEPROM'a kontrolsüz `rpi-update` veya overclock uygulamaz.
+
+## Kaynaktan derleme
+
+İzole, root/mount/loop erişimi olan **4 KiB sayfalı Linux** makinesi/VM kullanın. x86_64 üzerinde QEMU kullanıcı emülasyonu mümkündür; bu Pi donanım emülasyonu değildir. 30 GiB boş disk önerilir (betik en az 20 GiB kontrol eder). Her mimari ayrı çalışma dizini kullanır. Pi 5'in varsayılan 16 KiB host kernel'inde armhf derlemesi yapılmaz; 4 KiB build host gerekir.
+
+```sh
+sudo apt-get update
+sudo apt-get install -y --no-install-recommends \
+  quilt parted coreutils qemu-user-static debootstrap zerofree zip dosfstools \
+  e2fsprogs libcap2-bin rsync grep udev xz-utils curl xxd file kmod bc gpg pigz \
+  arch-test binfmt-support ca-certificates fdisk git python3
+sudo update-binfmts --enable qemu-arm
+sudo update-binfmts --enable qemu-aarch64
+arch-test armhf
+arch-test arm64
+
+sudo ./build-pi.sh armhf
+sudo ./build-pi.sh arm64
+```
+
+Tam derleme Raspberry Pi OS/Raspbian paket sunucularına erişim ister. Ağ kısıtlı geliştirme ortamında sadece yapılandırma ve testler çalışabilir; GitHub Actions bu yüzden ayrı tam imaj işleri sunar.
+
+```sh
+# Root, ağ veya pi-gen indirmesi yok:
+./build-pi.sh armhf --configure-only
+# veya istediğiniz yeni bir dizine:
+python3 scripts/configure-pi.py --arch arm64 --output /tmp/oguzdows-pi-config
+```
+
+`--configure-only` **imaj üretmez**. Daha sonra tam derleme için temiz/yeni çalışma alanı kullanın. Betik mevcut `build-rpi-armhf/` / `build-rpi-arm64/` dizinlerini otomatik silmez; bağlı dosya sistemi kalmadığını `findmnt`/`losetup` ile doğrulamadan çalışma alanını silmeyin. Kök depoyu veya `.git` dizinini taşımayın/silmeyin.
+
+Çıktılar:
+
+```text
+OguzDows-rpi-armhf.img.xz
+OguzDows-rpi-armhf.img.xz.sha256
+OguzDows-rpi-armhf.packages.txt
+OguzDows-rpi-arm64.img.xz
+OguzDows-rpi-arm64.img.xz.sha256
+OguzDows-rpi-arm64.packages.txt
+```
+
+Resmî `RPi-Distro/pi-gen` kaynakları `pi-gen.lock.json` içinde **tam commit + arşiv SHA-256** ile sabittir; hash doğrulanmadan açılmaz. `bookworm` / `bookworm-arm64` dalları X11/Xfce uyumu ve ARMv6 ayrımı için seçilmiştir. Depoların imzalı güncel paketleri kullanılır; bit düzeyinde aynı çıktı garantisi verilmez. Taban sürümünün güvenlik desteği ve firmware pinleri düzenli güncellenmelidir. Yasal/provenance dosyaları ve özgün paket lisansları korunur.
+
+Önemli ayrıntı: pi-gen'de **`USE_QEMU=1` çapraz derleme anahtarı değildir**; QEMU hedef imajı davranışını değiştirir ve normal Pi yeniden boyutlandırmasını kapatır. Bu port gerçek Pi imajı için **`USE_QEMU=0`** kullanır; çapraz çalıştırmayı host QEMU/binfmt sağlar. Resmî ilk kullanıcı yeniden adlandırma aşaması atlanır; onun yerine OğuzDows'un kendi kilitli hesap akışı kullanılır.
+
+## Doğrulama ve testlerin anlamı
+
+- Birim/kontrat testleri: iki mimari, PC paket ayrımı, ARMv6/Zero 2 ayrımı, zram sınırları, komut enjeksiyonu reddi, ilk açılışta kesinti/yeniden deneme ve hesap güvenliği.
+- Xvfb üzerindeki gerçek GTK penceresi Pi sayfa dalını **host üzerinde** açar; sahte kurucu/PC STA düğmesi olmadığını ve galeriyi denetler. Bu ARM veya kart ekran testi değildir.
+- Tam derlemede kullanıcı alanı **QEMU ARM1176 (ARMv6)** veya **Cortex-A53 (ARMv8)** altında `/bin/true`, Python/GTK içe aktarımı ve Xfce sürüm sorgusuyla kontrol edilir. Tarayıcı/ofis yük testi değildir.
+- Export öncesi ve son ham imajın **salt okunur loop** kontrolünde MBR/FAT/ext4, hizalama, model DTB/çekirdek/initramfs zinciri, çözülmüş PARTUUID, marka ve hesap güvenliği denetlenir. SSH anahtarları/machine-id, ortak kullanıcı ve parolasız sudo bulunması derlemeyi durdurur.
+- Bu kontroller **Pi'nin firmware'den gerçekten açıldığını, VC4/V3D donanım hızlandırmasını, Wi-Fi/Bluetooth/kamera/HAT işlevlerini veya performansı kanıtlamaz.** Bunlar fiziksel test ister.
+
+`.github/workflows/raspberrypi.yml` PC ISO işlerinden ayrıdır. PR'da test, `main` güncellemesi veya elle çalıştırmada seçilen iki/tek imaj derlenir. Yeni workflow henüz varsayılan dala eklenmediyse GitHub doğrudan dispatch'i kaydetmez; mevcut `main.yml` girişinden **`target=raspberrypi`** seçilerek aynı daldaki Pi workflow'u çağrılır. Bu seçim PC ISO işlerini başlatmaz:
+
+```sh
+gh workflow run main.yml --ref CALISTIGINIZ_DAL -f target=raspberrypi -f architecture=both
+# architecture: both, armhf veya arm64
+```
+
+**Süren işler yeni bir çalıştırmayla iptal edilmez.** Artefaktlar imaj + SHA-256 + paket envanteri + kaynak kilidini taşır; başarısızlıkta derleme günlüğü saklanır.
+
+### Fiziksel yayın kontrol listesi
+
+Her kart için ayrı kaydedin; henüz tamamlandığı iddia edilmez:
+
+- [ ] Kart modeli/revizyonu, RAM, güç kaynağı, soğutma, SD/SSD ve imaj SHA-256.
+- [ ] Zero/Zero W ARMv6; Pi 2 ARMv7; Zero 2/3; Pi 4; Pi 5 `2712` çekirdeği.
+- [ ] Soğuk açılış, ilk bölüm büyütme/yeniden açılış, Türkçe hesap ekranı ve parola doğrulaması.
+- [ ] İkinci açılışta kullanıcı/dosyalar/duvar kâğıdı korunması; ortak parola/NOPASSWD/autologin bulunmaması.
+- [ ] HDMI/DSI, klavye/fare, Wi-Fi/ülke kodu, Ethernet/USB ağ, Bluetooth, HDMI/analog/USB ses.
+- [ ] `glxinfo -B` gerçek VC4/V3D renderer; yazılımsal llvmpipe kullanılıyorsa raporlama.
+- [ ] `vcgencmd measure_temp`, `get_throttled`, fan/termal davranış; düşük voltaj sorunu olmaması.
+- [ ] Boşta RAM, zram, açılış süresi ve örnek web/ofis/video yükü; tüm kartlarda aynı ölçüm yöntemi.
+- [ ] Ekransız dosya, açıkça etkinleştirilmiş SSH ve başarısız/yarım ilk kurulumda erişim engeli.
+- [ ] SD ve desteklenen USB/SSD açılışı; ani güç kesintisi sonrası hesap kurulumu kurtarma.
+
+Donanım merkezindeki rapor model, platform/SDIO/DRM bağlanmış sürücüleri, Pi sıcaklık/throttling bayraklarını ve kaynak profilini içerir; otomatik olarak dışarı gönderilmez. Sorun bildirirken raporla beraber güç/ekran/SD ayrıntılarını ekleyin. Raporu paylaşmadan önce kişisel bilgileri gözden geçirin.

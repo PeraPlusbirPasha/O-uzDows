@@ -1,0 +1,3 @@
+#!/bin/sh
+# Kedi / galeri yüklemez. Yönetici onayı ve günlükler aynı root yardımcısında kalır.
+exec /usr/bin/python3 -I /usr/lib/oguzdows/install_launcher.py "$@"

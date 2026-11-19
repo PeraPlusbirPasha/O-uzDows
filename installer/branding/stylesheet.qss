@@ -1,0 +1,8 @@
+QWidget { color: #f3eee6; background-color: #1c202a; }
+QPushButton { background-color: #292e3b; border: 1px solid #485060; border-radius: 4px; padding: 7px 16px; }
+QPushButton:hover { border-color: #3fc5c1; }
+QPushButton:default { background-color: #a8263a; border-color: #c93246; color: white; }
+QPushButton:disabled { color: #737b8c; }
+QLineEdit, QComboBox, QListView, QTreeView { background-color: #141821; selection-background-color: #a8263a; selection-color: #ffffff; }
+QProgressBar { border: 0; background-color: #303644; text-align: center; }
+QProgressBar::chunk { background-color: #3fc5c1; }

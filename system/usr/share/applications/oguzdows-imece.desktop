@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=İmece · OğuzDows Araçları
+Comment=Çay Molası, Türkçe Hızlı Yazım, Heybe ve yerel paylaşım paketleri
+Exec=/usr/local/bin/oguzdows-imece
+Icon=oguzdows
+Terminal=false
+Categories=Utility;
+StartupNotify=true

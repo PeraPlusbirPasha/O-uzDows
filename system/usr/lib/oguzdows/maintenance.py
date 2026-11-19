@@ -1,0 +1,250 @@
+"""OğuzDows bakım sözleşmesi: sabit işlemler, imzalı adaylar, önce plan/onay.
+
+Modül içe aktarılırken ağ, APT veya yetkili işlem çalıştırmaz.
+"""
+from __future__ import annotations
+
+import hashlib
+import json
+import os
+import platform
+import re
+from datetime import datetime, timezone
+from email.utils import parsedate_to_datetime
+from pathlib import Path
+
+ENV = {'PATH': '/usr/sbin:/usr/bin:/sbin:/bin', 'LC_ALL': 'C.UTF-8',
+       'LANG': 'C.UTF-8', 'HOME': '/root', 'DEBIAN_FRONTEND': 'noninteractive'}
+APT = ['/usr/bin/apt-get', '-o', 'Dpkg::Lock::Timeout=60', '-o', 'Acquire::Retries=1',
+       '-o', 'Acquire::http::Timeout=30', '-o', 'Acquire::https::Timeout=30',
+       '-o', 'APT::Get::AllowUnauthenticated=false', '-o', 'Acquire::AllowInsecureRepositories=false',
+       '-o', 'Acquire::AllowDowngradeToInsecureRepositories=false',
+       '-o', 'APT::Update::Error-Mode=any', '-o', 'APT::Get::AutomaticRemove=false',
+       '-o', 'Dpkg::Options::=--force-confdef', '-o', 'Dpkg::Options::=--force-confold']
+PARDUS_APPS = ('pardus-image-writer', 'pardus-night-light', 'pardus-pen')
+DESKTOPS = {
+    'kde': ('plasma-desktop', 'plasma-workspace', 'kwin-x11', 'dolphin', 'konsole', 'systemsettings'),
+    'gnome': ('gnome-session', 'gnome-session-xsession', 'gnome-shell', 'gnome-control-center', 'nautilus', 'gnome-terminal'),
+}
+DRIVERS = {
+    'intel-wifi': ('firmware-iwlwifi',), 'realtek': ('firmware-realtek',),
+    'atheros': ('firmware-atheros',), 'broadcom-open': ('firmware-brcm80211',),
+    'amd-graphics': ('firmware-amd-graphics',), 'libertas': ('firmware-libertas',),
+    'intel-graphics': ('firmware-intel-graphics',), 'mediatek': ('firmware-mediatek',),
+    'nvidia-firmware': ('firmware-nvidia-graphics',),
+}
+VENDORS = {'8086': 'intel-wifi', '10ec': 'realtek', '0bda': 'realtek', '168c': 'atheros',
+           '0cf3': 'atheros', '14e4': 'broadcom-open', '0a5c': 'broadcom-open',
+           '1002': 'amd-graphics', '11ab': 'libertas', '14c3': 'mediatek', '148f': 'mediatek',
+           '10de': 'nvidia-firmware'}
+CHANNEL = Path('/etc/apt/sources.list.d/oguzdows-pardus.sources')
+PREFERENCES = Path('/etc/apt/preferences.d/oguzdows-pardus')
+PARDUS_KEY = Path('/usr/share/keyrings/oguzdows-pardus.asc')
+# Resmî arşiv-anahtarlık kaynağı, d28a52a8 commit'i; testing anahtarı alınmaz.
+PARDUS_KEY_SHA256 = '7e0f0db2d7ef3aea57bb41469286061a050a184fbfd6f6fee8fb946d78af686e'
+PARDUS_FINGERPRINT = '88561F1612B981756C6C9E94026440E60FE45435'
+PARDUS_INRELEASE = 'https://depo.pardus.org.tr/pardus/dists/yirmibes/InRelease'
+
+
+class MaintenanceError(ValueError):
+    pass
+
+
+def build_info(path=Path('/usr/share/oguzdows/build-info.json')):
+    try:
+        data = json.loads(path.read_text())
+    except (OSError, ValueError):
+        raise MaintenanceError('OğuzDows taban kimliği okunamadı; depo / paket işlemi yapılmadı.')
+    if (not isinstance(data, dict) or data.get('platform') == 'raspberrypi'
+            or (data.get('arch'), data.get('suite')) not in (('amd64', 'trixie'), ('i386', 'bookworm'))):
+        raise MaintenanceError('Bu bakım sürümü yalnızca doğrulanan OğuzDows PC tabanları içindir.')
+    return data
+
+
+def driver_suggestions(sysfs=Path('/sys/bus'), suite='trixie'):
+    found = {}
+    for bus in ('pci', 'usb'):
+        for device in sorted((sysfs / bus / 'devices').glob('*')):
+            try:
+                vendor = (device / ('vendor' if bus == 'pci' else 'idVendor')).read_text().strip().lower().removeprefix('0x')
+                kind = (device / 'class').read_text().strip().lower() if bus == 'pci' else ''
+            except OSError:
+                continue
+            # PCI'de yalnızca kablosuz ağ / görüntü; USB'de bilinen firmware üreticileri.
+            if bus == 'pci' and not kind.startswith(('0x0280', '0x03')):
+                continue
+            choice = 'intel-graphics' if vendor == '8086' and kind.startswith('0x03') else VENDORS.get(vendor)
+            if choice is None:
+                continue
+            packages = DRIVERS[choice]
+            if suite == 'bookworm' and choice in ('intel-graphics', 'mediatek', 'nvidia-firmware'):
+                packages = ('firmware-misc-nonfree',)
+            entry = found.setdefault(choice, {'id': choice, 'packages': list(packages), 'devices': [], 'unbound': False})
+            entry['devices'].append(device.name)
+            entry['unbound'] |= not (device / 'driver').is_symlink()
+    return list(found.values())
+
+
+def request_packages(request, info, suggestions=None):
+    if request == 'upgrade':
+        return None
+    if request.startswith('desktop:') and request[8:] in DESKTOPS:
+        if info['arch'] != 'amd64':
+            raise MaintenanceError('Gerçek KDE/GNOME kurulumu bu sürümde yalnızca amd64 için sunulur.')
+        return list(DESKTOPS[request[8:]])
+    if request.startswith('driver:'):
+        choice = request[7:]
+        found = driver_suggestions(suite=info['suite']) if suggestions is None else suggestions
+        match = next((item for item in found if item['id'] == choice), None)
+        if match:
+            return match['packages']
+        raise MaintenanceError('Bu bilgisayarda seçilen firmware ile eşleşen aygıt yok; sürücüler zorlanmadı.')
+    if request.startswith('pardus:') and request[7:] in PARDUS_APPS:
+        if info['arch'] != 'amd64' or info['suite'] != 'trixie':
+            raise MaintenanceError('Pardus 25 uygulama kanalı yalnızca amd64 / trixie ile eşleştirildi.')
+        return [request[7:]]
+    raise MaintenanceError('İzin verilmeyen bakım isteği. Serbest paket / komut kabul edilmez.')
+
+
+def apt_command(request, info, simulate=False, suggestions=None):
+    packages = request_packages(request, info, suggestions)
+    command = [*APT, '--simulate' if simulate else '--assume-yes', '--no-remove']
+    if packages is None:
+        return [*command, '--with-new-pkgs', 'upgrade']
+    return [*command, '--no-install-recommends', 'install', *packages]
+
+
+def parse_plan(text):
+    if any(line.startswith('Remv ') for line in text.splitlines()):
+        raise MaintenanceError('İşlem paket kaldırmak istiyor. Otomatik işlem reddedildi; sistem korunuyor.')
+    changes = []
+    for line in text.splitlines():
+        if line.startswith('Inst '):
+            # APT bazı ara bağımlılık durumlarını kapanış parantezinden sonra
+            # [] / [paket:amd64 ] ile gösterir. Bu tanı eki paket / sürümün
+            # parçası değildir; gerçek aday ve imzalı köken yine denetlenir.
+            match = re.fullmatch(r'Inst ([a-z0-9][a-z0-9+.-]*(?::[a-z0-9]+)?) (?:\[[^\]]+\] )?\(([^\s()]+) .+\)(?: \[[^\]\r\n]*\])*', line)
+            if not match:
+                raise MaintenanceError('APT planındaki paket / sürüm biçimi tanınmadı; işlem yapılmadı.\nTeknik satır: ' + line[:350])
+            changes.append({'package': match[1], 'version': match[2], 'detail': line})
+    return changes
+
+
+def verify_origins(changes, cache, request, info):
+    allowed_suites = {info['suite'], info['suite'] + '-security', info['suite'] + '-updates'}
+    for change in changes:
+        name = change['package']
+        candidate = cache[name].candidate
+        if candidate is None or candidate.version != change['version']:
+            raise MaintenanceError('Plan sürümü ile doğrulanan paket adayı eşleşmiyor: ' + name)
+        if candidate.architecture not in ('all', info['arch']):
+            raise MaintenanceError('Bu mimari için doğrulanmayan paket: ' + name)
+        trusted = [origin for origin in candidate.origins if origin.trusted]
+        debian = any(origin.origin == 'Debian' and origin.codename in allowed_suites for origin in trusted)
+        pardus = (info['arch'] == 'amd64' and info['suite'] == 'trixie'
+                  and name.split(':')[0] in PARDUS_APPS
+                  and any(origin.origin == 'Pardus' and origin.codename == 'yirmibes' for origin in trusted))
+        if not debian and not (pardus and (request == 'upgrade' or request.startswith('pardus:'))):
+            raise MaintenanceError('Paketin imzalı kaynağı / taban sürümü izinli değil: ' + name
+                                   + '. Ubuntu/Kali/Pardus temel sistem paketleri karıştırılmadı.')
+
+
+def make_plan(request, info, execute, cache, suggestions=None):
+    command = apt_command(request, info, True, suggestions)
+    text = execute(command)
+    changes = parse_plan(text)
+    verify_origins(changes, cache, request, info)
+    # APT'nin tuttuğu paketleri de kullanıcıya göster; plan değişirse yeniden onay.
+    digest = hashlib.sha256((request + '\n' + text).encode()).hexdigest()
+    return {'request': request, 'token': digest, 'changes': changes, 'detail': text,
+            'note': 'Paket kaldırma ve dağıtım yükseltmesi kapalıdır. Tutulan paketler zorlanmaz.'}
+
+
+def apply_plan(request, token, info, execute, cache, suggestions=None):
+    if not re.fullmatch(r'[0-9a-f]{64}', token or ''):
+        raise MaintenanceError('Geçerli önizleme / onay yok.')
+    plan = make_plan(request, info, execute, cache, suggestions)
+    if plan['token'] != token:
+        raise MaintenanceError('Paket planı değişti. Yeniden denetleyip yeni planı onaylayın.')
+    if plan['changes']:
+        execute(apt_command(request, info, False, suggestions))
+    return {'message': 'İşlem tamamlandı. Çekirdek / firmware güncellendiyse yeniden başlatın.',
+            'changed': len(plan['changes'])}
+
+
+def pardus_source(enabled=False):
+    return ('# OğuzDows: yalnızca seçili Pardus uygulamaları; temel paketler pin ile engellenir.\n'
+            'Types: deb\nURIs: https://depo.pardus.org.tr/pardus\nSuites: yirmibes\n'
+            'Components: main\nArchitectures: amd64\n'
+            'Signed-By: /usr/share/keyrings/oguzdows-pardus.asc\n'
+            'Check-Valid-Until: yes\nValid-Until-Max: 7776000\n'
+            'Enabled: ' + ('yes' if enabled else 'no') + '\n')
+
+
+def pardus_preferences():
+    return ('# Önce dar uygulama listesi; bağımlılıklar temel dağıtımdan çözülür.\n'
+            'Package: ' + ' '.join(PARDUS_APPS) + '\nPin: release o=Pardus,n=yirmibes\nPin-Priority: 100\n\n'
+            'Package: *\nPin: release o=Pardus\nPin-Priority: -1\n\n'
+            'Package: *\nPin: origin "depo.pardus.org.tr"\nPin-Priority: -1\n')
+
+
+def channel_controls(info, key=PARDUS_KEY, preferences=PREFERENCES):
+    if info['arch'] != 'amd64' or info['suite'] != 'trixie':
+        raise MaintenanceError('Bu taban için Pardus kanalı desteklenmiyor; temel kaynaklar korunuyor.')
+    if key.is_symlink() or not key.is_file() or hashlib.sha256(key.read_bytes()).hexdigest() != PARDUS_KEY_SHA256:
+        raise MaintenanceError('Sabitlenen Pardus imza anahtarı eksik / değişmiş; kanal etkinleştirilmedi.')
+    if preferences.is_symlink() or not preferences.is_file() or preferences.read_text() != pardus_preferences():
+        raise MaintenanceError('Pardus paket sınırlandırma dosyası eksik / değişmiş; kanal etkinleştirilmedi.')
+
+
+def validate_pardus_release(signed_text, now=None):
+    # İmza doğrulaması gpgv ile ÖNCE yapılır. Bu fonksiyon yalnızca imzalı
+    # metnin beklenen sürüm / mimari / tazelik sözleşmesini değerlendirir.
+    values = dict(re.findall(r'^(Origin|Suite|Codename|Architectures|Date): (.+)$', signed_text, re.MULTILINE))
+    if (values.get('Origin') != 'Pardus' or values.get('Suite') != 'yirmibes'
+            or values.get('Codename') != 'yirmibes' or 'amd64' not in values.get('Architectures', '').split()):
+        raise MaintenanceError('İmzalı Pardus deposu beklenen 25 / amd64 kanalı değil.')
+    try:
+        stamp = parsedate_to_datetime(values['Date'])
+        age = ((now or datetime.now(timezone.utc)) - stamp).total_seconds()
+    except (KeyError, ValueError, TypeError, OverflowError):
+        raise MaintenanceError('Depo tarihi doğrulanamadı.')
+    if not -86400 <= age <= 90 * 86400:
+        raise MaintenanceError('Depo tarihi eski / gelecekte; sistem saatini ve Pardus kanalını kontrol edin.')
+
+
+def atomic_channel(enabled, info, path=CHANNEL, key=PARDUS_KEY, preferences=PREFERENCES, verify_release=None):
+    if path.is_symlink():
+        raise MaintenanceError('Depo dosyası beklenmeyen bir bağlantı; değiştirilmedi.')
+    if enabled:
+        channel_controls(info, key, preferences)
+        if verify_release is None:
+            raise MaintenanceError('Güncel depo imzası denetlenmeden Pardus kanalı açılamaz.')
+        validate_pardus_release(verify_release())
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_suffix('.sources.new')
+    fd = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o644)
+    try:
+        with os.fdopen(fd, 'w') as stream:
+            stream.write(pardus_source(enabled))
+            stream.flush()
+            os.fsync(stream.fileno())
+        temporary.replace(path)
+    finally:
+        temporary.unlink(missing_ok=True)
+    return {'message': 'Pardus uygulama kanalı ' + ('açıldı; önce paket listesini yenileyin.' if enabled else 'kapatıldı. Kurulu uygulamalar silinmedi.')}
+
+
+def memory_report(text=None):
+    if text is None:
+        text = Path('/proc/meminfo').read_text()
+    fields = {line.split(':')[0]: int(line.split()[1]) for line in text.splitlines()
+              if line.startswith(('MemTotal:', 'MemAvailable:', 'SwapTotal:', 'SwapFree:'))}
+    if not {'MemTotal', 'MemAvailable'} <= fields.keys() or not 0 <= fields['MemAvailable'] <= fields['MemTotal']:
+        raise MaintenanceError('MemAvailable bilgisi okunamadı; bellek kullanımı tahmin edilmedi.')
+    used = (fields['MemTotal'] - fields['MemAvailable']) * 1024
+    return {'used_bytes': used, 'used_mb': round(used / 1_000_000, 1),
+            'used_mib': round(used / 1048576, 1), 'target_bytes': 600_000_000,
+            'within_target': used <= 600_000_000,
+            'method': 'MemTotal − MemAvailable; önbellek boşaltılmadı, zram RAM kazancı diye sayılmadı.',
+            'machine': platform.machine(), 'measurement': 'anlık; boşta olduğunuzu tek başına kanıtlamaz'}

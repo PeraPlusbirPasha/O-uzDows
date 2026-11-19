@@ -1,0 +1,10 @@
+# Mağaza yalnızca kullanıcı açtığında çalışır; otomatik indirme yok.
+[org.gnome.software]
+download-updates=false
+download-updates-notify=false
+refresh-when-metered=false
+show-upgrade-prerelease=false
+
+[org.gnome.desktop.interface]
+cursor-theme='OguzDowsTespih'
+cursor-size=32

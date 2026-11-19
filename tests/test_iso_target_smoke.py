@@ -1,0 +1,247 @@
+"""ISO hedef OS testinin sınırları; bu birim testler VM / disk açmaz."""
+import hashlib
+import json
+import os
+import subprocess
+import tempfile
+import unittest
+from pathlib import Path
+from unittest.mock import Mock, patch
+
+import yaml
+
+from support import ROOT, load
+
+smoke = load('iso_target_smoke_contract', 'tests/smoke-iso-target.py')
+
+
+class IsoTargetSmokeContractTests(unittest.TestCase):
+    def test_guard_rejects_non_ci_and_non_regular_iso_before_mount_or_mkdtemp(self):
+        arguments = ['smoke-iso-target', '--iso', '/dev/null', '--arch', 'amd64', '--expected-revision', 'a' * 40]
+        for ci, uid in (('false', 0), ('true', 1000), ('true', 0)):
+            with self.subTest(ci=ci, uid=uid), patch('sys.argv', arguments), patch.dict(os.environ, {'CI': ci}), patch.object(smoke.os, 'geteuid', return_value=uid), patch.object(smoke.tempfile, 'mkdtemp') as temp, patch.object(smoke.subprocess, 'run') as child, patch('sys.stderr'):
+                with self.assertRaises(SystemExit) as error:
+                    smoke.main()
+                self.assertEqual(error.exception.code, 2)
+                temp.assert_not_called()
+                child.assert_not_called()
+
+    def test_vm_boot_requires_uuid_specific_os_proof_not_the_old_grub_marker(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            serial = root / 'target-os-bios.serial.log'
+            serial.write_text('OGUZDOWS-INSTALLED-BIOS-OK\n')
+            process = Mock()
+            process.poll.return_value = 0
+            with patch.object(smoke.subprocess, 'Popen', return_value=process), self.assertRaisesRegex(RuntimeError, 'erken kapandı'):
+                smoke.boot_os(root / 'private.img', 'bios', root, root, 'abc')
+            process.poll.return_value = None
+            serial.write_text('OGUZDOWS-TARGET-OS-OK:abc\n')
+            with patch.object(smoke.subprocess, 'Popen', return_value=process) as child, patch('builtins.print'):
+                smoke.boot_os(root / 'private.img', 'bios', root, root, 'abc')
+            command = child.call_args.args[0]
+            for bypass in ('-kernel', '-initrd', '-cdrom'):
+                self.assertNotIn(bypass, command)
+            self.assertIn('none', command)
+            self.assertTrue(any('snapshot=on' in arg for arg in command))
+            self.assertNotIn('OGUZDOWS-TARGET-OS-OK', str(command))
+            process.terminate.assert_called_once()
+
+    def test_graphical_idle_setup_is_confined_to_disposable_root_and_locked_test_account(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            with self.assertRaises(RuntimeError):
+                smoke.configure_idle_test(root, 0)
+            self.assertFalse(list(root.iterdir()))
+            smoke.configure_idle_test(root, 1001)
+            marker = root / 'home/oguz-idle-proof/.local/state/oguzdows/welcome-seen'
+            self.assertTrue(marker.is_file())
+            script = (root / 'usr/local/sbin/oguzdows-disposable-idle').read_text()
+            for argument in ('--user 1001', '--wait-for-desktop 180', '--settle-seconds 120', '--samples 6 --interval 5', '--idle-confirmed'):
+                self.assertIn(argument, script)
+            self.assertIn('OGUZDOWS-DESKTOP-IDLE-JSON:', script)
+            self.assertIn('/dev/ttyS0', script)
+            self.assertTrue((root / 'etc/systemd/system/graphical.target.wants/oguzdows-disposable-idle.service').is_symlink())
+            self.assertFalse((ROOT / 'system/etc/lightdm/lightdm.conf.d/99-oguzdows-disposable-idle.conf').exists())
+            self.assertFalse((ROOT / 'system/etc/systemd/system/oguzdows-disposable-idle.service').exists())
+
+    def test_vm_graphical_report_does_not_call_an_above_target_measurement_success(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            measurement = {'samples': [{'graphical_xfce': True}], 'valid_idle_measurement': True,
+                           'max_used_mb': 650.0, 'median_used_mb': 649.0, 'target_met': False, 'invalid_reasons': []}
+            serial = root / 'target-os-bios.serial.log'
+            serial.write_text('OGUZDOWS-TARGET-OS-OK:abc\nOGUZDOWS-DESKTOP-IDLE-JSON:' + json.dumps(measurement) + '\n')
+            process = Mock()
+            process.poll.return_value = None
+            with patch.object(smoke.subprocess, 'Popen', return_value=process), patch('builtins.print') as notice:
+                result = smoke.boot_os(root / 'private.img', 'bios', root, root, 'abc', graphical_idle=True)
+            self.assertFalse(result['target_met'])
+            self.assertIn('::warning', notice.call_args.args[0])
+            self.assertEqual(json.loads((root / 'desktop-idle.json').read_text()), measurement)
+            measurement['samples'][0]['graphical_xfce'] = False
+            serial.write_text('OGUZDOWS-TARGET-OS-OK:abc\nOGUZDOWS-DESKTOP-IDLE-JSON:' + json.dumps(measurement) + '\n')
+            with patch.object(smoke.subprocess, 'Popen', return_value=process), self.assertRaisesRegex(RuntimeError, 'tam Xfce'):
+                smoke.boot_os(root / 'private.img', 'bios', root, root, 'abc', graphical_idle=True)
+
+    def test_uart_does_not_parse_partial_graphical_json_before_the_record_is_complete(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            serial = root / 'target-os-bios.serial.log'
+            prefix = 'OGUZDOWS-TARGET-OS-OK:abc\nOGUZDOWS-DESKTOP-IDLE-JSON:'
+            serial.write_text(prefix + '{"samples":')
+            process = Mock()
+            process.poll.return_value = None
+            measurement = {'samples': [{'graphical_xfce': True}], 'target_met': False}
+            def finish_uart(_delay):
+                serial.write_text(prefix + json.dumps(measurement) + '\r\n')
+            with patch.object(smoke.subprocess, 'Popen', return_value=process), patch.object(smoke.time, 'sleep', side_effect=finish_uart) as pause, patch('builtins.print'):
+                smoke.boot_os(root / 'private.img', 'bios', root, root, 'abc', graphical_idle=True)
+            pause.assert_called_once()
+
+    def test_unknown_checkout_cleanliness_is_not_called_clean_or_confused_with_known_dirty(self):
+        build = {'source_revision': 'a' * 40, 'arch': 'i386', 'source_dirty': False}
+        smoke.validate_source(build, 'a' * 40, 'i386')
+        build['source_dirty'] = None
+        with patch('builtins.print') as notice:
+            smoke.validate_source(build, 'a' * 40, 'i386')
+        self.assertIn('belirlenemedi (null)', notice.call_args.args[0])
+        self.assertIsNone(build['source_dirty'])
+        for change in ({'source_dirty': True}, {'source_dirty': 0}, {'source_dirty': 'false'},
+                       {'source_revision': 'unknown'}, {'source_revision': 'b' * 40}, {'arch': 'amd64'}):
+            with self.subTest(change=change), self.assertRaises(RuntimeError):
+                smoke.validate_source({**build, **change}, 'a' * 40, 'i386')
+        build.pop('source_dirty')
+        with self.assertRaises(RuntimeError):
+            smoke.validate_source(build, 'a' * 40, 'i386')
+
+    def test_real_iso_must_contain_architecture_matching_mount_configuration(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            path = root / 'etc/calamares/modules/mount.conf'
+            path.parent.mkdir(parents=True)
+            for arch, relative in (('amd64', 'installer/overrides/trixie/mount.conf'), ('i386', 'installer/modules/mount.conf')):
+                text = (ROOT / relative).read_text()
+                path.write_text(text)
+                self.assertEqual(smoke.iso_mount_configuration(root, arch), yaml.safe_load(text))
+                self.assertEqual(path.read_text(), text)
+                other = 'i386' if arch == 'amd64' else 'amd64'
+                with self.assertRaisesRegex(RuntimeError, 'mount.conf'):
+                    smoke.iso_mount_configuration(root, other)
+            path.unlink()
+            with self.assertRaises(ValueError):
+                smoke.iso_mount_configuration(root, 'amd64')
+
+    def test_ci_uuid_link_only_names_its_own_loop_and_never_overwrites_existing_devices(self):
+        uuid = '12345678-1234-1234-1234-123456789abc'
+        device = '/dev/loop12345p1'
+        with tempfile.TemporaryDirectory() as directory, patch.object(Path, 'is_block_device', return_value=True):
+            base = Path(directory) / 'uuid'
+            owned = smoke.expose_loop_uuid(device, uuid, base)
+            self.assertEqual(os.readlink(owned[0]), device)
+            self.assertIsNone(smoke.expose_loop_uuid(device, uuid, base))
+            smoke.remove_owned_uuid_links([owned])
+            self.assertFalse(owned[0].is_symlink())
+            owned = smoke.expose_loop_uuid(device, uuid, base)
+            owned[0].unlink()
+            owned[0].symlink_to('/dev/loop12346p1')
+            with self.assertRaisesRegex(RuntimeError, 'başka bir aygıta'):
+                smoke.expose_loop_uuid(device, uuid, base)
+            smoke.remove_owned_uuid_links([owned])
+            self.assertEqual(os.readlink(owned[0]), '/dev/loop12346p1')
+        for device_value, uuid_value in (('/dev/sda1', uuid), ('/dev/loop1', uuid), (device, '../escape')):
+            with tempfile.TemporaryDirectory() as directory:
+                base = Path(directory) / 'must-not-exist'
+                with self.assertRaises(RuntimeError):
+                    smoke.expose_loop_uuid(device_value, uuid_value, base)
+                self.assertFalse(base.exists())
+        with tempfile.TemporaryDirectory() as directory, patch.object(Path, 'is_block_device', return_value=False):
+            base = Path(directory) / 'must-not-exist'
+            with self.assertRaises(RuntimeError):
+                smoke.expose_loop_uuid(device, uuid, base)
+            self.assertFalse(base.exists())
+
+    def test_real_iso_package_and_diversion_evidence_is_recorded_read_only(self):
+        with tempfile.TemporaryDirectory() as directory, tempfile.TemporaryDirectory() as result:
+            root, output = Path(directory), Path(result)
+            (root / 'var/lib/dpkg').mkdir(parents=True)
+            (root / 'usr/sbin').mkdir(parents=True)
+            status = root / 'var/lib/dpkg/status'
+            status.write_text('Package: live-tools\nVersion: 1:fixture\nStatus: install ok installed\n\nPackage: unrelated\nVersion: 2\n')
+            diversion = root / 'var/lib/dpkg/diversions'
+            diversion.write_text('/usr/sbin/update-initramfs\n/usr/sbin/update-initramfs.orig\nlive-tools\n')
+            (root / 'usr/sbin/update-initramfs').write_text('# fixture wrapper\n')
+            with patch('builtins.print'):
+                smoke.record_live_state(root, output, 'before')
+            report = json.loads((output / 'target-live-before.json').read_text())
+            self.assertEqual(report['packages'], [{'Package': 'live-tools', 'Version': '1:fixture', 'Status': 'install ok installed'}])
+            self.assertIn('live-tools', report['diversions'])
+            self.assertEqual((output / 'before-update-initramfs.txt').read_text(), '# fixture wrapper\n')
+            self.assertEqual(status.read_text().count('Package:'), 2)
+            self.assertTrue(diversion.exists())
+
+    def test_diagnostics_relays_actual_six_samples_read_only_without_raw_process_details(self):
+        workflow = yaml.safe_load((ROOT / '.github/workflows/main.yml').read_text())
+        steps = workflow['jobs']['diagnostics']['steps']
+        script = next(step['run'] for step in steps if 'run' in step)
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / 'target-evidence/amd64'
+            root.mkdir(parents=True)
+            (root / 'target-os-result.json').write_text(json.dumps({'arch': 'amd64', 'source_revision': 'a' * 40}))
+            sample = {'used_bytes': 650_000_000, 'graphical_xfce': True, 'desktop_user': 1000,
+                      'desktop_processes': ['xfce4-panel', 'xfce4-session', 'xfdesktop', 'xfwm4'],
+                      'known_foreground_or_package_work': [], 'cpu_total_ticks': 1000, 'cpu_idle_ticks': 990,
+                      'top_processes_rss_not_system_total': [{'name': 'PRIVATE-NOT-RELAYED'}],
+                      'zram': [{'allocated_ram_bytes': 12345}]}
+            measurement = {'build': {'arch': 'amd64', 'source_revision': 'a' * 40},
+                           'method': 'MemTotal − MemAvailable', 'target_bytes': 600_000_000,
+                           'settled_seconds': 120, 'sample_count': 6, 'sample_interval_seconds': 5,
+                           'idle_confirmed_by_operator': True, 'valid_idle_measurement': True,
+                           'max_used_bytes': 650_000_000, 'target_met': False, 'samples': [sample] * 6}
+            path = root / 'desktop-idle.json'
+            original = json.dumps(measurement).encode()
+            path.write_bytes(original)
+            result = subprocess.run(['bash', '-c', script], cwd=directory, capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            prefix = '::notice title=Önceki tam Xfce RAM örnekleri::'
+            annotation = next(line for line in result.stdout.splitlines() if line.startswith(prefix))
+            self.assertLess(len(annotation), 4096)
+            relayed = json.loads(annotation[len(prefix):])
+            self.assertFalse(relayed['target_met'])
+            self.assertEqual(relayed['report_sha256'], hashlib.sha256(original).hexdigest())
+            self.assertEqual(len(relayed['samples']), 6)
+            self.assertTrue(all(item['used_bytes'] == 650_000_000 for item in relayed['samples']))
+            self.assertEqual(relayed['zram'], sample['zram'])
+            self.assertNotIn('PRIVATE-NOT-RELAYED', result.stdout)
+            self.assertEqual(path.read_bytes(), original)
+            self.assertFalse(list(Path(directory).glob('*.iso')))
+
+    def test_iso_artifact_is_gated_by_new_real_os_check_and_failure_evidence_is_kept(self):
+        workflow = yaml.safe_load((ROOT / '.github/workflows/main.yml').read_text())
+        build = workflow['jobs']['build']
+        steps = build['steps']
+        build_index = next(i for i, s in enumerate(steps) if 'bash build.sh' in s.get('run', ''))
+        os_index = next(i for i, s in enumerate(steps) if 'tests/smoke-iso-target.py' in s.get('run', ''))
+        upload_index = next(i for i, s in enumerate(steps) if s.get('with', {}).get('name') == 'OguzDows-${{ matrix.arch }}')
+        self.assertLess(build_index, os_index)
+        self.assertLess(os_index, upload_index)
+        self.assertNotIn('continue-on-error', steps[os_index])
+        self.assertNotIn('if', steps[upload_index])  # Varsayılan success() zorunlu.
+        self.assertIn('--expected-revision "$GITHUB_SHA"', steps[os_index]['run'])
+        evidence = next(s for s in steps if s.get('with', {}).get('name') == 'OguzDows-ISO-hedef-test-${{ matrix.arch }}')
+        self.assertEqual(evidence['if'], 'always()')
+        self.assertEqual(build['container']['options'], '--privileged')
+        for name in ('verify', 'installed-boot', 'build'):
+            self.assertIn("target != 'pc-diagnostics'", workflow['jobs'][name]['if'])
+        diagnostics = workflow['jobs']['diagnostics']
+        self.assertIn("target == 'pc-diagnostics'", diagnostics['if'])
+        self.assertEqual(diagnostics['permissions']['actions'], 'read')
+        self.assertNotIn('bash build.sh', str(diagnostics))
+        self.assertTrue(any(s.get('uses', '').startswith('actions/download-artifact@') for s in diagnostics['steps']))
+        checkout_index = next(i for i, s in enumerate(steps) if s.get('uses', '').startswith('actions/checkout@'))
+        self.assertIn('git ca-certificates', steps[checkout_index - 1]['run'])
+        self.assertEqual((ROOT / 'build.yml').read_text(), (ROOT / '.github/workflows/main.yml').read_text())
+
+
+if __name__ == '__main__':
+    unittest.main()

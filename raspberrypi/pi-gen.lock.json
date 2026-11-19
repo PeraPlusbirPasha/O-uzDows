@@ -1,0 +1,55 @@
+{
+  "repository": "https://github.com/RPi-Distro/pi-gen",
+  "suite": "bookworm",
+  "armhf": {
+    "branch": "bookworm",
+    "commit": "8b71acc79287392a63985ba383c496d5419426b4",
+    "archive_sha256": "6f0e7ad86f6ace638e0601836c64de9434f8c34d438463dca8a96559aff4d256",
+    "kernels": [
+      "kernel.img",
+      "kernel7.img",
+      "kernel7l.img",
+      "kernel8.img"
+    ],
+    "initramfs": [
+      "initramfs",
+      "initramfs7",
+      "initramfs7l",
+      "initramfs8"
+    ],
+    "dtbs": [
+      "bcm2708-rpi-b.dtb",
+      "bcm2708-rpi-zero.dtb",
+      "bcm2708-rpi-zero-w.dtb",
+      "bcm2709-rpi-2-b.dtb",
+      "bcm2710-rpi-3-b.dtb",
+      "bcm2711-rpi-4-b.dtb",
+      "bcm2710-rpi-2-b.dtb",
+      "bcm2710-rpi-zero-2-w.dtb",
+      "bcm2710-rpi-3-b-plus.dtb",
+      "bcm2711-rpi-400.dtb"
+    ]
+  },
+  "arm64": {
+    "branch": "bookworm-arm64",
+    "commit": "3a7eeb9bd49278375b8871b284c1aacf54a31b34",
+    "archive_sha256": "0cc9e00c567e1f05cd409df7c422ff052ada86953544740ec36c0f361b6d85d7",
+    "kernels": [
+      "kernel8.img",
+      "kernel_2712.img"
+    ],
+    "initramfs": [
+      "initramfs8",
+      "initramfs_2712"
+    ],
+    "dtbs": [
+      "bcm2710-rpi-zero-2-w.dtb",
+      "bcm2710-rpi-3-b.dtb",
+      "bcm2711-rpi-4-b.dtb",
+      "bcm2712-rpi-5-b.dtb",
+      "bcm2710-rpi-2-b.dtb",
+      "bcm2710-rpi-3-b-plus.dtb",
+      "bcm2711-rpi-400.dtb"
+    ]
+  }
+}

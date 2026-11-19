@@ -1,0 +1,13 @@
+[Unit]
+Description=OğuzDows canlı oturum hazırlığı
+ConditionKernelCommandLine=boot=live
+After=live-config.service
+Before=display-manager.service lightdm.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/lib/oguzdows/live-setup.sh
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

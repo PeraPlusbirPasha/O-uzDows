@@ -1,0 +1,7 @@
+[Desktop Entry]
+Type=Application
+Name=OğuzDows'a hoş geldin
+Exec=/usr/local/bin/oguzdows-welcome --autostart
+Icon=oguzdows
+OnlyShowIn=XFCE;
+X-GNOME-Autostart-enabled=true

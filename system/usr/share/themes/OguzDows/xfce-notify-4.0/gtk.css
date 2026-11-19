@@ -1,0 +1,20 @@
+/* Saydamlık kullanmaz; eski GPU'da ve birleştirme kapalıyken de okunur. */
+#XfceNotifyWindow {
+  background-image: none;
+  background-color: #1c202a;
+  color: #fff9ef;
+  border: 2px solid #c93246;
+  border-radius: 8px;
+  opacity: 1;
+  padding: 12px;
+}
+#XfceNotifyWindow label { color: #fff9ef; opacity: 1; }
+#XfceNotifyWindow label#summary { font-weight: bold; }
+#XfceNotifyWindow button {
+  background-image: none;
+  background-color: #353d50;
+  color: #ffffff;
+  border: 1px solid #71809a;
+  opacity: 1;
+}
+#XfceNotifyWindow button:hover { background-color: #a8263a; }

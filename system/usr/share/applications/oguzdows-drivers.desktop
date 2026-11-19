@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=OğuzDows Donanım ve Sürücüler
+Comment=Yerleşik sürücüleri incele ve donanım raporunu kaydet
+Exec=/usr/local/bin/oguzdows-welcome --drivers
+Icon=preferences-system
+Terminal=false
+Categories=System;Settings;HardwareSettings;
+StartupNotify=true

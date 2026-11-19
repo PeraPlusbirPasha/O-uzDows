@@ -2,38 +2,345 @@ name: OğuzDows ISO
 
 on:
   workflow_dispatch:
+    inputs:
+      target:
+        description: PC ISO, test/kanıt, release taslağı veya Raspberry Pi imajları
+        type: choice
+        options: [pc, pc-tests, pc-diagnostics, pc-release, raspberrypi]
+        default: pc
+      evidence_run:
+        description: pc-diagnostics / pc-release için başarıyla tamamlanmış PC çalışması
+        type: string
+        default: ""
+      release_tag:
+        description: pc-release için mevcut taslağın etiketi (ör. v2.0)
+        type: string
+        default: ""
+      release_id:
+        description: pc-release için mevcut taslağın sayısal GitHub kimliği
+        type: string
+        default: ""
+      architecture:
+        description: Yalnızca Raspberry Pi hedefi için
+        type: choice
+        options: [both, armhf, arm64]
+        default: both
   push:
     branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  # PC doğrulaması, ayrı hedefte süren bir imaj işini bekletmez veya iptal etmez.
+  group: oguzdows-${{ github.workflow }}-${{ github.ref }}-${{ github.event.inputs.target || 'pc' }}
+  # Yeni bir çalıştırma, süren ISO işini yarıda kesmesin.
+  cancel-in-progress: false
 
 jobs:
-  build:
+  verify:
+    if: github.event.inputs.target != 'raspberrypi' && github.event.inputs.target != 'pc-diagnostics' && github.event.inputs.target != 'pc-release'
+    name: Yapılandırma ve GTK · ${{ matrix.suite }}
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     strategy:
       fail-fast: false
       matrix:
-        arch: [amd64, i386]
+        suite: [bookworm, trixie]
     container:
-      image: debian:trixie
+      image: debian:${{ matrix.suite }}
+    env:
+      GSETTINGS_BACKEND: memory
+      NO_AT_BRIDGE: "1"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Doğrulama araçları
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends python3 python3-yaml python3-pil \
+            python3-gi gir1.2-gtk-3.0 shellcheck fonts-inter fonts-noto-core \
+            fonts-dejavu-core adwaita-icon-theme xauth xvfb dbus-x11 pciutils usbutils rfkill \
+            calamares x11-utils xfconf xfwm4 libxcursor1 python3-apt python3-xlib \
+            gpgv ca-certificates flatpak gnome-software gnome-software-plugin-flatpak libglib2.0-bin \
+            librsvg2-common shared-mime-info iso-codes gdb
+
+      - name: Mağaza varsayılanlarını gerçek şemalarla derle
+        run: |
+          cp system/usr/share/glib-2.0/schemas/*.override /usr/share/glib-2.0/schemas/
+          glib-compile-schemas --strict /usr/share/glib-2.0/schemas
+          test "$(gsettings get org.gnome.software download-updates)" = false
+          test "$(gsettings get org.gnome.software download-updates-notify)" = false
+          test "$(gsettings get org.gnome.desktop.interface cursor-theme)" = "'OguzDowsTespih'"
+
+      - name: Birim ve yapılandırma testleri
+        run: python3 -m unittest discover -s tests -p 'test_*.py' -v
+
+      - name: Kabuk betiklerini denetle
+        run: |
+          shellcheck build.sh hooks/* system/usr/lib/oguzdows/*.sh \
+            system/usr/local/bin/* system/usr/local/sbin/oguzdows-installer
+
+      - name: Gerçek GTK arayüzünü aç ve doğrula
+        run: |
+          cp -a system/usr/share/themes/OguzDows /usr/share/themes/
+          python3 scripts/ci-run.py --title 'Tema görselleri' -- \
+            python3 scripts/render-assets.py --root /
+          python3 scripts/ci-run.py --title 'GTK arayüz kontrolü' -- \
+            xvfb-run -a -s '-screen 0 1024x768x24' dbus-run-session -- \
+            python3 tests/smoke-welcome.py --output test-results
+
+      - name: Güncelleyici, onay akışı, beş gerçek xfconf tarzı ve İmece
+        run: |
+          for component in updater culture store; do
+            python3 scripts/ci-run.py --title "Bakım GTK $component" -- \
+              xvfb-run -a -s '-screen 0 1024x768x24' dbus-run-session -- \
+              python3 tests/smoke-maintenance-ui.py --component "$component" --output test-results
+          done
+
+      - name: Gerçek mağaza küçültme, açık tam çıkış ve D-Bus süreç ömrü
+        if: ${{ !cancelled() }}
+        run: |
+          python3 scripts/ci-run.py --title 'Mağaza güvenli tam çıkış' -- \
+            xvfb-run -a -s '-screen 0 1280x900x24' dbus-run-session -- \
+            python3 tests/smoke-store.py --output test-results
+
+      - name: Paket kurmadan gerçek APT planları ve isteğe bağlı güncel Pardus imzası
+        if: ${{ !cancelled() }}
+        run: |
+          python3 scripts/ci-run.py --title 'Bakım aday ve imza kontrolü' -- \
+            python3 tests/smoke-maintenance.py --suite '${{ matrix.suite }}' --output test-results
+
+      - name: Hafif başlatıcı, boşta yük ve kurulumda Rıfkı duraklatma
+        run: |
+          for component in welcome rifki installer coordination; do
+            python3 scripts/ci-run.py --title "Hafif arayüz $component" -- \
+              xvfb-run -a -s '-screen 0 1024x768x24' dbus-run-session -- \
+              python3 tests/smoke-lightweight.py --component "$component" --output test-results
+          done
+
+      - name: Gerçek kurucuyu disk işlemi yapmadan aç
+        run: |
+          python3 scripts/configure.py --arch '${{ matrix.suite == 'trixie' && 'amd64' || 'i386' }}' --output /tmp/oguzdows-smoke
+          cp -a /tmp/oguzdows-smoke/includes.chroot/etc/calamares /etc/
+          cp -a /tmp/oguzdows-smoke/includes.chroot/usr/share/calamares/branding/oguzdows /usr/share/calamares/branding/
+          python3 scripts/ci-run.py --title 'Canlı kurucu açılış kontrolü' -- \
+            xvfb-run -a -s '-screen 0 1024x768x24' dbus-run-session -- \
+            python3 tests/smoke-installer.py --config /etc/calamares --output test-results
+
+      - name: Arayüz ekran görüntüleri
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: OguzDows-arayuz-${{ matrix.suite }}
+          path: |
+            test-results/*.png
+            test-results/*.log
+            test-results/*.json
+          if-no-files-found: warn
+          retention-days: 7
+
+  installed-boot:
+    name: Firmware → GRUB · ${{ matrix.suite }}
+    if: github.event.inputs.target != 'raspberrypi' && github.event.inputs.target != 'pc-diagnostics' && github.event.inputs.target != 'pc-release'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        suite: [bookworm, trixie]
+    container:
+      image: debian:${{ matrix.suite }}
       options: --privileged
     steps:
       - uses: actions/checkout@v4
-
-      - name: Araçları kur
+        with:
+          persist-credentials: false
+      - name: Yalnızca geçici disk imajları için boot test araçları
         run: |
           apt-get update
-          apt-get install -y live-build debootstrap squashfs-tools xorriso \
-            syslinux syslinux-utils isolinux git ca-certificates sudo
-
-      - name: ISO derle
+          apt-get install -y --no-install-recommends python3 python3-yaml calamares grub-pc-bin grub-efi-amd64-bin \
+            grub2-common parted e2fsprogs dosfstools qemu-system-x86 seabios ovmf \
+            udev util-linux mount
+          # GRUB 2.06, loop bölümünün sysfs yolunu udevadm info ile bulur.
+      - name: Gerçek Calamares mount ve chroot GRUB aygıt keşfi
         run: |
-          chmod +x build.sh
-          ./build.sh ${{ matrix.arch }}
+          python3 scripts/ci-run.py --title 'Calamares mount ${{ matrix.suite }}' -- \
+            python3 tests/smoke-calamares-mount.py --output test-results/calamares-mount
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: OguzDows-Calamares-mount-${{ matrix.suite }}
+          path: test-results/calamares-mount
+          if-no-files-found: warn
+          retention-days: 7
+      - name: Gerçek GRUB ile BIOS ve NVRAM'siz UEFI fallback açılışı
+        run: |
+          python3 scripts/ci-run.py --title 'Kurulu disk boot ${{ matrix.suite }}' -- \
+            python3 tests/smoke-installed-boot.py --output test-results/installed-boot
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: OguzDows-kurulu-boot-${{ matrix.suite }}
+          path: test-results/installed-boot
+          if-no-files-found: warn
+          retention-days: 7
 
-      - name: ISO'yu yükle
+  build:
+    name: ISO · ${{ matrix.arch }}
+    needs: [verify, installed-boot]
+    if: github.event_name != 'pull_request' && github.event.inputs.target != 'raspberrypi' && github.event.inputs.target != 'pc-tests' && github.event.inputs.target != 'pc-diagnostics' && github.event.inputs.target != 'pc-release'
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            suite: trixie
+          - arch: i386
+            suite: bookworm
+    container:
+      image: debian:${{ matrix.suite }}
+      options: --privileged
+    steps:
+      - name: Kaynak kimliği için Git (checkout öncesi)
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends git ca-certificates
+
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Derleme araçları
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends live-build debootstrap squashfs-tools \
+            xorriso syslinux syslinux-utils isolinux grub-pc-bin grub-efi-amd64-bin \
+            mtools dosfstools python3 python3-yaml ca-certificates \
+            qemu-system-x86 seabios ovmf udev util-linux mount parted e2fsprogs \
+            initramfs-tools-core
+
+      - name: ISO derle ve önyükleme dosyalarını doğrula
+        run: python3 scripts/ci-run.py --title 'ISO ${{ matrix.arch }}' -- bash build.sh ${{ matrix.arch }}
+
+      - name: ISO içeriğinden hedef disk, gerçek çekirdek ve systemd açılışı
+        run: |
+          python3 scripts/ci-run.py --title 'ISO hedef OS ${{ matrix.arch }}' -- \
+            python3 tests/smoke-iso-target.py --iso 'OguzDows-${{ matrix.arch }}.iso' \
+            --arch '${{ matrix.arch }}' --expected-revision "$GITHUB_SHA" --graphical-idle \
+            --output 'test-results/iso-target-${{ matrix.arch }}'
+
+      - name: Hedef sistem açılış kanıtları
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: OguzDows-ISO-hedef-test-${{ matrix.arch }}
+          path: test-results/iso-target-${{ matrix.arch }}
+          if-no-files-found: warn
+          retention-days: 7
+
+      - name: ISO ve SHA-256 dosyaları
         uses: actions/upload-artifact@v4
         with:
           name: OguzDows-${{ matrix.arch }}
           path: |
             OguzDows-${{ matrix.arch }}.iso
             OguzDows-${{ matrix.arch }}.iso.sha256
+          if-no-files-found: error
           compression-level: 0
+          retention-days: 7
+
+      - name: Başarısız derleme günlüğü
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: OguzDows-derleme-gunlugu-${{ matrix.arch }}
+          path: build-${{ matrix.arch }}/build.log
+          if-no-files-found: ignore
+          retention-days: 7
+
+  diagnostics:
+    name: Önceki hedef sistem testinin kanıtları (derleme yapmaz)
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.target == 'pc-diagnostics'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - name: Tamamlanan çalışmanın küçük hedef test raporlarını al
+        uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ github.token }}
+          run-id: ${{ inputs.evidence_run }}
+          pattern: OguzDows-ISO-hedef-test-*
+          path: target-evidence
+      - name: Gerçek hata ve kaynak kimliğini kontrol notuna yaz
+        run: |
+          python3 - <<'PY'
+          import hashlib
+          import json
+          from pathlib import Path
+          reports = sorted(Path('target-evidence').rglob('target-os-result.json'))
+          if not reports:
+              raise SystemExit('İstenen çalışmada hedef sistem test raporu bulunamadı.')
+          for path in reports:
+              data = json.loads(path.read_text())
+              selected = {k: data.get(k) for k in ('arch', 'source_revision', 'build', 'modes', 'error')}
+              text = json.dumps(selected, ensure_ascii=False)
+              print('::notice title=Önceki hedef sistem kanıtı::' + text[-3500:].replace('%', '%25'))
+          for path in sorted(Path('target-evidence').rglob('desktop-idle.json')):
+              data = json.loads(path.read_text())
+              selected = {k: data.get(k) for k in ('build', 'method', 'target_bytes', 'settled_seconds',
+                  'sample_count', 'sample_interval_seconds', 'idle_confirmed_by_operator',
+                  'valid_idle_measurement', 'invalid_reasons', 'median_used_bytes', 'max_used_bytes',
+                  'median_used_mb', 'max_used_mb', 'busy_cpu_percent', 'target_met')}
+              selected['report_sha256'] = hashlib.sha256(path.read_bytes()).hexdigest()
+              samples = data.get('samples', [])
+              selected['samples'] = [{k: item.get(k) for k in ('used_bytes', 'graphical_xfce',
+                  'desktop_user', 'desktop_processes', 'known_foreground_or_package_work',
+                  'cpu_total_ticks', 'cpu_idle_ticks')} for item in samples]
+              selected['zram'] = samples[-1].get('zram', []) if samples else []
+              text = json.dumps(selected, ensure_ascii=False, separators=(',', ':'))
+              if len(text) > 3500:
+                  raise SystemExit('RAM kanıtı kontrol notu sınırını aştı; kesilmiş JSON yayımlanmadı.')
+              print('::notice title=Önceki tam Xfce RAM örnekleri::' + text.replace('%', '%25'))
+          PY
+
+  release:
+    name: Doğrulanmış PC ISO → Release taslağı (derlemez)
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.target == 'pc-release'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write
+      actions: read
+    concurrency:
+      group: oguzdows-release-${{ github.repository }}-${{ inputs.release_id }}
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Kaynak, SHA-256 ve boot/RAM kanıtlarıyla taslağa aktar
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_RUN: ${{ inputs.evidence_run }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
+          RELEASE_ID: ${{ inputs.release_id }}
+        run: |
+          python3 scripts/ci-run.py --title 'Release ISO aktarımı' -- \
+            python3 scripts/release-assets.py --run "$SOURCE_RUN" --release-id "$RELEASE_ID" --tag "$RELEASE_TAG"
+
+  raspberrypi:
+    name: Raspberry Pi
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.target == 'raspberrypi'
+    uses: ./.github/workflows/raspberrypi.yml
+    with:
+      architecture: ${{ inputs.architecture || 'both' }}

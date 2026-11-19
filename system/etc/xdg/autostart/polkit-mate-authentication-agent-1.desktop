@@ -1,0 +1,7 @@
+[Desktop Entry]
+Type=Application
+Name=OğuzDows yetkilendirme aracısı
+Exec=/usr/lib/oguzdows/auth-agent.sh
+OnlyShowIn=XFCE;
+NoDisplay=true
+X-GNOME-Autostart-enabled=true

@@ -1,0 +1,72 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="560" viewBox="0 0 1600 560" role="img" aria-labelledby="title description">
+  <title id="title">OğuzDows · Ay Yıldız</title>
+  <desc id="description">Koyu lacivert zemin üzerinde al kırmızısı ay yıldız, turkuaz yörüngeler ve Anadolu kilim motifleri. Köklerinden güç alır. Özgürce üretir. Türkçe, hafif, sana ait.</desc>
+  <defs>
+    <linearGradient id="background" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#101b2c"/>
+      <stop offset="0.55" stop-color="#101b29"/>
+      <stop offset="1" stop-color="#143238"/>
+    </linearGradient>
+    <radialGradient id="halo">
+      <stop stop-color="#35c6be" stop-opacity="0.14"/>
+      <stop offset="1" stop-color="#35c6be" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="emblem" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#e34d63"/>
+      <stop offset="1" stop-color="#ac263f"/>
+    </linearGradient>
+    <linearGradient id="line">
+      <stop stop-color="#d44a5b"/>
+      <stop offset="0.55" stop-color="#d44a5b"/>
+      <stop offset="0.56" stop-color="#38c6bf"/>
+      <stop offset="1" stop-color="#38c6bf"/>
+    </linearGradient>
+    <pattern id="kilim" width="48" height="28" patternUnits="userSpaceOnUse">
+      <path d="M0 14 14 0 28 14 14 28ZM28 14 38 4 48 14 38 24Z" fill="none" stroke="#8aacb3" stroke-width="1"/>
+      <path d="m9 14 5-5 5 5-5 5Z" fill="#8aacb3"/>
+    </pattern>
+    <mask id="crescent">
+      <rect width="160" height="160" fill="#fff"/>
+      <circle cx="83" cy="80" r="35" fill="#000"/>
+    </mask>
+    <clipPath id="rounded"><rect x="1" y="1" width="1598" height="558" rx="28"/></clipPath>
+  </defs>
+  <g clip-path="url(#rounded)">
+    <rect width="1600" height="560" fill="url(#background)"/>
+    <circle cx="1190" cy="270" r="390" fill="url(#halo)"/>
+    <g fill="none" stroke="#77c8c4" stroke-opacity="0.10" stroke-width="1.2">
+      <path d="M786 560c78-82 42-149 105-211s147-22 194-89 33-128 114-161S1401 107 1521 0"/>
+      <path d="M826 560c78-82 42-149 105-211s147-22 194-89 33-128 114-161S1441 107 1561 0"/>
+      <path d="M866 560c78-82 42-149 105-211s147-22 194-89 33-128 114-161S1481 107 1601 0"/>
+      <path d="M906 560c78-82 42-149 105-211s147-22 194-89 33-128 114-161S1521 107 1641 0"/>
+    </g>
+    <rect x="70" y="47" width="286" height="2" rx="1" fill="url(#line)"/>
+    <text x="70" y="86" font-family="DejaVu Sans, Arial, sans-serif" font-size="17" font-weight="700" letter-spacing="4" fill="#94b7bf">AY YILDIZ · 1.0</text>
+    <text x="64" y="220" font-family="DejaVu Sans, Arial, sans-serif" font-size="98" font-weight="700" letter-spacing="-4" fill="#fff8ee">OğuzDows</text>
+    <text x="70" y="295" font-family="DejaVu Sans, Arial, sans-serif" font-size="35" font-weight="400" fill="#d9e6e7">Köklerinden güç alır.</text>
+    <text x="70" y="344" font-family="DejaVu Sans, Arial, sans-serif" font-size="35" font-weight="700" fill="#fff8ee">Özgürce üretir.</text>
+    <rect x="70" y="396" width="338" height="46" rx="23" fill="#23383f" stroke="#4f777c" stroke-opacity="0.55"/>
+    <circle cx="95" cy="419" r="4" fill="#4bddd0"/>
+    <text x="113" y="426" font-family="DejaVu Sans, Arial, sans-serif" font-size="18" fill="#c8ece8">Türkçe. Hafif. Sana ait.</text>
+    <g transform="translate(1165 260)">
+      <g fill="none" stroke="#6abbb7" stroke-opacity="0.22">
+        <circle r="170"/>
+        <circle r="195" stroke-dasharray="3 12"/>
+        <circle r="221" stroke-opacity="0.09"/>
+        <path d="M-238 0h38M200 0h38M0-238v38M0 200v38"/>
+      </g>
+      <circle cx="0" cy="-195" r="5" fill="#61d8ca"/>
+      <circle cx="-147" cy="122" r="4" fill="#d7b876"/>
+      <circle cx="183" cy="69" r="5" fill="#e3858c"/>
+      <g transform="translate(-130 -130) scale(1.625)">
+        <rect x="2" y="2" width="156" height="156" rx="40" fill="url(#emblem)" stroke="#f397a4" stroke-opacity="0.24"/>
+        <circle cx="68" cy="80" r="43" fill="#fff9ef" mask="url(#crescent)"/>
+        <path d="M138.4 80 123.8 85.1 123.5 100.5 114.1 88.2 99.3 92.7 108.2 80 99.3 67.3 114.1 71.8 123.5 59.5 123.8 74.9Z" fill="#fff9ef"/>
+      </g>
+    </g>
+    <path d="M70 481h1460" stroke="#587178" stroke-opacity="0.30"/>
+    <text x="70" y="520" font-family="DejaVu Sans, Arial, sans-serif" font-size="15" letter-spacing="2" fill="#9fb8bf">TÜRKÇE MASAÜSTÜ / XFCE / CANLI PC ISO</text>
+    <rect x="1214" y="498" width="316" height="28" fill="url(#kilim)" opacity="0.55"/>
+  </g>
+  <rect x="1" y="1" width="1598" height="558" rx="28" fill="none" stroke="#416169" stroke-opacity="0.60"/>
+</svg>

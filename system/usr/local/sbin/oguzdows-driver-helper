@@ -1,0 +1,96 @@
+#!/usr/bin/python3 -I
+"""Donanıma ve açık onaya bağlı, sabit ek sürücü işlemleri."""
+from __future__ import annotations
+
+import fcntl
+import os
+import subprocess
+import sys
+from pathlib import Path
+
+sys.path.insert(0, "/usr/lib/oguzdows")
+from hardware import is_live, supported_broadcom, supported_intel_legacy
+from offline import headers_available, install_command, payload, remember
+
+ENV = {"PATH": "/usr/sbin:/usr/bin:/sbin:/bin", "LC_ALL": "C.UTF-8", "DEBIAN_FRONTEND": "noninteractive"}
+
+
+def commands(action: str, archive: Path | None, offline_only: bool) -> list[list[str]]:
+    if archive is not None and (action != "broadcom" or headers_available()):
+        # Eksik bağımlılık varsa internete düşmez; ISO derlemesi bunları içerir.
+        return [install_command(archive)]
+    if offline_only or action != "broadcom":
+        raise RuntimeError("Gömülü sürücü paketi veya çalışan çekirdeğin başlıkları eksik/bozuk.")
+    headers = "linux-headers-" + os.uname().release
+    return [
+        ["/usr/bin/apt-get", "-o", "Acquire::Retries=1", "-o", "Acquire::http::Timeout=30", "-o", "Acquire::https::Timeout=30", "update"],
+        ["/usr/bin/apt-cache", "show", headers],
+        ["/usr/bin/apt-get", "install", "-y", "--no-install-recommends", "dkms", headers, "broadcom-sta-dkms"],
+    ]
+
+
+def activate(action: str, log) -> bool:
+    # Açık bir bağlantıyı veya başka aygıtları etkileyecek modül sökme yoktur.
+    # Önceden sürücüsüz kalan aygıtlar, yeni modül yüklenince yeniden denenir.
+    modules = ("wl",) if action == "broadcom" else ("ipw2100", "ipw2200")
+    success = False
+    for module in modules:
+        result = subprocess.run(["/usr/sbin/modprobe", module], stdout=log, stderr=subprocess.STDOUT, env=ENV, check=False)
+        success = result.returncode == 0 or success
+    return success
+
+
+def main() -> int:
+    args = sys.argv[1:]
+    if not args or args[0] not in {"broadcom", "intel-legacy-accept-license"} or args[1:] not in ([], ["--offline"]):
+        print("Geçersiz sürücü işlemi.", file=sys.stderr)
+        return 2
+    action, offline_only = args[0], len(args) == 2
+    if os.geteuid() != 0:
+        print("Bu işlem için yönetici yetkisi gerekli.", file=sys.stderr)
+        return 1
+    devices = supported_broadcom() if action == "broadcom" else supported_intel_legacy()
+    if not devices:
+        print("Bu bilgisayarda seçilen sürücüyle uyumlu bir aygıt bulunamadı. Yerleşik sürücüler korundu.", file=sys.stderr)
+        return 1
+    lock_fd = os.open("/run/lock/oguzdows-drivers.lock", os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW, 0o600)
+    try:
+        fcntl.flock(lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError:
+        os.close(lock_fd)
+        print("Başka bir OğuzDows sürücü işlemi zaten çalışıyor.", file=sys.stderr)
+        return 1
+    try:
+        logdir = Path("/var/log/oguzdows")
+        logdir.mkdir(mode=0o755, exist_ok=True)
+        log_fd = os.open(logdir / "drivers.log", os.O_WRONLY | os.O_CREAT | os.O_TRUNC | os.O_NOFOLLOW, 0o600)
+        os.fchmod(log_fd, 0o600)
+        with os.fdopen(log_fd, "w", encoding="utf-8") as log:
+            archive = payload(action)
+            steps = commands(action, archive, offline_only)
+            if action == "intel-legacy-accept-license":
+                # Bu eylem yalnızca lisans arayüzünde ayrıca onay verilince çağrılır.
+                subprocess.run(["/usr/bin/debconf-set-selections"], input="firmware-ipw2x00 firmware-ipw2x00/license/accepted boolean true\n", text=True, check=True, stdout=log, stderr=subprocess.STDOUT, env=ENV)
+            for command in steps:
+                log.write("İşlem: " + " ".join(command) + "\n")
+                log.flush()
+                subprocess.run(command, check=True, stdout=log, stderr=subprocess.STDOUT, env=ENV)
+            subprocess.run(["/usr/sbin/update-initramfs", "-u", "-k", "all"], check=True, stdout=log, stderr=subprocess.STDOUT, env=ENV)
+            live = is_live()
+            if live:
+                remember(action)
+                activate(action, log)
+    except (subprocess.CalledProcessError, OSError, RuntimeError) as error:
+        print(f"Sürücü kurulumu tamamlanamadı: {error}\nAyrıntılar: /var/log/oguzdows/drivers.log", file=sys.stderr)
+        return 1
+    finally:
+        os.close(lock_fd)
+    if live:
+        print("Sürücü kuruldu ve yükleme denendi; mevcut bağlantı sürücüsü sökülmedi. Raporu yenileyip ağı kontrol et. Seçimin disk kurulumuna taşınacak. Canlı USB'yi yeniden başlatmak değişiklikleri siler.")
+    else:
+        print("Sürücü kuruldu. Kullanmak için bilgisayarı yeniden başlat.")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

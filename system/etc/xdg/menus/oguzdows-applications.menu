@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE Menu PUBLIC "-//freedesktop//DTD Menu 1.0//EN" "http://www.freedesktop.org/standards/menu-spec/1.0/menu.dtd">
+<Menu>
+  <Name>OğuzDows</Name>
+  <Directory>oguzdows-applications.directory</Directory>
+  <DefaultAppDirs/>
+  <DefaultDirectoryDirs/>
+  <Menu><Name>Accessories</Name><Directory>oguzdows-accessories.directory</Directory><Include><Category>Utility</Category></Include><Exclude><Or><Category>Settings</Category><Category>System</Category></Or></Exclude></Menu>
+  <Menu><Name>Internet</Name><Directory>oguzdows-internet.directory</Directory><Include><Category>Network</Category></Include></Menu>
+  <Menu><Name>Office</Name><Directory>oguzdows-office.directory</Directory><Include><Category>Office</Category></Include></Menu>
+  <Menu><Name>Graphics</Name><Directory>oguzdows-graphics.directory</Directory><Include><Category>Graphics</Category></Include></Menu>
+  <Menu><Name>Multimedia</Name><Directory>oguzdows-multimedia.directory</Directory><Include><Category>AudioVideo</Category></Include></Menu>
+  <Menu><Name>Development</Name><Directory>oguzdows-development.directory</Directory><Include><Category>Development</Category></Include></Menu>
+  <Menu><Name>Games</Name><Directory>oguzdows-games.directory</Directory><Include><Category>Game</Category></Include></Menu>
+  <Menu><Name>Settings</Name><Directory>oguzdows-settings.directory</Directory><Include><Category>Settings</Category></Include></Menu>
+  <Menu><Name>System</Name><Directory>oguzdows-system.directory</Directory><Include><Category>System</Category></Include><Exclude><Category>Settings</Category></Exclude></Menu>
+  <Menu><Name>Other</Name><Directory>oguzdows-other.directory</Directory><OnlyUnallocated/><Include><All/></Include></Menu>
+  <Layout><Menuname>Accessories</Menuname><Menuname>Internet</Menuname><Menuname>Office</Menuname><Menuname>Graphics</Menuname><Menuname>Multimedia</Menuname><Menuname>Development</Menuname><Menuname>Games</Menuname><Menuname>Settings</Menuname><Menuname>System</Menuname><Menuname>Other</Menuname></Layout>
+</Menu>
