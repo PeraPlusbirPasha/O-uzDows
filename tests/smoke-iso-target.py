@@ -43,6 +43,17 @@ def put(root, relative, text, mode=0o644):
     return path
 
 
+def validate_source(build, revision, arch):
+    # checkout, Git yerine commit'e sabitlenmiş kaynak arşivi kullanabilir.
+    # null = temizlik bilinmiyor; false diye etiketleme ama true ile de karıştırma.
+    if (not isinstance(build, dict) or build.get('source_revision') != revision
+            or build.get('arch') != arch or 'source_dirty' not in build
+            or (build['source_dirty'] is not False and build['source_dirty'] is not None)):
+        raise RuntimeError('Yanlış / kirli / eski ISO kaynak kimliği: ' + json.dumps(build))
+    if build['source_dirty'] is None:
+        print('::notice title=Kaynak kimliği sınırı::Commit kimliği eşleşti; Git çalışma ağacı temizliği belirlenemedi (null). Temiz olduğu iddia edilmiyor.', flush=True)
+
+
 def record_live_state(root, output, phase):
     """Gerçek ISO paketlerini / diversion ve bakım betiklerini kanıta ekle."""
     status = target_system.nonempty(root, 'var/lib/dpkg/status').read_text()
@@ -157,8 +168,7 @@ def main():
         run('unsquashfs', '-no-progress', '-f', '-processors', '2', '-d', target, squashfs, timeout=900)
         build = json.loads((target / 'usr/share/oguzdows/build-info.json').read_text())
         report['build'] = build
-        if build.get('source_revision') != args.expected_revision or build.get('source_dirty') is not False or build.get('arch') != args.arch:
-            raise RuntimeError('Yanlış / kirli / eski ISO kaynak kimliği: ' + json.dumps(build))
+        validate_source(build, args.expected_revision, args.arch)
         esp_device = None
         if args.arch == 'amd64':
             esp_device = firmware.partition_device(loop, 2)

@@ -45,6 +45,22 @@ class IsoTargetSmokeContractTests(unittest.TestCase):
             self.assertNotIn('OGUZDOWS-TARGET-OS-OK', str(command))
             process.terminate.assert_called_once()
 
+    def test_unknown_checkout_cleanliness_is_not_called_clean_or_confused_with_known_dirty(self):
+        build = {'source_revision': 'a' * 40, 'arch': 'i386', 'source_dirty': False}
+        smoke.validate_source(build, 'a' * 40, 'i386')
+        build['source_dirty'] = None
+        with patch('builtins.print') as notice:
+            smoke.validate_source(build, 'a' * 40, 'i386')
+        self.assertIn('belirlenemedi (null)', notice.call_args.args[0])
+        self.assertIsNone(build['source_dirty'])
+        for change in ({'source_dirty': True}, {'source_dirty': 0}, {'source_dirty': 'false'},
+                       {'source_revision': 'unknown'}, {'source_revision': 'b' * 40}, {'arch': 'amd64'}):
+            with self.subTest(change=change), self.assertRaises(RuntimeError):
+                smoke.validate_source({**build, **change}, 'a' * 40, 'i386')
+        build.pop('source_dirty')
+        with self.assertRaises(RuntimeError):
+            smoke.validate_source(build, 'a' * 40, 'i386')
+
     def test_real_iso_package_and_diversion_evidence_is_recorded_read_only(self):
         with tempfile.TemporaryDirectory() as directory, tempfile.TemporaryDirectory() as result:
             root, output = Path(directory), Path(result)

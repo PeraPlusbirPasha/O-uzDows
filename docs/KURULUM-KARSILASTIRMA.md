@@ -60,7 +60,7 @@ Bunlar diski yeniden bölümlemez; eksik kanıtta başarı verilmesini engeller.
 
 ### 3. ISO kaynak kimliği
 
-PC `build-info.json` artık `source_revision` ve `source_dirty` içerir. Git / güvenilir kaynak kimliği bulunamazsa commit uydurulmaz; `unknown` yazılır. Başlatıcı bu bilgiyi günlüğün başına da yazar. Böylece aynı dosya adına sahip eski USB ile yeni kaynağı karıştırmak daha kolay fark edilir.
+PC `build-info.json` artık `source_revision` ve `source_dirty` içerir. Git / güvenilir kaynak kimliği bulunamazsa commit uydurulmaz; `unknown` yazılır. Git çalışma ağacı durumu belirlenemiyorsa `source_dirty: null` kalır; `false` (temiz) diye sunulmaz. ISO testi beklenen commit / mimari eşleşmesini zorunlu tutar ve bilinen kirli kaynağı reddeder; `null` durumunu ise açık bir sınır notuyla kaydeder. Başlatıcı bu bilgiyi günlüğün başına da yazar. Böylece aynı dosya adına sahip eski USB ile yeni kaynağı karıştırmak daha kolay fark edilir.
 
 ## Yeni testin yaptığı ve yapmadığı
 
@@ -75,6 +75,10 @@ PC `build-info.json` artık `source_revision` ve `source_dirty` içerir. Git / g
 - Bu adım geçmeden CI, ISO'yu başarılı indirme artefaktı olarak yayımlamaz.
 
 **Sınırlar:** bu bir Calamares GUI bölümleme / kullanıcı oluşturma otomasyonu değildir. Düz ext4 hedefi hazırlar; LUKS, dual boot, seçili ek sürücüler, masaüstünde etkileşim, fiziksel firmware ve fiziksel bilgisayar performansı ayrıca sınanmalıdır. Yeni testin kaynakta bulunması geçtiği anlamına gelmez; sonucu ilgili Actions çalışması ve `OguzDows-ISO-hedef-test-*` çıktısından okunmalıdır.
+
+### İlk denemenin durumu
+
+`44515268150` (`668622d`) çalışmasında iki ISO üretildi; GTK ve firmware → GRUB kontrolleri geçti. Yeni hedef-OS testi ise `source_dirty: null` değerini yanlışlıkla kirli kaynakla aynı şekilde reddettiği için **çekirdek açılışına ulaşmadı**. Bu test hatası, kullanıcının fiziksel kurulum hatasını açıklamaz. Durum, ISO tekrar derlenmeden `44517607846` kanıt-okuma işiyle ayrıştırıldı. Bilinmeyen / temiz / kirli durumları artık ayrı sınanır. Ayrıca 4096 karakterde kesilen kontrol notlarında gerçek son hatanın kaybolmaması için kısa hata kuyruğu ve doğrudan hedef hata notu eklenmiştir.
 
 ## Son cihaz hatası için gereken kanıt
 
