@@ -101,7 +101,7 @@ jobs:
           retention-days: 7
 
   installed-boot:
-    name: Kurulu disk BIOS/UEFI · ${{ matrix.suite }}
+    name: Firmware → GRUB · ${{ matrix.suite }}
     if: github.event.inputs.target != 'raspberrypi'
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -153,6 +153,11 @@ jobs:
       image: debian:${{ matrix.suite }}
       options: --privileged
     steps:
+      - name: Kaynak kimliği için Git (checkout öncesi)
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends git ca-certificates
+
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
@@ -162,10 +167,28 @@ jobs:
           apt-get update
           apt-get install -y --no-install-recommends live-build debootstrap squashfs-tools \
             xorriso syslinux syslinux-utils isolinux grub-pc-bin grub-efi-amd64-bin \
-            mtools dosfstools python3 ca-certificates
+            mtools dosfstools python3 python3-yaml ca-certificates \
+            qemu-system-x86 seabios ovmf udev util-linux mount parted e2fsprogs \
+            initramfs-tools-core
 
       - name: ISO derle ve önyükleme dosyalarını doğrula
         run: python3 scripts/ci-run.py --title 'ISO ${{ matrix.arch }}' -- bash build.sh ${{ matrix.arch }}
+
+      - name: ISO içeriğinden hedef disk, gerçek çekirdek ve systemd açılışı
+        run: |
+          python3 scripts/ci-run.py --title 'ISO hedef OS ${{ matrix.arch }}' -- \
+            python3 tests/smoke-iso-target.py --iso 'OguzDows-${{ matrix.arch }}.iso' \
+            --arch '${{ matrix.arch }}' --expected-revision "$GITHUB_SHA" \
+            --output 'test-results/iso-target-${{ matrix.arch }}'
+
+      - name: Hedef sistem açılış kanıtları
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: OguzDows-ISO-hedef-test-${{ matrix.arch }}
+          path: test-results/iso-target-${{ matrix.arch }}
+          if-no-files-found: warn
+          retention-days: 7
 
       - name: ISO ve SHA-256 dosyaları
         uses: actions/upload-artifact@v4

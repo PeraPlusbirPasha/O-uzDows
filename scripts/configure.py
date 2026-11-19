@@ -7,7 +7,10 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
+import re
 import shutil
+import subprocess
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -38,6 +41,24 @@ def write(path: Path, content: str) -> None:
     path.write_text(content, encoding="utf-8")
 
 
+def source_identity():
+    revision = os.environ.get('GITHUB_SHA', 'unknown')
+    dirty = None
+    try:
+        result = subprocess.run(['git', '-C', str(ROOT), 'rev-parse', 'HEAD'],
+                                capture_output=True, text=True, timeout=5, check=False)
+        if result.returncode == 0:
+            revision = result.stdout.strip()
+            status = subprocess.run(['git', '-C', str(ROOT), 'status', '--porcelain', '--untracked-files=normal'],
+                                    capture_output=True, text=True, timeout=5, check=False)
+            dirty = bool(status.stdout.strip()) if status.returncode == 0 else None
+    except (OSError, subprocess.SubprocessError):
+        pass
+    if not re.fullmatch(r'(?:[0-9a-f]{40}|[0-9a-f]{64})', revision):
+        revision = 'unknown'
+    return {'source_revision': revision, 'source_dirty': dirty}
+
+
 def configure(arch: str, output: Path) -> None:
     info = ARCHITECTURES[arch]
     overlay = output / "includes.chroot"
@@ -56,7 +77,7 @@ def configure(arch: str, output: Path) -> None:
 
     # Paketlerin önerilen ayar paketlerinden marka/config taşınmasına izin verme.
     write(output / "package-lists/oguzdows.list.chroot", "\n".join(packages_for(arch)) + "\n")
-    write(overlay / "usr/share/oguzdows/build-info.json", json.dumps({"arch": arch, **info}, indent=2) + "\n")
+    write(overlay / "usr/share/oguzdows/build-info.json", json.dumps({"arch": arch, **info, **source_identity()}, indent=2) + "\n")
     write(overlay / "etc/locale.gen", "tr_TR.UTF-8 UTF-8\nen_US.UTF-8 UTF-8\n")
     write(overlay / "etc/default/locale", 'LANG=tr_TR.UTF-8\nLANGUAGE="tr:en"\n')
     write(overlay / "etc/timezone", "Europe/Istanbul\n")

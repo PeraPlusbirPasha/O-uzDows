@@ -253,7 +253,7 @@ class InstalledBootIntegrationTests(unittest.TestCase):
             self.assertEqual(instance["module"], "oguzdowsboot")
             self.assertEqual(yaml.safe_load((ROOT / "installer/modules" / instance["config"]).read_text()), {"phase": phase})
         sequence = settings["sequence"][1]["exec"]
-        self.assertEqual(sequence[sequence.index("initramfs") + 1:sequence.index("umount")], ["oguzdowsboot@boot-prepare", "bootloader", "oguzdowsboot@boot-verify"])
+        self.assertEqual(sequence[sequence.index("initramfs") + 1:sequence.index("umount")], ["oguzdowstarget@target-verify", "oguzdowsboot@boot-prepare", "bootloader", "oguzdowsboot@boot-verify", "oguzdowstarget@target-menu"])
         self.assertEqual(settings["sequence"][0]["show"], ["welcome", "locale", "keyboard", "partition", "users", "summary"])
         loader = yaml.safe_load((ROOT / "installer/modules/bootloader.conf").read_text())
         self.assertEqual(loader["efiBootloaderId"], "OguzDows")

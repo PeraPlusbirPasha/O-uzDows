@@ -1,0 +1,5 @@
+---
+type: job
+name: oguzdowstarget
+interface: python
+script: main.py

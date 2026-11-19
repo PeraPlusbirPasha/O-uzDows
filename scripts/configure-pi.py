@@ -15,7 +15,7 @@ PC_ONLY = (
     "etc/systemd/system/oguzdows-live-setup.service",
     "usr/lib/oguzdows/live-setup.sh", "usr/lib/oguzdows/finish-install.sh",
     "usr/lib/oguzdows/prepare-install.py", "usr/lib/oguzdows/cache-drivers.py",
-    "usr/lib/oguzdows/install_launcher.py", "usr/lib/oguzdows/run-installer.py", "usr/lib/oguzdows/install-target-driver.py",
+    "usr/lib/oguzdows/target_system.py", "usr/lib/oguzdows/install_launcher.py", "usr/lib/oguzdows/run-installer.py", "usr/lib/oguzdows/install-target-driver.py",
     "usr/lib/oguzdows/driver_transfer.py",
     "usr/local/bin/oguzdows-install", "usr/local/sbin/oguzdows-installer",
     "usr/local/sbin/oguzdows-driver-helper", "usr/share/applications/oguzdows-install.desktop",

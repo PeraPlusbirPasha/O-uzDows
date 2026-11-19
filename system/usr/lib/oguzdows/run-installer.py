@@ -41,6 +41,12 @@ def main():
         parser.error('Geçersiz günlük hedefi.')
     fd = os.open(args.log, os.O_WRONLY | os.O_APPEND | os.O_NOFOLLOW | os.O_CLOEXEC)
     with os.fdopen(fd, 'a', encoding='utf-8') as log:
+        try:
+            build = json.loads(Path('/usr/share/oguzdows/build-info.json').read_text())
+        except (OSError, ValueError):
+            build = {'source_revision': 'unknown'}
+        print('OğuzDows kurucu kaynak kimliği: ' + json.dumps(build, ensure_ascii=False), file=log, flush=True)
+        print('Canlı çekirdek: ' + os.uname().release, file=log, flush=True)
         result = supervise(['/usr/bin/python3', '-I', '/usr/lib/oguzdows/prepare-install.py'],
                            ['/usr/bin/calamares', '-D', '6'], log)
     print(status.PREFIX + json.dumps(result, ensure_ascii=False), flush=True)

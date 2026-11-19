@@ -1,0 +1,266 @@
+#!/usr/bin/env python3
+"""Üretilen ISO → özel sanal hedef → gerçek çekirdek/initramfs/systemd açılışı.
+
+Yalnızca CI'de kendi oluşturduğu loop dosyasına yazar. Fiziksel disk adı kabul
+etmez. Calamares'in GUI bölümleme/kullanıcı akışını otomatikleştirmez: aynı ISO
+squashfs'i ve üretim temizleme/initramfs komutlarıyla düz ext4 hedef hazırlar.
+Bu, firmware→GRUB testinden daha kapsamlıdır; fiziksel PC / LUKS testi değildir.
+"""
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import re
+import shutil
+import stat
+import subprocess
+import sys
+import tempfile
+import time
+from pathlib import Path
+from types import SimpleNamespace
+
+import yaml
+
+from support import ROOT, load
+import target_system
+
+firmware = load('iso_test_firmware', 'tests/smoke-installed-boot.py')
+
+
+def run(*args, timeout=600, **kwargs):
+    print('+', *map(str, args), flush=True)
+    return subprocess.run(list(map(str, args)), check=True, timeout=timeout, **kwargs)
+
+
+def put(root, relative, text, mode=0o644):
+    path = target_system.inside(root, relative)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(text)
+    path.chmod(mode)
+    return path
+
+
+def record_live_state(root, output, phase):
+    """Gerçek ISO paketlerini / diversion ve bakım betiklerini kanıta ekle."""
+    status = target_system.nonempty(root, 'var/lib/dpkg/status').read_text()
+    selected = target_system.LIVE_PACKAGES | {'initramfs-tools', 'initramfs-tools-core'}
+    packages = []
+    for paragraph in status.split('\n\n'):
+        fields = dict(line.split(': ', 1) for line in paragraph.splitlines()
+                      if ': ' in line and not line.startswith((' ', '\t')))
+        if fields.get('Package') in selected:
+            packages.append({key: fields.get(key) for key in ('Package', 'Version', 'Status')})
+    diversions = target_system.inside(root, 'var/lib/dpkg/diversions')
+    report = {'packages': packages, 'diversions': diversions.read_text() if diversions.exists() else ''}
+    (output / ('target-live-' + phase + '.json')).write_text(json.dumps(report, indent=2) + '\n')
+    for relative in ('usr/sbin/update-initramfs', 'var/lib/dpkg/info/live-tools.postinst',
+                     'var/lib/dpkg/info/live-tools.postrm', 'var/lib/dpkg/info/live-tools.prerm'):
+        path = target_system.inside(root, relative)
+        if path.is_file():
+            (output / (phase + '-' + path.name + '.txt')).write_text(path.read_text())
+    print('::notice title=ISO canlı paket durumu ' + phase + '::' + json.dumps(report), flush=True)
+
+
+def boot_os(image, mode, output, work, root_uuid):
+    serial = output / ('target-os-' + mode + '.serial.log')
+    marker = 'OGUZDOWS-TARGET-OS-OK:' + root_uuid
+    args = ['qemu-system-x86_64', '-machine', 'pc,accel=tcg', '-m', '2048', '-smp', '2',
+            '-display', 'none', '-monitor', 'none', '-serial', 'file:' + str(serial),
+            '-drive', f'file={image},format=raw,if=none,id=testdisk,snapshot=on',
+            '-device', 'virtio-blk-pci,drive=testdisk', '-nic', 'none', '-boot', 'c', '-no-reboot']
+    if mode == 'efi':
+        args += firmware.firmware_files(work)
+    with (output / ('target-os-' + mode + '.qemu.log')).open('w') as log:
+        process = subprocess.Popen(args, stdout=log, stderr=subprocess.STDOUT)
+        try:
+            deadline = time.monotonic() + 240
+            while time.monotonic() < deadline:
+                text = serial.read_text(errors='replace') if serial.exists() else ''
+                if marker in text:
+                    print(mode + ': gerçek hedef çekirdek, initramfs ve systemd disk kökünde açıldı.', flush=True)
+                    return
+                if process.poll() is not None:
+                    raise RuntimeError(mode + ': hedef OS erken kapandı:\n' + text[-7000:])
+                time.sleep(.5)
+            raise RuntimeError(mode + ': hedef OS işareti 240 saniyede oluşmadı:\n' + text[-7000:])
+        finally:
+            if process.poll() is None:
+                process.terminate()
+                try:
+                    process.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    process.kill()
+                    process.wait()
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--iso', type=Path, required=True)
+    parser.add_argument('--arch', choices=('amd64', 'i386'), required=True)
+    parser.add_argument('--expected-revision', required=True)
+    parser.add_argument('--output', type=Path, default=Path('test-results/iso-target'))
+    args = parser.parse_args()
+    if os.geteuid() != 0 or os.environ.get('CI') != 'true':
+        parser.error('Yalnızca ayrıcalıklı, tek kullanımlık CI konteynerinde çalıştırılır.')
+    if not args.iso.is_file() or not stat.S_ISREG(args.iso.stat().st_mode):
+        parser.error('Girdi normal bir ISO dosyası olmalı; blok aygıtı kabul edilmez.')
+    if not re.fullmatch(r'(?:[0-9a-f]{40}|[0-9a-f]{64})', args.expected_revision):
+        parser.error('Doğrulanmış kaynak commit kimliği gerekli.')
+    output = args.output.resolve()
+    output.mkdir(parents=True, exist_ok=True)
+    work = Path(tempfile.mkdtemp(prefix='oguzdows-iso-target-')).resolve()
+    image = work / 'private-target-only.img'
+    iso_root = work / 'iso'
+    target = work / 'target'
+    iso_root.mkdir()
+    target.mkdir()
+    mounts = []
+    loop = None
+    report = {'arch': args.arch, 'source_revision': args.expected_revision, 'modes': [],
+              'gui_installation_tested': False, 'physical_boot_verified': False, 'encrypted_root_tested': False}
+    def mount(*command, at):
+        run('mount', *command, at)
+        mounts.append(at)
+    def chroot(*command):
+        return run('chroot', target, '/usr/bin/env', 'DEBIAN_FRONTEND=noninteractive',
+                   'LC_ALL=C', *command, timeout=900)
+    try:
+        mount('-o', 'loop,ro', args.iso.resolve(), at=iso_root)
+        squashfs = iso_root / 'live/filesystem.squashfs'
+        if not squashfs.is_file() or not squashfs.stat().st_size:
+            raise RuntimeError('ISO içindeki kurulum kök sistemi yok / boş.')
+        with image.open('wb') as stream:
+            stream.truncate(24 * 1024**3)
+        if args.arch == 'amd64':
+            run('parted', '--script', image, 'mklabel', 'gpt',
+                'mkpart', 'BIOS', '1MiB', '3MiB', 'set', '1', 'bios_grub', 'on',
+                'mkpart', 'ESP', 'fat32', '3MiB', '515MiB', 'set', '2', 'esp', 'on',
+                'mkpart', 'ROOT', 'ext4', '515MiB', '100%')
+            root_number = 3
+        else:
+            run('parted', '--script', image, 'mklabel', 'msdos', 'mkpart', 'primary', 'ext4', '1MiB', '100%')
+            root_number = 1
+        allocated = subprocess.check_output(['losetup', '--find', '--show', '--partscan', str(image)], text=True).strip()
+        if not re.fullmatch(r'/dev/loop[0-9]+', allocated):
+            raise RuntimeError('Özel loop aygıtı dışında hedef reddedildi: ' + allocated)
+        backing = Path('/sys/class/block') / Path(allocated).name / 'loop/backing_file'
+        if Path(backing.read_text().strip()).resolve() != image:
+            raise RuntimeError('Loop aygıtı bu testin özel dosyasına bağlı değil.')
+        loop = allocated
+        root_device = firmware.partition_device(loop, root_number)
+        run('mkfs.ext4', '-q', '-F', root_device)
+        mount(root_device, at=target)
+        # /dev vb. bind edilmeden açılır: arşiv asla canlı /dev üzerine yazılmaz.
+        run('unsquashfs', '-f', '-processors', '2', '-d', target, squashfs, timeout=900)
+        build = json.loads((target / 'usr/share/oguzdows/build-info.json').read_text())
+        if build.get('source_revision') != args.expected_revision or build.get('source_dirty') is not False or build.get('arch') != args.arch:
+            raise RuntimeError('Yanlış / kirli / eski ISO kaynak kimliği: ' + json.dumps(build))
+        esp_device = None
+        if args.arch == 'amd64':
+            esp_device = firmware.partition_device(loop, 2)
+            run('mkfs.fat', '-F', '32', esp_device)
+            (target / 'boot/efi').mkdir(parents=True, exist_ok=True)
+            mount(esp_device, at=target / 'boot/efi')
+        root_uuid = subprocess.check_output(['blkid', '-s', 'UUID', '-o', 'value', root_device], text=True).strip()
+        if not re.fullmatch(r'[0-9a-f-]{36}', root_uuid):
+            raise RuntimeError('Özel test kök UUID değeri geçersiz.')
+        fstab = f'UUID={root_uuid} / ext4 defaults 0 1\n'
+        if esp_device:
+            esp_uuid = subprocess.check_output(['blkid', '-s', 'UUID', '-o', 'value', esp_device], text=True).strip()
+            fstab += f'UUID={esp_uuid} /boot/efi vfat umask=0077 0 2\n'
+        put(target, 'etc/fstab', fstab)
+        for relative in ('dev', 'dev/pts', 'proc', 'sys'):
+            (target / relative).mkdir(parents=True, exist_ok=True)
+            mount('--bind', '/' + relative, at=target / relative)
+        # Paket betikleri yalnızca test hedefindedir; servisleri CI'de başlatmasın.
+        record_live_state(target, output, 'before')
+        policy = target_system.inside(target, 'usr/sbin/policy-rc.d')
+        saved_policy = (policy.read_bytes(), stat.S_IMODE(policy.stat().st_mode)) if policy.exists() else None
+        put(target, 'usr/sbin/policy-rc.d', '#!/bin/sh\nexit 101\n', 0o755)
+        try:
+            chroot('/bin/sh', '/usr/lib/oguzdows/finish-install.sh')
+            packages = yaml.safe_load((ROOT / 'installer/modules/packages.conf').read_text())
+            for operation in packages['operations']:
+                if set(operation) != {'remove'}:
+                    raise RuntimeError('Test yalnızca zorunlu üretim temizlik işlemini kabul eder.')
+                chroot('apt-get', '--purge', '-q', '-y', 'remove', *operation['remove'])
+                chroot('apt-get', '--purge', '-q', '-y', 'autoremove')
+        finally:
+            if saved_policy:
+                policy.write_bytes(saved_policy[0])
+                policy.chmod(saved_policy[1])
+            else:
+                policy.unlink(missing_ok=True)
+        record_live_state(target, output, 'after')
+        target_system.require_clean_target(target)
+        before = target_system.kernel_snapshot(target)
+        put(target, 'etc/initramfs-tools/conf.d/calamares-safe-initramfs.conf', 'UMASK=0077\n')
+        put(target, 'etc/initramfs-tools/conf.d/resume', 'RESUME=none\n')
+        # Calamares InitramfsJob ile aynı gerçek komut, aynı güvenli UMASK.
+        chroot('update-initramfs', '-k', 'all', '-c', '-t')
+        report['initramfs'] = target_system.verify_initramfs(target, before)
+        put(target, 'etc/default/grub.d/99-disposable-test.cfg',
+            'GRUB_DISABLE_OS_PROBER=true\nGRUB_TIMEOUT=1\nGRUB_TERMINAL="serial console"\n'
+            'GRUB_SERIAL_COMMAND="serial --unit=0 --speed=115200"\n'
+            'GRUB_CMDLINE_LINUX_DEFAULT="console=ttyS0,115200 loglevel=5 systemd.show_status=1"\n')
+        # Sadece hedefte gerçek systemd çalışınca işaret üretilir; GRUB echo'su değil.
+        put(target, 'usr/local/sbin/oguzdows-disposable-proof', '#!/bin/sh\nset -eu\n'
+            + f'test "$(findmnt -n -o UUID /)" = "{root_uuid}"\n'
+            + '! grep -qw boot=live /proc/cmdline\n'
+            + 'test ! -e /usr/local/sbin/oguzdows-installer\n'
+            + f'printf "OGUZDOWS-TARGET-OS-OK:{root_uuid}\\n" > /dev/ttyS0\n', 0o755)
+        unit = 'oguzdows-disposable-proof.service'
+        put(target, 'etc/systemd/system/' + unit,
+            '[Unit]\nDescription=Disposable ISO target boot proof\nAfter=local-fs.target\n'
+            '[Service]\nType=oneshot\nExecStart=/usr/local/sbin/oguzdows-disposable-proof\n'
+            '[Install]\nWantedBy=multi-user.target\n')
+        wants = target / 'etc/systemd/system/multi-user.target.wants'
+        wants.mkdir(parents=True, exist_ok=True)
+        (wants / unit).symlink_to('../' + unit)
+        chroot('grub-install', '--target=i386-pc', '--recheck', loop)
+        if esp_device:
+            chroot('grub-install', '--target=x86_64-efi', '--efi-directory=/boot/efi', '--bootloader-id=OguzDows', '--no-nvram')
+            fallback = target / 'boot/efi/EFI/BOOT/BOOTX64.EFI'
+            fallback.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(target / 'boot/efi/EFI/OguzDows/grubx64.efi', fallback)
+        chroot('grub-mkconfig', '-o', '/boot/grub/grub.cfg')
+        report['kernel'] = target_system.verify_grub_menu(target)
+        shutil.copy2(target / 'boot/grub/grub.cfg', output / 'target-grub.cfg')
+        # Mevcut üretim disk denetimini gerçek dosyalarla da çalıştır.
+        sys.modules['libcalamares'] = SimpleNamespace(utils=SimpleNamespace(debug=print))
+        boot = load('iso_target_disk_check', 'installer/modules/oguzdowsboot/main.py')
+        parts = [{'device': root_device, 'mountPoint': '/', 'fs': 'ext4'}]
+        boot.check(target, 'bios', parts, {'installPath': loop}, 'verify')
+        if esp_device:
+            parts.append({'device': esp_device, 'mountPoint': '/boot/efi', 'fs': 'fat32'})
+            boot.check(target, 'efi', parts, None, 'verify')
+        while mounts:
+            run('umount', mounts[-1])
+            mounts.pop()
+        run('losetup', '--detach', loop)
+        loop = None
+        for mode in (('bios', 'efi') if esp_device else ('bios',)):
+            boot_os(image, mode, output, work, root_uuid)
+            report['modes'].append(mode)
+        print('::notice title=ISO hedef sistem açılışı::' + json.dumps(report), flush=True)
+    except Exception as error:
+        report['error'] = str(error)
+        raise
+    finally:
+        (output / 'target-os-result.json').write_text(json.dumps(report, ensure_ascii=False, indent=2) + '\n')
+        safe = True
+        for location in reversed(mounts):
+            if subprocess.run(['umount', str(location)], check=False).returncode:
+                safe = False
+        if loop and safe:
+            safe = subprocess.run(['losetup', '--detach', loop], check=False).returncode == 0
+        if safe:
+            shutil.rmtree(work)
+        else:
+            print('Bağlı test alanı korunuyor, silinmedi: ' + str(work), file=sys.stderr)
+
+
+if __name__ == '__main__':
+    main()

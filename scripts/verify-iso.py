@@ -56,6 +56,8 @@ def verify(iso: Path, arch: str) -> None:
             command += ["-extract", "/boot/grub", str(root / "boot/grub")]
         subprocess.run(command, check=True, capture_output=True, text=True)
         paths = validate_tree(root, arch)
+        # Canlı menünün çalışması diske aktarılacak kök sistemin varlığı değildir.
+        paths.add('/live/filesystem.squashfs')
         if arch == "amd64":
             paths.add("/EFI/boot/bootx64.efi")
         subprocess.run(["xorriso", "-abort_on", "FAILURE", "-return_with", "SORRY", "32",

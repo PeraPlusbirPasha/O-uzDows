@@ -170,7 +170,11 @@ lsblk -o NAME,SIZE,TYPE,FSTYPE,PTTYPE,MOUNTPOINTS
 sudo fdisk -l
 ```
 
-Ek CI testi yalnızca kendisinin oluşturduğu geçici loop disklerde gerçek GRUB kurar; QEMU/SeaBIOS ve temiz NVRAM'li OVMF ile **firmware → kurulu GRUB yapılandırması** açılışını sınar. Bu, tam işletim sistemi kurulumu/çekirdek açılışı veya kullanıcının fiziksel PC'si için doğrulama değildir.
+İlk CI testi yalnızca kendisinin oluşturduğu geçici loop disklerde gerçek GRUB kurar; QEMU/SeaBIOS ve temiz NVRAM'li OVMF ile **firmware → GRUB** açılışını sınar. Bu test tek başına işletim sistemi açılışını kanıtlamaz.
+
+ISO derlemesinden sonraki ayrı `smoke-iso-target.py` kontrolü ise **üretilen ISO'nun squashfs'inden** kendi özel disk dosyasına hedef sistem hazırlar; üretimdeki zorunlu canlı-paket temizliğini, gerçek initramfs ve GRUB üretimini çalıştırır. ISO takılı olmadan QEMU'da hedef çekirdek / initramfs / systemd açılışını sınar. amd64 BIOS+UEFI, i386 BIOS gerektirir. Bu kontrol geçmeden ISO artefaktı yayımlanmaz. Test **Calamares GUI bölümleme/kullanıcı akışını çalıştırmaz**, LUKS veya fiziksel bilgisayar doğrulaması değildir.
+
+**Kali / Linux Mint kaynak karşılaştırması ve sınırlar:** [ayrıntılı inceleme](docs/KURULUM-KARSILASTIRMA.md). Kritik canlı paketler artık `try_remove` ile geçiştirilmez; temiz hedef durumu, `update-initramfs` yönlendirmesi, gerçekten yenilenen ve çekirdekle eşleşen initramfs ile mevcut dosyalara işaret eden GRUB menüsü zorunlu doğrulanır. İsteğe bağlı sürücü uyarıları ayrı kalır. PC ISO kaynak commit kimliği `build-info.json` ve kurucu günlüğüne yazılır.
 
 ### Yayın öncesi elle kontrol
 
