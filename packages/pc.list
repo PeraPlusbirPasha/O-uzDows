@@ -5,6 +5,8 @@ python3-xlib
 gpgv
 gnome-software
 gnome-software-plugin-flatpak
+# GNOME Software 48, ISO639 verisi yoksa g_error ile durur; Recommends'e güvenme.
+iso-codes
 flatpak
 packagekit
 xdg-desktop-portal

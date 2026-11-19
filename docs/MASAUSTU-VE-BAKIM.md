@@ -26,7 +26,7 @@ Eski Broadcom STA ve Intel 2100/2200/2915 için mevcut lisans, donanım ve başl
 
 ## Mağaza: GNOME Yazılımlar + Flatpak
 
-PC imajında **GNOME Software**, Flatpak eklentisi, PackageKit ve GTK portalı bulunur. Snap eklenmez. Menüde **OğuzDows Mağaza**:
+PC imajında **GNOME Software**, Flatpak eklentisi, PackageKit ve GTK portalı bulunur. Software 48'in açılışta gerektirdiği `iso-codes` dil verisi de açıkça paketlenir; önerilen paketlerin kendiliğinden kurulacağı varsayılmaz. Bu bir veri paketidir, ek arka plan servisi değildir. Snap eklenmez. Menüde **OğuzDows Mağaza**:
 
 - Sistem (APT) uygulamaları hemen kullanılabilir.
 - İlk açılışta Flathub ayrıca sorulur; yalnızca **x86_64** Flatpak mimarisinde bu sürümün otomatik kurulumu sunulur. i386'de APT mağazası kullanılabilir; Flathub'daki her uygulamanın 32-bit sürümü varmış gibi davranılmaz.

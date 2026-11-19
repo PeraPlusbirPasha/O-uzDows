@@ -28,6 +28,8 @@ def main():
     parser.add_argument('--output', type=Path, default=Path('test-results'))
     args = parser.parse_args()
     args.output.mkdir(parents=True, exist_ok=True)
+    if not Path('/usr/share/xml/iso-codes/iso_639.xml').is_file():
+        raise RuntimeError('iso-codes dil verisi gerekli; GNOME Software 48 bu veri olmadan açılmaz.')
     if not Gtk.init_check([])[0]:
         raise RuntimeError('Xvfb gerekli.')
     errors = []

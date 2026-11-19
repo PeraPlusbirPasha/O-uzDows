@@ -30,6 +30,10 @@ class ConfigurationTests(unittest.TestCase):
                 self.assertIn("plymouth-label", packages)
                 for package in ("atmel-firmware", "firmware-zd1211", "firmware-bnx2", "firmware-bnx2x", "dkms", "build-essential", "python3-yaml"):
                     self.assertIn(package, packages)
+                # --no-install-recommends ile de gerçek mağaza açılabilmeli;
+                # Software 48 dil verisi yoksa SIGTRAP ile duruyor.
+                for package in ('gnome-software', 'gnome-software-plugin-flatpak', 'iso-codes', 'flatpak'):
+                    self.assertIn(package, packages)
                 self.assertIn("linux-headers-" + ("amd64" if arch == "amd64" else "686-pae"), packages)
                 self.assertNotIn("firmware-ipw2x00", packages)  # yalnızca onay sonrası yerel arşivden
                 self.assertTrue((overlay / "etc/skel/İndirilenler").is_dir())

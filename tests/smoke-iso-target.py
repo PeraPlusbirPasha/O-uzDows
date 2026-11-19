@@ -131,9 +131,11 @@ def desktop_contract(root):
         fields = dict(line.split(': ', 1) for line in paragraph.splitlines() if ': ' in line and not line.startswith((' ', '\t')))
         if fields.get('Status') == 'install ok installed':
             installed.add(fields.get('Package'))
-    required = {'python3-apt', 'gnome-software', 'gnome-software-plugin-flatpak', 'flatpak', 'gpgv', 'xdg-desktop-portal-gtk'}
+    required = {'python3-apt', 'gnome-software', 'gnome-software-plugin-flatpak', 'iso-codes', 'flatpak', 'gpgv', 'xdg-desktop-portal-gtk'}
     if required - installed:
         raise RuntimeError('ISO bakım / mağaza paketleri eksik: ' + ', '.join(sorted(required - installed)))
+    # Software 48 bu isteğe bağlı gibi görünen veri olmadan SIGTRAP ile çıkar.
+    target_system.nonempty(root, 'usr/share/xml/iso-codes/iso_639.xml')
     if 'Enabled: no' not in target_system.nonempty(root, 'etc/apt/sources.list.d/oguzdows-pardus.sources').read_text():
         raise RuntimeError('Pardus kanalı ISO içinde varsayılan kapalı değil.')
     if 'Hidden=true' not in target_system.nonempty(root, 'etc/xdg/autostart/org.gnome.Software.desktop').read_text():
