@@ -56,12 +56,25 @@ def exercise_native_mount(path, configuration, root, firmware='bios', mount_resu
 
 class CalamaresMountContractTests(unittest.TestCase):
     def native(self):
+        if os.environ.get('OGUZDOWS_TEST_TARGET') == 'raspberrypi':
+            self.skipTest('Pi Calamares kullanmaz; gerçek PC işi bookworm/trixie CI içinde zorunludur.')
         native = packaged_module('mount')
         if not native:
             if os.environ.get('GITHUB_ACTIONS') == 'true':
                 self.fail('CI gerçek Calamares mount işini kurmalı.')
             self.skipTest('Yerelde Calamares yok; iki tabanlı CI gerçek mount işini sınar.')
         return native
+
+    def test_native_pc_requirement_fails_in_ci_and_skips_only_in_explicit_pi_scope(self):
+        with patch.dict(os.environ, {'GITHUB_ACTIONS': 'true', 'OGUZDOWS_TEST_TARGET': 'pc'}), \
+                patch(__name__ + '.packaged_module', return_value=None):
+            with self.assertRaisesRegex(AssertionError, 'CI gerçek Calamares'):
+                self.native()
+        with patch.dict(os.environ, {'GITHUB_ACTIONS': 'true', 'OGUZDOWS_TEST_TARGET': 'raspberrypi'}), \
+                patch(__name__ + '.packaged_module') as package:
+            with self.assertRaisesRegex(unittest.SkipTest, 'Pi Calamares kullanmaz'):
+                self.native()
+            package.assert_not_called()
 
     def arch(self):
         release = dict(line.split('=', 1) for line in Path('/etc/os-release').read_text().splitlines()

@@ -37,6 +37,8 @@ class CalamaresServiceContractTests(unittest.TestCase):
         self.assertNotEqual(new, old)
 
     def test_actually_installed_calamares_job_consumes_staged_configuration(self):
+        if os.environ.get('OGUZDOWS_TEST_TARGET') == 'raspberrypi':
+            self.skipTest('Pi Calamares kullanmaz; gerçek PC işi bookworm/trixie CI içinde zorunludur.')
         try:
             package = subprocess.run(['dpkg-query', '-L', 'calamares'], check=False,
                                      capture_output=True, text=True, timeout=10)
@@ -68,6 +70,17 @@ class CalamaresServiceContractTests(unittest.TestCase):
                 self.assertIsNone(module.run())
             self.assertEqual([entry.args[0] for entry in call.call_args_list],
                              [['systemctl', 'enable', name] for name in SERVICES])
+
+    def test_native_service_requirement_fails_in_pc_ci_and_skips_only_in_explicit_pi_scope(self):
+        with patch.dict(os.environ, {'GITHUB_ACTIONS': 'true', 'OGUZDOWS_TEST_TARGET': 'pc'}), \
+                patch('subprocess.run', return_value=SimpleNamespace(stdout='')):
+            with self.assertRaisesRegex(AssertionError, 'CI Calamares paketi kurmalı'):
+                self.test_actually_installed_calamares_job_consumes_staged_configuration()
+        with patch.dict(os.environ, {'GITHUB_ACTIONS': 'true', 'OGUZDOWS_TEST_TARGET': 'raspberrypi'}), \
+                patch('subprocess.run') as command:
+            with self.assertRaisesRegex(unittest.SkipTest, 'Pi Calamares kullanmaz'):
+                self.test_actually_installed_calamares_job_consumes_staged_configuration()
+            command.assert_not_called()
 
 
 if __name__ == '__main__':

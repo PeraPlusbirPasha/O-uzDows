@@ -149,6 +149,10 @@ class PiConfigurationTests(unittest.TestCase):
         self.assertIn("--pi", verification)
         self.assertIn("scripts/ci-run.py --title 'Pi birim ve kaynak kontrolleri'", verification)
         self.assertIn("python3 -W error::ResourceWarning -m unittest", verification)
+        self.assertEqual(workflow["jobs"]["verify"]["env"]["OGUZDOWS_TEST_TARGET"], "raspberrypi")
+        pc = yaml.safe_load((ROOT / ".github/workflows/main.yml").read_text())
+        self.assertNotIn("OGUZDOWS_TEST_TARGET", pc["jobs"]["verify"].get("env", {}))
+        self.assertNotIn("calamares", (ROOT / "packages/raspberrypi.list").read_text().lower())
 
     def test_registered_workflow_can_call_pi_without_rebuilding_pc_isos(self):
         workflow = yaml.safe_load((ROOT / ".github/workflows/main.yml").read_text())

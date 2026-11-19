@@ -49,6 +49,10 @@ jobs:
     name: Pi yapılandırma ve güvenlik testleri
     runs-on: ubuntu-24.04
     timeout-minutes: 20
+    env:
+      # Pi imajında Calamares yok; gerçek PC sözleşmeleri bookworm/trixie
+      # işlerinde zorunludur. Ortak yapılandırma/güvenlik testleri burada kalır.
+      OGUZDOWS_TEST_TARGET: raspberrypi
     steps:
       - uses: actions/checkout@v4
         with:
