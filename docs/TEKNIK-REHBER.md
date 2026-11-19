@@ -1,6 +1,6 @@
 # OğuzDows · Teknik rehber
 
-[← Proje vitrini](../README.md) · [İndir](https://github.com/PeraPlusbirPasha/O-uzDows/releases/latest)
+[← Proje vitrini](../README.md) · [İndir](https://github.com/PeraPlusbirPasha/OguzDows/releases/latest)
 
 **Köklerinden güç alır. Özgürce üretir.**
 
@@ -10,12 +10,12 @@ Türkçe, Xfce tabanlı bir canlı masaüstü ve kurulum ISO’su. Ay-yıldız a
 
 ## İndir · OğuzDows 1.0 Ay Yıldız
 
-**[v1.0.0 yayını ve Türkçe sürüm notları](https://github.com/PeraPlusbirPasha/O-uzDows/releases/tag/v1.0.0)** herkese açıktır; Actions oturumu gerekmez.
+**[v1.0.0 yayını ve Türkçe sürüm notları](https://github.com/PeraPlusbirPasha/OguzDows/releases/tag/v1.0.0)** herkese açıktır; Actions oturumu gerekmez.
 
-- **[64 bit PC · amd64 ISO · 1,74 GB](https://github.com/PeraPlusbirPasha/O-uzDows/releases/download/v1.0.0/OguzDows-amd64.iso)** — BIOS + 64 bit UEFI; ASUS X553M için bu imajı seçin.
-- **[32 bit PC · i386 ISO · 1,41 GB](https://github.com/PeraPlusbirPasha/O-uzDows/releases/download/v1.0.0/OguzDows-i386.iso)** — i686/PAE, BIOS; tarayıcı için SSE2 gerekir.
+- **[64 bit PC · amd64 ISO · 1,74 GB](https://github.com/PeraPlusbirPasha/OguzDows/releases/download/v1.0.0/OguzDows-amd64.iso)** — BIOS + 64 bit UEFI; ASUS X553M için bu imajı seçin.
+- **[32 bit PC · i386 ISO · 1,41 GB](https://github.com/PeraPlusbirPasha/OguzDows/releases/download/v1.0.0/OguzDows-i386.iso)** — i686/PAE, BIOS; tarayıcı için SSE2 gerekir.
 
-Release dosyaları iki ISO, her birinin `.iso.sha256` dosyası, **[SHA256SUMS](https://github.com/PeraPlusbirPasha/O-uzDows/releases/download/v1.0.0/SHA256SUMS)**, iki ham Xfce RAM raporu ve kaynak/dosya manifestini içerir. ISO ile eşleşen checksum dosyasını aynı dizine indirin; örneğin `sha256sum -c OguzDows-amd64.iso.sha256` ile doğrulayın. Secure Boot kapalı olmalıdır. Bu PC yayını Raspberry Pi imajı içermez.
+Release dosyaları iki ISO, her birinin `.iso.sha256` dosyası, **[SHA256SUMS](https://github.com/PeraPlusbirPasha/OguzDows/releases/download/v1.0.0/SHA256SUMS)**, iki ham Xfce RAM raporu ve kaynak/dosya manifestini içerir. ISO ile eşleşen checksum dosyasını aynı dizine indirin; örneğin `sha256sum -c OguzDows-amd64.iso.sha256` ile doğrulayın. Secure Boot kapalı olmalıdır. Bu PC yayını Raspberry Pi imajı içermez.
 
 ## Neler var?
 

@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/PeraPlusbirPasha/O-uzDows/releases/tag/v1.0.0"><kbd>Yayın · v1.0.0</kbd></a>
+  <a href="https://github.com/PeraPlusbirPasha/OguzDows/releases/tag/v1.0.0"><kbd>Yayın · v1.0.0</kbd></a>
   &nbsp; <kbd>amd64 + i386</kbd> &nbsp; <kbd>Xfce</kbd> &nbsp; <kbd>Türkçe</kbd>
 </p>
 
@@ -20,7 +20,7 @@
   <a href="#manzaralar">Manzaralar</a> &nbsp; · &nbsp;
   <a href="#performans">RAM ölçümleri</a> &nbsp; · &nbsp;
   <a href="docs/TEKNIK-REHBER.md">Teknik rehber</a> &nbsp; · &nbsp;
-  <a href="https://github.com/PeraPlusbirPasha/O-uzDows/issues">Sorun bildir</a>
+  <a href="https://github.com/PeraPlusbirPasha/OguzDows/issues">Sorun bildir</a>
 </p>
 
 ---
@@ -29,14 +29,14 @@
 
 ## Bir USB ile başla
 
-**Güncel yayın: [OğuzDows 1.0 · Ay Yıldız — v1.0.0](https://github.com/PeraPlusbirPasha/O-uzDows/releases/tag/v1.0.0)**
+**Güncel yayın: [OğuzDows 1.0 · Ay Yıldız — v1.0.0](https://github.com/PeraPlusbirPasha/OguzDows/releases/tag/v1.0.0)**
 
 ISO’lar herkese açıktır; indirmek için GitHub hesabı gerekmez.
 
 | Bilgisayarın | İmaj | Boyut¹ | Bütünlük dosyası |
 | :--- | :--- | ---: | :--- |
-| **64 bit PC** · BIOS / 64 bit UEFI | **[amd64 ISO’yu indir ↗](https://github.com/PeraPlusbirPasha/O-uzDows/releases/download/v1.0.0/OguzDows-amd64.iso)** | 1,74 GB | [SHA-256](https://github.com/PeraPlusbirPasha/O-uzDows/releases/download/v1.0.0/OguzDows-amd64.iso.sha256) |
-| **32 bit PC** · i686/PAE · BIOS | **[i386 ISO’yu indir ↗](https://github.com/PeraPlusbirPasha/O-uzDows/releases/download/v1.0.0/OguzDows-i386.iso)** | 1,41 GB | [SHA-256](https://github.com/PeraPlusbirPasha/O-uzDows/releases/download/v1.0.0/OguzDows-i386.iso.sha256) |
+| **64 bit PC** · BIOS / 64 bit UEFI | **[amd64 ISO’yu indir ↗](https://github.com/PeraPlusbirPasha/OguzDows/releases/download/v1.0.0/OguzDows-amd64.iso)** | 1,74 GB | [SHA-256](https://github.com/PeraPlusbirPasha/OguzDows/releases/download/v1.0.0/OguzDows-amd64.iso.sha256) |
+| **32 bit PC** · i686/PAE · BIOS | **[i386 ISO’yu indir ↗](https://github.com/PeraPlusbirPasha/OguzDows/releases/download/v1.0.0/OguzDows-i386.iso)** | 1,41 GB | [SHA-256](https://github.com/PeraPlusbirPasha/OguzDows/releases/download/v1.0.0/OguzDows-i386.iso.sha256) |
 
 <sub>¹ Yuvarlanmış decimal GB. i386 tarayıcısı için SSE2 gerekir. ASUS X553M için amd64 seçilir. Bu yayın Raspberry Pi imajı içermez.</sub>
 
@@ -46,7 +46,7 @@ ISO’lar herkese açıktır; indirmek için GitHub hesabı gerekmez.
    ```sh
    sha256sum -c OguzDows-amd64.iso.sha256
    ```
-   Sonucun `OK` olması gerekir. İki imajı birlikte indirdiysen [SHA256SUMS](https://github.com/PeraPlusbirPasha/O-uzDows/releases/download/v1.0.0/SHA256SUMS) ile ikisini de denetleyebilirsin.
+   Sonucun `OK` olması gerekir. İki imajı birlikte indirdiysen [SHA256SUMS](https://github.com/PeraPlusbirPasha/OguzDows/releases/download/v1.0.0/SHA256SUMS) ile ikisini de denetleyebilirsin.
 2. ISO’yu güvendiğin bir imaj yazma aracıyla USB’ye yaz. **USB’nin içeriği silinir; doğru aygıtı seç.**
 3. USB’den aç, **OğuzDows’u dene** ile donanımını kontrol et. Hazır olduğunda **OğuzDows’u kur** seçeneğini kullan.
 
@@ -154,7 +154,7 @@ v3.0    ·  Sonraki ana yayın
 
 Bundan sonraki yeni ana yayınlar **v2.0, v3.0, …** olarak ilerler. Bu bir sürümleme düzenidir; takvim veya henüz tamamlanmamış özellikler için söz değildir. **Mevcut v1.0.0 etiketi ve ISO’ları yeniden adlandırılmaz.** Her yeni yayın kendi kaynak commit’i, ISO’ları, SHA-256 dosyaları, Türkçe sürüm notları ve test kanıtlarıyla paylaşılır.
 
-[Yayın ve sürümleme politikası →](docs/SURUM-POLITIKASI.md) · [Tüm yayınlar →](https://github.com/PeraPlusbirPasha/O-uzDows/releases)
+[Yayın ve sürümleme politikası →](docs/SURUM-POLITIKASI.md) · [Tüm yayınlar →](https://github.com/PeraPlusbirPasha/OguzDows/releases)
 
 ## Merak edenler ve katkı verenler için
 

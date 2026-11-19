@@ -51,7 +51,7 @@ class ReadmeTests(unittest.TestCase):
 
     def test_downloads_keep_published_v1_while_future_major_names_are_only_policy(self):
         text = (ROOT / 'README.md').read_text()
-        links = re.findall(r'https://github\.com/PeraPlusbirPasha/O-uzDows/releases/download/([^/]+)/([^\s)"<>]+)', text)
+        links = re.findall(r'https://github\.com/PeraPlusbirPasha/OguzDows/releases/download/([^/]+)/([^\s)"<>]+)', text)
         self.assertEqual(set(links), {('v1.0.0', name) for name in (
             'OguzDows-amd64.iso', 'OguzDows-amd64.iso.sha256',
             'OguzDows-i386.iso', 'OguzDows-i386.iso.sha256', 'SHA256SUMS')})

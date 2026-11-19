@@ -1,6 +1,6 @@
 # Yayın ve sürümleme politikası
 
-[← Proje vitrini](../README.md) · [Yayınlar](https://github.com/PeraPlusbirPasha/O-uzDows/releases)
+[← Proje vitrini](../README.md) · [Yayınlar](https://github.com/PeraPlusbirPasha/OguzDows/releases)
 
 ## Ana yayın adları
 
@@ -30,7 +30,7 @@ Sonraki değişiklikler yalnızca belge, test veya yayın aracıyla sınırlıys
 
 ## v1.0.0 kaydı
 
-- [Yayımlanmış sürüm](https://github.com/PeraPlusbirPasha/O-uzDows/releases/tag/v1.0.0)
+- [Yayımlanmış sürüm](https://github.com/PeraPlusbirPasha/OguzDows/releases/tag/v1.0.0)
 - [Türkçe sürüm notları](releases/v1.0.0.md)
 - [Kaynak, SHA-256 ve ölçüm kanıtı](MASAUSTU-TEST-KANITI.md)
 
