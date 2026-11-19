@@ -2,7 +2,7 @@
 
 ## Kapsam ve sınır
 
-Resmî ISO **derleme tarifleri ve kurucu kaynak kodları** incelendi; Kali/Mint'in çok gigabaytlık yayın ISO'ları bu inceleme için indirilip fiziksel diske kurulmadı. Kaynak kod karşılaştırması, kullanıcının son hatasının nedenini tek başına kanıtlamaz. Son hata ekranı / günlük ve kullanılan ISO'nun kaynak kimliği hâlâ gereklidir.
+Resmî ISO **derleme tarifleri ve kurucu kaynak kodları** incelendi; Kali/Mint'in çok gigabaytlık yayın ISO'ları bu inceleme için indirilip fiziksel diske kurulmadı. Son iki cihaz fotoğrafı alındı: birinde GRUB `/boot/grub` aygıtını bulamıyor, diğerinde isteğe bağlı Broadcom komutu kurulumu durduruyor. Hata aşamaları artık biliniyor; kullanılan ISO'nun kaynak kimliği, tam günlük ve disk düzeni henüz bilinmiyor. Kaynak / CI bulgusu ile bu belirli USB'nin kimliği ayrı tutulur.
 
 Önceki OğuzDows çalışması `44416448840` (`bc3bace`) ISO üretimi ve o zamanki kontrolleri geçti. Ancak bu kontrollerin disk testi **firmware → GRUB** noktasındaydı; gerçek kurulu çekirdek / initramfs / kullanıcı alanı açılışını sınamıyordu. Bu bir doğrulama boşluğuydu, tam kurulum başarısı değildi.
 
@@ -22,6 +22,8 @@ Resmî ISO **derleme tarifleri ve kurucu kaynak kodları** incelendi; Kali/Mint'
   - [`initramfs.conf`: canlı paketleri önce purge et uyarısı](https://github.com/calamares/calamares/blob/v3.3.14/src/modules/initramfs/initramfs.conf)
   - [`InitramfsJob.cpp`: gerçek update-initramfs çağrısı](https://github.com/calamares/calamares/blob/v3.3.14/src/modules/initramfs/InitramfsJob.cpp)
   - [`packages/main.py`: apt purge ve try_remove hata davranışı](https://github.com/calamares/calamares/blob/v3.3.14/src/modules/packages/main.py)
+  - [`mount/main.py`: eksik extraMounts yalnızca uyarılır](https://github.com/calamares/calamares/blob/v3.3.14/src/modules/mount/main.py), [3.2 mount.conf](https://github.com/calamares/calamares/blob/v3.2.61/src/modules/mount/mount.conf), [3.3 mount.conf](https://github.com/calamares/calamares/blob/v3.3.14/src/modules/mount/mount.conf)
+  - [`Runner.cpp`: hedef komutu yalnızca chroot ile başlatır; eksik mount'ları tamamlamaz](https://github.com/calamares/calamares/blob/v3.3.14/src/libcalamares/utils/Runner.cpp)
 
 Mint'in bu iki deposu aynı kurucu olarak sunulmuyor; incelenen kaynaklar, belirli her Mint yayın ISO'sunun birebir dökümü değildir. Özellikle Ubuntu/casper dosya yolları Debian/live-build tabanımıza kopyalanmamalı.
 
@@ -71,6 +73,35 @@ PC `build-info.json` artık `source_revision` ve `source_dirty` içerir. Git / g
 
 Bookworm biçimi korunur; trixie için `installer/overrides/trixie/services-systemd.conf` uygulanır. Etkinleştirilecek aynı dört servis ve önceki nonfatal politika korunur; masaüstü tercihi değişmez. Yeni test, iki tabanlı CI'de **gerçek kurulu Calamares Python işini** sahte `target_env_call` ile çalıştırıp dört beklenen komutun gerçekten üretildiğini sınar. Bu test fiziksel sisteme veya `systemctl`'e çağrı yapmaz; yapılandırmanın sessizce yok sayılmasını yakalar. `ae2a54c` kaynağındaki [44527596668 PC testleri](https://github.com/PeraPlusbirPasha/O-uzDows/actions/runs/44527596668) iki tabanda da geçti. Yerelde Calamares bulunmadığı için bu tek native test atlanır; resmî 3.2.61 / 3.3.14 kaynaklarıyla yapılan ayrıca izole denemede eski trixie yapılandırmasının sıfır, düzeltilmiş her iki biçimin dört komut ürettiği de yeniden gösterilmiştir.
 
+### 5. Fotoğraftaki GRUB hatası ve doğrulanan eksik mount yapılandırması
+
+ASUS X553M için **amd64 seçimi doğrudur**: ad, AMD markalı işlemci zorunluluğu değil, Intel 64 işlemcilerini de kapsayan x86-64 mimarisidir. Fotoğraftaki `Installing for i386-pc platform` ise GRUB'un **Legacy BIOS** hedefidir; 32-bit ISO indirildiğini göstermez.
+
+Fotoğraftaki gerçek durma noktası:
+
+```text
+grub-install --target=i386-pc --recheck --force /dev/sdb
+grub-install: error: cannot find a device for /boot/grub (is /dev mounted?).
+```
+
+`/dev/sdb` aygıtının dahili disk mi, USB mi olduğu fotoğraftan belirlenemez. Bu hata üzerine tahminî bir diske GRUB yazılmaz veya yeniden biçimlendirme önerilmez.
+
+**Doğrulanmış kaynak hatası:** `b89a617` ve önceki ortak yapılandırmada `mount.conf` yoktu. Calamares bu dosya olmadan `/dev`, `/proc`, `/sys` vb. bağlantıları kendiliğinden kurmuyor; uyarıp devam ediyor. Sadece örnek dosyanın upstream'de bulunması yetmez. [44544369042](https://github.com/PeraPlusbirPasha/O-uzDows/actions/runs/44544369042), `13f68f6` test kaynağında her iki tabanın **gerçek kurulu paketini ve etkin yapılandırma arama yollarını** sınadı. İkisinin kontrol notu da `configuration_file: null, configuration: {}` bildirdi ve `/dev` beklentisiyle regresyon testi başarısız oldu. Önceki elle bağlanmış hedef-OS testleri bu yapılandırma eksikliğini gizliyordu.
+
+Düzeltme ve yeni denetimler:
+
+- Bookworm/Calamares 3.2 için `installer/modules/mount.conf`: `options: bind` metni ve ayrı `extraMountsEfi` listesi.
+- Trixie/Calamares 3.3 için sürüm üstüne yazımı: `options: [bind]` listesi ve `efi: true`. 3.2 dosyasını aynen kullanmak da yanlıştır; 3.3 liste bekleyen kod, `bind` metnini `b,i,n,d` hâline getirebilir.
+- Her iki biçim `/dev`, `/dev/pts`, `/proc`, `/sys`, `/run` ve `/run/udev` bağlantılarını açıkça tanımlar. Native `unpackfs` aynı listeyi kopyalama dışlaması olarak kullanır; canlı aygıt dizinlerine squashfs içeriği yazılmaz.
+- Yeni salt-okunur `oguzdowsmount` işi **mount'tan hemen sonra, dosya aktarımından önce** seçilen kök/ayrı `/boot` bölümünün gerçekten bağlı olduğunu, gerekli bağlama noktalarını ve hedefte aygıt görünürlüğünü doğrular. Native mount başarısızlığının yalnızca uyarıya dönüşmesi artık yeterli değildir.
+- **GRUB yazımından önce**, gerçek hedef chroot'unda zaman sınırlı `grub-probe --target=device /boot/grub` (dizin henüz yoksa `/boot`) çalışır. Sonuç seçilen `/boot`/kök aygıtıyla eşleşmezse kurulum açık hata ile durur; rastgele başka disk seçilmez.
+- `tests/smoke-calamares-mount.py`, CI'nin kendi özel loop imajında gerçek paket mount işini çalıştırır: boş yapılandırmayla fotoğraftaki aygıt-keşif hatasını arar, yeni yapılandırmayla gerçek chroot probe ve dışlamaları sınar. Bu yeni testin sonucu ayrıca raporlanmalıdır; kaynakta bulunması geçtiğini göstermez.
+- ISO-hedef testi, **gerçek squashfs içindeki** mount.conf dosyasının o commit'in mimariye uygun kaynağıyla aynı olduğunu da zorunlu tutar.
+
+Bu doğrulanmış hata, fotoğraftaki belirtiyle uyumlu ve onu üretebilen bir kod yoludur. Fotoğraftaki USB'nin hangi commit'i içerdiği ve `/dev/sdb` kimliği bilinmeden o fiziksel denemeye kesin kaynak kimliği atanmaz. Yeni ISO eski USB'yi veya yarım kalmış disk kurulumunu kendiliğinden güncellemez.
+
+İkinci fotoğraftaki `/usr/local/sbin/oguzdows-driver-helper broadcom --offline` çıkış 1 hatası ayrı değerlendirilir. Uyumsuz donanıma Broadcom zorlanmamalı. Mevcut isteğe bağlı sürücü aktarımı bu başarısızlığı uyarıya dönüştürür; fotoğrafın bu düzeltmeyi içeren ISO'dan geldiği henüz kanıtlanmadı.
+
 ## Yeni testin yaptığı ve yapmadığı
 
 `tests/smoke-iso-target.py`, yalnızca ayrıcalıklı ve tek kullanımlık CI konteynerinde çalışır:
@@ -100,15 +131,16 @@ Bookworm biçimi korunur; trixie için `installer/overrides/trixie/services-syst
 | amd64 / trixie / `6.12.117+deb13-amd64` | BIOS **ve** temiz NVRAM'li UEFI fallback → çekirdek → initramfs → hedef UUID'li kökte systemd servisi |
 | i386 / bookworm / `6.1.0-56-686-pae` | BIOS → çekirdek → initramfs → hedef UUID'li kökte systemd servisi |
 
-İki ISO ve SHA-256 çıktıları ancak bu kontrolden sonra yayımlandı. Raporlar hâlâ `gui_installation_tested: false`, `physical_boot_verified: false`, `encrypted_root_tested: false` içerir. Bu sonuç, sonradan eklenen servis biçimi düzeltmesinden önceki `36ff1ea` ISO'larına aittir; yeni kaynak değişiklikleri içeren ISO ayrı kaynak kimliğiyle üretilmelidir. Kullanıcının **kurulum sırasında** aldığı hata hâlâ günlük / ekran olmadan teşhis edilmiş değildir.
+İki ISO ve SHA-256 çıktıları ancak bu kontrolden sonra yayımlandı. Raporlar hâlâ `gui_installation_tested: false`, `physical_boot_verified: false`, `encrypted_root_tested: false` içerir. Bu sonuç, sonradan eklenen servis ve mount biçimi düzeltmelerinden önceki `36ff1ea` ISO'larına aittir; yeni kaynak değişiklikleri içeren ISO ayrı kaynak kimliğiyle üretilmelidir. Sonraki `b89a617` / [44527988747](https://github.com/PeraPlusbirPasha/O-uzDows/actions/runs/44527988747) de eski elle bağlanmış hedef-OS testini geçti; bu yeşil sonuç native mount yapılandırmasını sınamadığından yukarıdaki eksikliği dışlamıyordu.
 
 ## Son cihaz hatası için gereken kanıt
 
-Kullanıcının son seçimi: **kurucu açılıyor, hata kurulum işlemi sırasında çıkıyor; işlem tamamlanmıyor**. Dolayısıyla disk açılışı testinin geçmesi bu cihazdaki hatayı tek başına açıklamaz. Öncelik hata penceresinin tamamı, durduğu modül, günlük ve hangi ISO'nun USB'ye yazıldığıdır. Canlı oturumda terminal açılabiliyorsa yalnızca aşağıdaki salt-okunur çıktılar istenir:
+**Kurulum sırasında** hata alındığı ve hata pencereleri artık biliniyor; yeniden aynı aşama / fotoğraf sorusu sorulmaz. Kalan ihtiyaç: kullanılan ISO dosya adı / kaynak kimliği, tam günlük ve `/dev/sdb` dahil aygıtların düzeni. Canlı oturumda terminal açılabiliyorsa yalnızca aşağıdaki salt-okunur çıktılar istenir:
 
 ```sh
 cat /usr/share/oguzdows/build-info.json
+lsblk -o NAME,SIZE,TYPE,FSTYPE,MOUNTPOINTS,MODEL,TRAN
 sudo tail -n 100 /var/log/oguzdows/installer.log
 ```
 
-Diskten açılmama durumunda mevcut salt-okunur açılış raporu / BIOS-UEFI bilgisi de gerekir. `/dev/sda` gibi tahminî bir aygıta GRUB yazılmaz, veri diski biçimlendirilmez. Yeni ISO eski kurulmuş diski kendiliğinden onarmaz.
+Bunlar bölüm oluşturmaz, biçimlendirmez, GRUB yazmaz. İki fotoğrafın aynı denemeye mi yoksa farklı ISO'lara mı ait olduğu da belirtilirse Broadcom ve GRUB izleri doğru kaynağa bağlanabilir. `/dev/sda` veya `/dev/sdb` gibi tahminî bir aygıta onarım yazımı önerilmez. Yeni ISO eski kurulmuş diski kendiliğinden onarmaz.

@@ -123,10 +123,21 @@ jobs:
       - name: Yalnızca geçici disk imajları için boot test araçları
         run: |
           apt-get update
-          apt-get install -y --no-install-recommends python3 grub-pc-bin grub-efi-amd64-bin \
+          apt-get install -y --no-install-recommends python3 python3-yaml calamares grub-pc-bin grub-efi-amd64-bin \
             grub2-common parted e2fsprogs dosfstools qemu-system-x86 seabios ovmf \
             udev util-linux mount
           # GRUB 2.06, loop bölümünün sysfs yolunu udevadm info ile bulur.
+      - name: Gerçek Calamares mount ve chroot GRUB aygıt keşfi
+        run: |
+          python3 scripts/ci-run.py --title 'Calamares mount ${{ matrix.suite }}' -- \
+            python3 tests/smoke-calamares-mount.py --output test-results/calamares-mount
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: OguzDows-Calamares-mount-${{ matrix.suite }}
+          path: test-results/calamares-mount
+          if-no-files-found: warn
+          retention-days: 7
       - name: Gerçek GRUB ile BIOS ve NVRAM'siz UEFI fallback açılışı
         run: |
           python3 scripts/ci-run.py --title 'Kurulu disk boot ${{ matrix.suite }}' -- \

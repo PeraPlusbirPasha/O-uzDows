@@ -61,6 +61,23 @@ class IsoTargetSmokeContractTests(unittest.TestCase):
         with self.assertRaises(RuntimeError):
             smoke.validate_source(build, 'a' * 40, 'i386')
 
+    def test_real_iso_must_contain_architecture_matching_mount_configuration(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            path = root / 'etc/calamares/modules/mount.conf'
+            path.parent.mkdir(parents=True)
+            for arch, relative in (('amd64', 'installer/overrides/trixie/mount.conf'), ('i386', 'installer/modules/mount.conf')):
+                text = (ROOT / relative).read_text()
+                path.write_text(text)
+                self.assertEqual(smoke.iso_mount_configuration(root, arch), yaml.safe_load(text))
+                self.assertEqual(path.read_text(), text)
+                other = 'i386' if arch == 'amd64' else 'amd64'
+                with self.assertRaisesRegex(RuntimeError, 'mount.conf'):
+                    smoke.iso_mount_configuration(root, other)
+            path.unlink()
+            with self.assertRaises(ValueError):
+                smoke.iso_mount_configuration(root, 'amd64')
+
     def test_ci_uuid_link_only_names_its_own_loop_and_never_overwrites_existing_devices(self):
         uuid = '12345678-1234-1234-1234-123456789abc'
         device = '/dev/loop12345p1'

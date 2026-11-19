@@ -1,0 +1,5 @@
+---
+type: job
+name: oguzdowsmount
+interface: python
+script: main.py

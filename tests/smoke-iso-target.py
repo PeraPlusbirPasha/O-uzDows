@@ -54,6 +54,15 @@ def validate_source(build, revision, arch):
         print('::notice title=Kaynak kimliği sınırı::Commit kimliği eşleşti; Git çalışma ağacı temizliği belirlenemedi (null). Temiz olduğu iddia edilmiyor.', flush=True)
 
 
+def iso_mount_configuration(root, arch):
+    actual = yaml.safe_load(target_system.nonempty(root, 'etc/calamares/modules/mount.conf').read_text())
+    relative = 'installer/overrides/trixie/mount.conf' if arch == 'amd64' else 'installer/modules/mount.conf'
+    expected = yaml.safe_load((ROOT / relative).read_text())
+    if actual != expected:
+        raise RuntimeError('ISO içindeki Calamares mount.conf kaynak / mimari yapılandırmasıyla eşleşmiyor.')
+    return actual
+
+
 def expose_loop_uuid(device, uuid, directory=Path('/dev/disk/by-uuid')):
     """Udev daemonu olmayan CI'de yalnızca doğrulanan özel loop'un UUID adı.
 
@@ -197,6 +206,7 @@ def main():
         build = json.loads((target / 'usr/share/oguzdows/build-info.json').read_text())
         report['build'] = build
         validate_source(build, args.expected_revision, args.arch)
+        report['mount_configuration'] = iso_mount_configuration(target, args.arch)
         esp_device = None
         if args.arch == 'amd64':
             esp_device = firmware.partition_device(loop, 2)
