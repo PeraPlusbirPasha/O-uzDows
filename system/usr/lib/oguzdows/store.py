@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Flathub onayı ve istek üzerine mağaza; Xfce'de kapanınca güvenli tam çıkış."""
+"""Flathub onayı ve istek üzerine mağaza; tam çıkış da açık kullanıcı kararıdır."""
 from __future__ import annotations
 
 import os
@@ -122,7 +122,10 @@ class Store(Gtk.Application):
         self.close_pending = None
         try:
             if self.monitor and not self.monitor.windows():
-                self.safe_quit()
+                # GNOME --quit, iptal edilebilir aktif işlere de iptal gönderir.
+                # Sırf pencere gizlendi diye kullanıcının indirmesini kesmeyelim.
+                self.stop_monitor()
+                self.controller('Mağaza penceresi kapandı. İndirme / kurulum arka planda sürüyor olabilir. İşlemlerin tamamlandığını mağazada kontrol edin; ardından tam çıkışı siz onaylayın.')
         except Exception:
             self.stop_monitor()
             self.controller('Pencere durumu doğrulanamadı; zorla kapatma yapılmadı.')
@@ -140,22 +143,33 @@ class Store(Gtk.Application):
             self.window.destroy()
         self.window = Gtk.ApplicationWindow(application=self, title='OğuzDows Mağaza · Güvenli çıkış')
         self.window.set_default_size(500, 240)
-        self.window.connect('delete-event', lambda *_: self.safe_quit() or True)
+        self.window.connect('delete-event', self.confirm_quit)
         box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=18, margin=24)
-        self.message = Gtk.Label(label=message + '\n\nTam çıkış, GNOME Yazılımlar’ın kendi kapatma isteğidir. Devam eden paket işi zorla öldürülmez.', wrap=True, xalign=0, max_width_chars=62)
+        self.message = Gtk.Label(label=message + '\n\nTam çıkış, GNOME Yazılımlar’ın kendi kapatma/temizleme akışıdır; iptal edilebilir işleri durdurabilir. İşlemler bitmeden onaylamayın. Süreç zorla öldürülmez.', wrap=True, xalign=0, max_width_chars=62)
         box.pack_start(self.message, True, True, 0)
         for title, callback in (('Mağazayı yeniden göster', lambda *_: self.open_store()),
-                                ('Mağazayı güvenle tamamen kapat', lambda *_: self.safe_quit())):
+                                ('İşlemler bitti · Mağazayı tamamen kapat', lambda *_: self.safe_quit())):
             button = Gtk.Button(label=title)
             button.connect('clicked', callback)
             box.pack_start(button, False, False, 0)
         self.window.add(box)
         self.window.show_all()
 
+    def confirm_quit(self, *_):
+        dialog = Gtk.MessageDialog(transient_for=self.window, modal=True, message_type=Gtk.MessageType.WARNING,
+            buttons=Gtk.ButtonsType.OK_CANCEL, text='Mağazadaki bütün işlemler tamamlandı mı?')
+        dialog.format_secondary_text('Tam çıkış, iptal edilebilir indirme / işlemleri durdurabilir. Kurulumların bittiğini kontrol ettikten sonra onaylayın.')
+        dialog.set_default_response(Gtk.ResponseType.CANCEL)
+        approved = dialog.run() == Gtk.ResponseType.OK
+        dialog.destroy()
+        if approved:
+            self.safe_quit()
+        return True
+
     def safe_quit(self):
         try:
-            # --quit, GNOME Software 43/48'in job-manager shutdown akışını ister;
-            # SIGTERM/SIGKILL yok. Sürmekte olan paket işlemleri bitirilir.
+            # Yalnızca açık tamamlandı düğmesi / --quit / onaylı kapatma.
+            # GNOME'un iptal ve temizleme protokolü; SIGTERM/SIGKILL yok.
             self.spawn(['--quit'])
         except OSError as error:
             self.controller('Tam çıkış isteği gönderilemedi: ' + str(error))

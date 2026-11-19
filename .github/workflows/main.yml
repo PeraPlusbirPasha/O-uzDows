@@ -57,7 +57,8 @@ jobs:
             python3-gi gir1.2-gtk-3.0 shellcheck fonts-inter fonts-noto-core \
             fonts-dejavu-core adwaita-icon-theme xauth xvfb dbus-x11 pciutils usbutils rfkill \
             calamares x11-utils xfconf xfwm4 libxcursor1 python3-apt python3-xlib \
-            gpgv ca-certificates flatpak gnome-software gnome-software-plugin-flatpak libglib2.0-bin
+            gpgv ca-certificates flatpak gnome-software gnome-software-plugin-flatpak libglib2.0-bin \
+            librsvg2-common shared-mime-info
 
       - name: Mağaza varsayılanlarını gerçek şemalarla derle
         run: |
@@ -86,17 +87,21 @@ jobs:
 
       - name: Güncelleyici, onay akışı, beş gerçek xfconf tarzı ve İmece
         run: |
-          python3 scripts/ci-run.py --title 'Bakım ve İmece GTK' -- \
-            xvfb-run -a -s '-screen 0 1024x768x24' dbus-run-session -- \
-            python3 tests/smoke-maintenance-ui.py --output test-results
+          for component in updater culture store; do
+            python3 scripts/ci-run.py --title "Bakım GTK $component" -- \
+              xvfb-run -a -s '-screen 0 1024x768x24' dbus-run-session -- \
+              python3 tests/smoke-maintenance-ui.py --component "$component" --output test-results
+          done
 
-      - name: Gerçek mağaza küçültme, pencere kapatma ve D-Bus süreç ömrü
+      - name: Gerçek mağaza küçültme, açık tam çıkış ve D-Bus süreç ömrü
+        if: ${{ !cancelled() }}
         run: |
           python3 scripts/ci-run.py --title 'Mağaza güvenli tam çıkış' -- \
             xvfb-run -a -s '-screen 0 1280x900x24' dbus-run-session -- \
             python3 tests/smoke-store.py --output test-results
 
       - name: Paket kurmadan gerçek APT planları ve isteğe bağlı güncel Pardus imzası
+        if: ${{ !cancelled() }}
         run: |
           python3 scripts/ci-run.py --title 'Bakım aday ve imza kontrolü' -- \
             python3 tests/smoke-maintenance.py --suite '${{ matrix.suite }}' --output test-results

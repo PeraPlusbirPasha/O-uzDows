@@ -73,7 +73,7 @@ def main():
                         phase['name'] = 'waiting-window'
                     else:
                         monitor.consume()
-                        if phase['name'] != 'closed-by-window-manager' and wrapper.poll() is not None:
+                        if phase['name'] != 'exit-requested' and wrapper.poll() is not None:
                             raise AssertionError('Mağaza başlatıcısı beklenmedik biçimde kapandı; store-native.log dosyasına bakın.')
                     if phase['name'] == 'waiting-window':
                         windows = monitor.windows()
@@ -103,9 +103,33 @@ def main():
                         monitor.root.send_event(request, event_mask=X.SubstructureRedirectMask | X.SubstructureNotifyMask)
                         connection.flush()
                         phase['name'] = 'closed-by-window-manager'
-                    elif phase['name'] == 'closed-by-window-manager' and wrapper.poll() is not None and not has_owner():
+                    elif phase['name'] == 'closed-by-window-manager':
+                        clients = monitor.root.get_full_property(monitor.clients, X.AnyPropertyType)
+                        controls = []
+                        for identifier in clients.value:
+                            window = monitor.connection.create_resource_object('window', int(identifier))
+                            try:
+                                identity = window.get_full_property(monitor.application, X.AnyPropertyType)
+                                if identity is not None and bytes(identity.value).rstrip(b'\0') == b'org.oguzdows.Magaza':
+                                    controls.append(int(identifier))
+                            except Exception:
+                                continue
+                        if not controls:
+                            return GLib.SOURCE_CONTINUE
+                        assert has_owner() and wrapper.poll() is None
+                        report['normal_close_requires_explicit_completion'] = True
+                        native = GdkX11.X11Window.foreign_new_for_display(Gdk.Display.get_default(), controls[0])
+                        image = Gdk.pixbuf_get_from_window(native, 0, 0, native.get_width(), native.get_height())
+                        if image:
+                            image.savev(str(args.output / 'store-completion-consent.png'), 'png', [], [])
+                        # İşlem bulunmayan testte açık kullanıcı komutunun gerçek
+                        # uzak Gtk.Application aktarımını da doğrula.
+                        subprocess.run(['/usr/bin/python3', '-I', str(ROOT / 'system/usr/lib/oguzdows/store.py'), '--quit'],
+                            stdout=shop_log, stderr=subprocess.STDOUT, check=True, timeout=15)
+                        phase['name'] = 'exit-requested'
+                    elif phase['name'] == 'exit-requested' and wrapper.poll() is not None and not has_owner():
                         assert wrapper.returncode == 0
-                        report.update(normal_window_close_exited=True, dbus_owner_after_close=False, wrapper_after_close=False)
+                        report.update(explicit_exit_completed=True, dbus_owner_after_close=False, wrapper_after_close=False)
                         loop.quit()
                         return GLib.SOURCE_REMOVE
                 except Exception as error:
@@ -120,9 +144,12 @@ def main():
                 # Başarısız UI testi bile native mağazayı kendi güvenli çıkış
                 # komutuyla kapatır; testte hiçbir paket işlemi başlatılmamıştır.
                 if wrapper and wrapper.poll() is None:
-                    subprocess.run(['/usr/bin/python3', '-I', str(ROOT / 'system/usr/lib/oguzdows/store.py'), '--quit'],
-                        stdout=shop_log, stderr=subprocess.STDOUT, check=False, timeout=30)
-                    wrapper.wait(timeout=30)
+                    try:
+                        subprocess.run(['/usr/bin/python3', '-I', str(ROOT / 'system/usr/lib/oguzdows/store.py'), '--quit'],
+                            stdout=shop_log, stderr=subprocess.STDOUT, check=False, timeout=30)
+                        wrapper.wait(timeout=30)
+                    except (OSError, subprocess.SubprocessError) as error:
+                        errors.append('Test temizliği: ' + str(error))
                 if monitor:
                     monitor.close()
                 wm.terminate()
@@ -130,8 +157,10 @@ def main():
     report['errors'] = errors
     (args.output / 'store-native.json').write_text(json.dumps(report, ensure_ascii=False, indent=2) + '\n')
     if errors:
-        raise AssertionError('\n'.join(errors))
-    print('Gerçek mağaza küçültülünce açık kaldı; normal kapanışta native süreç ve başlatıcı çıktı, D-Bus sahibi kalmadı. Paket kurulmadı.')
+        details = '\n'.join((args.output / name).read_text(errors='replace')[-1800:]
+                            for name in ('store-native.log', 'store-xfwm.log'))
+        raise AssertionError('\n'.join(errors) + '\nGerçek mağaza günlükleri:\n' + details)
+    print('Gerçek mağaza küçültülünce açık kaldı; pencere kapatmak iş iptal etmedi. Açık tam çıkıştan sonra native süreç / D-Bus sahibi kalmadı. Paket kurulmadı.')
 
 
 if __name__ == '__main__':

@@ -206,6 +206,11 @@ class StoreTests(unittest.TestCase):
         self.assertNotIn('.kill(', source)
         self.assertNotIn('while True', source)
         self.assertIn('GLib.io_add_watch', source)
+        hidden = source.split('def close_if_hidden', 1)[1].split('def not_mapped', 1)[0]
+        self.assertNotIn('self.safe_quit(', hidden, 'Pencereyi gizlemek indirmeyi iptal etmemeli.')
+        self.assertIn('self.controller(', hidden)
+        self.assertIn('İşlemler bitti', source)
+        self.assertIn('dialog.set_default_response(Gtk.ResponseType.CANCEL)', source)
         entry = (ROOT / 'system/usr/local/share/applications/org.gnome.Software.desktop').read_text()
         self.assertIn('Exec=/usr/local/bin/oguzdows-store', entry)
         self.assertIn('NoDisplay=true', entry)
