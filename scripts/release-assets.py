@@ -18,6 +18,8 @@ from pathlib import Path
 
 ARCHES = ('amd64', 'i386')
 DESKTOP = {'xfce4-session', 'xfwm4', 'xfce4-panel', 'xfdesktop'}
+# İlk v1.0.0 yayını korunur; sonraki ana yayınlar v2.0, v3.0 biçimindedir.
+TAG = re.compile(r'v[0-9]+\.[0-9]+(?:\.[0-9]+)?(?:-[a-z0-9]+(?:[.-][a-z0-9]+)*)?')
 
 
 def sha256(path):
@@ -151,7 +153,7 @@ def main():
     parser.add_argument('--work', type=Path, default=Path('.cache/release'))
     args = parser.parse_args()
     repository, branch = os.environ['GITHUB_REPOSITORY'], os.environ['GITHUB_REF_NAME']
-    if (args.run <= 0 or args.release_id <= 0 or not re.fullmatch(r'v\d+\.\d+\.\d+(?:-[a-z0-9.]+)?', args.tag)
+    if (args.run <= 0 or args.release_id <= 0 or not TAG.fullmatch(args.tag)
             or not re.fullmatch(r'[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+', repository)):
         parser.error('Yayın etiketi / çalışma / release kimliği geçersiz.')
     notes = (Path('docs/releases') / (args.tag + '.md')).read_text()

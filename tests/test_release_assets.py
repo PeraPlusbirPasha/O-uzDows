@@ -16,6 +16,14 @@ BRANCH = 'arena/test'
 
 
 class ReleaseAssetsTests(unittest.TestCase):
+    def test_major_release_names_accept_two_components_without_renaming_first_release(self):
+        for tag in ('v1.0.0', 'v2.0', 'v3.0', 'v2.0.1', 'v2.0-rc.1'):
+            with self.subTest(tag=tag):
+                self.assertIsNotNone(release.TAG.fullmatch(tag))
+        for tag in ('v2', '2.0', 'v2.0/../../x', 'v2.0\n', 'v2.0-', 'v2.0-..', 'v２.０'):
+            with self.subTest(tag=tag):
+                self.assertIsNone(release.TAG.fullmatch(tag))
+
     def fixture(self, root):
         inputs = root / 'input'
         for arch in release.ARCHES:
