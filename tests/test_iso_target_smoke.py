@@ -79,6 +79,13 @@ class IsoTargetSmokeContractTests(unittest.TestCase):
         evidence = next(s for s in steps if s.get('with', {}).get('name') == 'OguzDows-ISO-hedef-test-${{ matrix.arch }}')
         self.assertEqual(evidence['if'], 'always()')
         self.assertEqual(build['container']['options'], '--privileged')
+        for name in ('verify', 'installed-boot', 'build'):
+            self.assertIn("target != 'pc-diagnostics'", workflow['jobs'][name]['if'])
+        diagnostics = workflow['jobs']['diagnostics']
+        self.assertIn("target == 'pc-diagnostics'", diagnostics['if'])
+        self.assertEqual(diagnostics['permissions']['actions'], 'read')
+        self.assertNotIn('bash build.sh', str(diagnostics))
+        self.assertTrue(any(s.get('uses', '').startswith('actions/download-artifact@') for s in diagnostics['steps']))
         checkout_index = next(i for i, s in enumerate(steps) if s.get('uses', '').startswith('actions/checkout@'))
         self.assertIn('git ca-certificates', steps[checkout_index - 1]['run'])
         self.assertEqual((ROOT / 'build.yml').read_text(), (ROOT / '.github/workflows/main.yml').read_text())

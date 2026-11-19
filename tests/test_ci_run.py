@@ -33,6 +33,13 @@ class CIRunTests(unittest.TestCase):
     def test_an_empty_command_is_rejected(self):
         self.assertEqual(self.command("--").returncode, 2)
 
+    def test_long_failure_keeps_the_actual_end_inside_annotations_api_limit(self):
+        result = self.command('--', sys.executable, '-c',
+                              "import sys; print('progress' * 2000); print('ACTUAL-LAST-ERROR'); sys.exit(1)")
+        annotation = result.stdout.split('::error ', 1)[1]
+        self.assertIn('ACTUAL-LAST-ERROR', annotation)
+        self.assertLess(len(annotation), 4096)
+
     def test_workflow_command_escaping(self):
         self.assertEqual(ci.escape_data("%\r\n::x"), "%25%0D%0A::x")
 

@@ -27,6 +27,7 @@ from support import ROOT, load
 import target_system
 
 firmware = load('iso_test_firmware', 'tests/smoke-installed-boot.py')
+ci = load('iso_test_annotations', 'scripts/ci-run.py')
 
 
 def run(*args, timeout=600, **kwargs):
@@ -153,8 +154,9 @@ def main():
         run('mkfs.ext4', '-q', '-F', root_device)
         mount(root_device, at=target)
         # /dev vb. bind edilmeden açılır: arşiv asla canlı /dev üzerine yazılmaz.
-        run('unsquashfs', '-f', '-processors', '2', '-d', target, squashfs, timeout=900)
+        run('unsquashfs', '-no-progress', '-f', '-processors', '2', '-d', target, squashfs, timeout=900)
         build = json.loads((target / 'usr/share/oguzdows/build-info.json').read_text())
+        report['build'] = build
         if build.get('source_revision') != args.expected_revision or build.get('source_dirty') is not False or build.get('arch') != args.arch:
             raise RuntimeError('Yanlış / kirli / eski ISO kaynak kimliği: ' + json.dumps(build))
         esp_device = None
@@ -247,6 +249,8 @@ def main():
         print('::notice title=ISO hedef sistem açılışı::' + json.dumps(report), flush=True)
     except Exception as error:
         report['error'] = str(error)
+        # Artefakt deposuna erişilemese bile kesin hata API'den okunabilsin.
+        ci.emit_error('ISO hedef sistem ' + args.arch, str(error))
         raise
     finally:
         (output / 'target-os-result.json').write_text(json.dumps(report, ensure_ascii=False, indent=2) + '\n')

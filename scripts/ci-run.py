@@ -18,7 +18,9 @@ def escape_data(text: str) -> str:
 
 def emit_error(title: str, text: str) -> None:
     title = escape_data(title).replace(":", "%3A").replace(",", "%2C")
-    print(f"::error title={title}::{escape_data(text[-12000:])}", flush=True)
+    # Actions annotations API iletiyi 4096 karakterde kesebiliyor. Büyük bir
+    # ilerleme çıktısının BAŞINI değil gerçek hatanın bulunduğu SONUNU sakla.
+    print(f"::error title={title}::{escape_data(text[-3500:])}", flush=True)
 
 
 def main(argv: list[str] | None = None) -> int:

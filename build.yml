@@ -4,10 +4,14 @@ on:
   workflow_dispatch:
     inputs:
       target:
-        description: PC ISO, yalnızca PC testleri veya Raspberry Pi imajları
+        description: PC ISO, PC testleri, önceki test kanıtı veya Raspberry Pi imajları
         type: choice
-        options: [pc, pc-tests, raspberrypi]
+        options: [pc, pc-tests, pc-diagnostics, raspberrypi]
         default: pc
+      evidence_run:
+        description: pc-diagnostics için tamamlanmış PC çalışmasının numarası
+        type: string
+        default: ""
       architecture:
         description: Yalnızca Raspberry Pi hedefi için
         type: choice
@@ -28,7 +32,7 @@ concurrency:
 
 jobs:
   verify:
-    if: github.event.inputs.target != 'raspberrypi'
+    if: github.event.inputs.target != 'raspberrypi' && github.event.inputs.target != 'pc-diagnostics'
     name: Yapılandırma ve GTK · ${{ matrix.suite }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -102,7 +106,7 @@ jobs:
 
   installed-boot:
     name: Firmware → GRUB · ${{ matrix.suite }}
-    if: github.event.inputs.target != 'raspberrypi'
+    if: github.event.inputs.target != 'raspberrypi' && github.event.inputs.target != 'pc-diagnostics'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     strategy:
@@ -138,7 +142,7 @@ jobs:
   build:
     name: ISO · ${{ matrix.arch }}
     needs: [verify, installed-boot]
-    if: github.event_name != 'pull_request' && github.event.inputs.target != 'raspberrypi' && github.event.inputs.target != 'pc-tests'
+    if: github.event_name != 'pull_request' && github.event.inputs.target != 'raspberrypi' && github.event.inputs.target != 'pc-tests' && github.event.inputs.target != 'pc-diagnostics'
     runs-on: ubuntu-latest
     timeout-minutes: 120
     strategy:
@@ -209,6 +213,37 @@ jobs:
           path: build-${{ matrix.arch }}/build.log
           if-no-files-found: ignore
           retention-days: 7
+
+  diagnostics:
+    name: Önceki hedef sistem testinin kanıtları (derleme yapmaz)
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.target == 'pc-diagnostics'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - name: Tamamlanan çalışmanın küçük hedef test raporlarını al
+        uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ github.token }}
+          run-id: ${{ inputs.evidence_run }}
+          pattern: OguzDows-ISO-hedef-test-*
+          path: target-evidence
+      - name: Gerçek hata ve kaynak kimliğini kontrol notuna yaz
+        run: |
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          reports = sorted(Path('target-evidence').rglob('target-os-result.json'))
+          if not reports:
+              raise SystemExit('İstenen çalışmada hedef sistem test raporu bulunamadı.')
+          for path in reports:
+              data = json.loads(path.read_text())
+              selected = {k: data.get(k) for k in ('arch', 'source_revision', 'build', 'modes', 'error')}
+              text = json.dumps(selected, ensure_ascii=False)
+              print('::notice title=Önceki hedef sistem kanıtı::' + text[-3500:].replace('%', '%25'))
+          PY
 
   raspberrypi:
     name: Raspberry Pi
