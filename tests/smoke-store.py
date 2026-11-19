@@ -38,8 +38,9 @@ def main():
     lifecycle = load('native_store_lifecycle', 'system/usr/lib/oguzdows/store_lifecycle.py')
     with tempfile.TemporaryDirectory(prefix='oguzdows-store-native-', ignore_cleanup_errors=True) as directory:
         os.environ.update(XDG_CONFIG_HOME=directory, XDG_STATE_HOME=directory, XDG_DATA_HOME=directory,
-                          XDG_CACHE_HOME=directory, GSETTINGS_BACKEND='keyfile', GSK_RENDERER='cairo',
-                          GTK_A11Y='none', MESA_SHADER_CACHE_DISABLE='true', GS_DEBUG='1',
+                          XDG_CACHE_HOME=directory, XDG_RUNTIME_DIR=directory, GSETTINGS_BACKEND='keyfile',
+                          GSK_RENDERER='cairo', GDK_DISABLE='gl,vulkan', GDK_BACKEND='x11',
+                          GTK_A11Y='none', MESA_SHADER_CACHE_DISABLE='true', GS_DEBUG='1', OGUZDOWS_STORE_DEBUG='1',
                           GNOME_SOFTWARE_PLUGINS_ALLOWLIST='appstream,flatpak,icons,key-colors,provenance,provenance-license')
         # Konteynerde systemd/system-bus yoktur. Yalnızca bu testin kendi
         # UNIX soketi; hiçbir gerçek sistem servisini/paket yöneticisini açmaz.
@@ -95,6 +96,18 @@ def main():
                     except OSError:
                         continue
                 report['failure_snapshot'] = snapshot
+                # Sadece başarısız, paket işi yapmayan CI testinde soğuk
+                # başlangıcı tekrarla. Bu bir başarılı ömür kanıtı sayılmaz.
+                if not snapshot['native_dbus_owner'] and Path('/usr/bin/gdb').is_file():
+                    with (args.output / 'store-gdb.log').open('w') as trace:
+                        try:
+                            result = subprocess.run(['/usr/bin/gdb', '--batch', '--return-child-result',
+                                '-ex', 'run', '-ex', 'thread apply all bt', '--args',
+                                '/usr/bin/gnome-software', '--mode=updates'],
+                                stdout=trace, stderr=subprocess.STDOUT, timeout=25, check=False)
+                            report['failure_reproduction_gdb_exit'] = result.returncode
+                        except subprocess.TimeoutExpired:
+                            report['failure_reproduction_gdb_timeout'] = True
             def tick():
                 nonlocal wrapper, monitor
                 try:
@@ -219,10 +232,14 @@ def main():
     (args.output / 'store-native.json').write_text(json.dumps(report, ensure_ascii=False, indent=2) + '\n')
     if errors:
         print('::notice title=Mağaza hata anı::' + json.dumps(report, ensure_ascii=False).replace('%', '%25'), flush=True)
-        native_log = (args.output / 'store-native.log').read_text(errors='replace')
-        for index, chunk in enumerate((native_log[-6000:-3000], native_log[-3000:])):
-            print('::notice title=Mağaza native günlük ' + str(index + 1) + '::'
-                  + chunk.replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A'), flush=True)
+        for name in ('store-native.log', 'store-gdb.log'):
+            path = args.output / name
+            if not path.exists():
+                continue
+            tail = path.read_text(errors='replace')[-6000:]
+            for index in range(0, len(tail), 3000):
+                print('::notice title=Mağaza ' + name + ' ' + str(index // 3000 + 1) + '::'
+                      + tail[index:index + 3000].replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A'), flush=True)
         details = '\n'.join((args.output / name).read_text(errors='replace')[-1800:]
                             for name in ('store-system-bus.log', 'store-xfwm.log', 'store-native.log'))
         raise AssertionError('\n'.join(errors) + '\nGerçek mağaza günlükleri:\n' + details)

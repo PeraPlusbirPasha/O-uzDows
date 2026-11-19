@@ -47,6 +47,9 @@ class Store(Gtk.Application):
     def reap(process, _pid, status):
         # GLib çocuğu toplar; Popen ikinci kez waitpid / uyarı üretmesin.
         process.returncode = os.waitstatus_to_exitcode(status)
+        if process.returncode or os.environ.get('OGUZDOWS_STORE_DEBUG') == '1':
+            print('OğuzDows Mağaza: native alt süreç', process.pid,
+                  'çıkış kodu', process.returncode, file=sys.stderr, flush=True)
 
     def spawn(self, arguments, **kwargs):
         process = subprocess.Popen(['/usr/bin/gnome-software', *arguments], start_new_session=True, **kwargs)
