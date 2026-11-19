@@ -275,6 +275,7 @@ jobs:
       - name: Gerçek hata ve kaynak kimliğini kontrol notuna yaz
         run: |
           python3 - <<'PY'
+          import hashlib
           import json
           from pathlib import Path
           reports = sorted(Path('target-evidence').rglob('target-os-result.json'))
@@ -285,6 +286,22 @@ jobs:
               selected = {k: data.get(k) for k in ('arch', 'source_revision', 'build', 'modes', 'error')}
               text = json.dumps(selected, ensure_ascii=False)
               print('::notice title=Önceki hedef sistem kanıtı::' + text[-3500:].replace('%', '%25'))
+          for path in sorted(Path('target-evidence').rglob('desktop-idle.json')):
+              data = json.loads(path.read_text())
+              selected = {k: data.get(k) for k in ('build', 'method', 'target_bytes', 'settled_seconds',
+                  'sample_count', 'sample_interval_seconds', 'idle_confirmed_by_operator',
+                  'valid_idle_measurement', 'invalid_reasons', 'median_used_bytes', 'max_used_bytes',
+                  'median_used_mb', 'max_used_mb', 'busy_cpu_percent', 'target_met')}
+              selected['report_sha256'] = hashlib.sha256(path.read_bytes()).hexdigest()
+              samples = data.get('samples', [])
+              selected['samples'] = [{k: item.get(k) for k in ('used_bytes', 'graphical_xfce',
+                  'desktop_user', 'desktop_processes', 'known_foreground_or_package_work',
+                  'cpu_total_ticks', 'cpu_idle_ticks')} for item in samples]
+              selected['zram'] = samples[-1].get('zram', []) if samples else []
+              text = json.dumps(selected, ensure_ascii=False, separators=(',', ':'))
+              if len(text) > 3500:
+                  raise SystemExit('RAM kanıtı kontrol notu sınırını aştı; kesilmiş JSON yayımlanmadı.')
+              print('::notice title=Önceki tam Xfce RAM örnekleri::' + text.replace('%', '%25'))
           PY
 
   raspberrypi:

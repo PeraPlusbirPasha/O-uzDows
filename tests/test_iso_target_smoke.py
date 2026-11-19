@@ -1,6 +1,8 @@
 """ISO hedef OS testinin sınırları; bu birim testler VM / disk açmaz."""
+import hashlib
 import json
 import os
+import subprocess
 import tempfile
 import unittest
 from pathlib import Path
@@ -177,6 +179,42 @@ class IsoTargetSmokeContractTests(unittest.TestCase):
             self.assertEqual((output / 'before-update-initramfs.txt').read_text(), '# fixture wrapper\n')
             self.assertEqual(status.read_text().count('Package:'), 2)
             self.assertTrue(diversion.exists())
+
+    def test_diagnostics_relays_actual_six_samples_read_only_without_raw_process_details(self):
+        workflow = yaml.safe_load((ROOT / '.github/workflows/main.yml').read_text())
+        steps = workflow['jobs']['diagnostics']['steps']
+        script = next(step['run'] for step in steps if 'run' in step)
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / 'target-evidence/amd64'
+            root.mkdir(parents=True)
+            (root / 'target-os-result.json').write_text(json.dumps({'arch': 'amd64', 'source_revision': 'a' * 40}))
+            sample = {'used_bytes': 650_000_000, 'graphical_xfce': True, 'desktop_user': 1000,
+                      'desktop_processes': ['xfce4-panel', 'xfce4-session', 'xfdesktop', 'xfwm4'],
+                      'known_foreground_or_package_work': [], 'cpu_total_ticks': 1000, 'cpu_idle_ticks': 990,
+                      'top_processes_rss_not_system_total': [{'name': 'PRIVATE-NOT-RELAYED'}],
+                      'zram': [{'allocated_ram_bytes': 12345}]}
+            measurement = {'build': {'arch': 'amd64', 'source_revision': 'a' * 40},
+                           'method': 'MemTotal − MemAvailable', 'target_bytes': 600_000_000,
+                           'settled_seconds': 120, 'sample_count': 6, 'sample_interval_seconds': 5,
+                           'idle_confirmed_by_operator': True, 'valid_idle_measurement': True,
+                           'max_used_bytes': 650_000_000, 'target_met': False, 'samples': [sample] * 6}
+            path = root / 'desktop-idle.json'
+            original = json.dumps(measurement).encode()
+            path.write_bytes(original)
+            result = subprocess.run(['bash', '-c', script], cwd=directory, capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            prefix = '::notice title=Önceki tam Xfce RAM örnekleri::'
+            annotation = next(line for line in result.stdout.splitlines() if line.startswith(prefix))
+            self.assertLess(len(annotation), 4096)
+            relayed = json.loads(annotation[len(prefix):])
+            self.assertFalse(relayed['target_met'])
+            self.assertEqual(relayed['report_sha256'], hashlib.sha256(original).hexdigest())
+            self.assertEqual(len(relayed['samples']), 6)
+            self.assertTrue(all(item['used_bytes'] == 650_000_000 for item in relayed['samples']))
+            self.assertEqual(relayed['zram'], sample['zram'])
+            self.assertNotIn('PRIVATE-NOT-RELAYED', result.stdout)
+            self.assertEqual(path.read_bytes(), original)
+            self.assertFalse(list(Path(directory).glob('*.iso')))
 
     def test_iso_artifact_is_gated_by_new_real_os_check_and_failure_evidence_is_kept(self):
         workflow = yaml.safe_load((ROOT / '.github/workflows/main.yml').read_text())
