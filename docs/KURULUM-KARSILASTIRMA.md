@@ -69,7 +69,7 @@ PC `build-info.json` artık `source_revision` ve `source_dirty` içerir. Git / g
 
 İnceleme sırasında `services-systemd.conf` için ayrı bir uyumsuzluk bulundu: [3.2.61 kodu](https://github.com/calamares/calamares/blob/v3.2.61/src/modules/services-systemd/main.py) `services` / `disable` anahtarlarını okurken [3.3.14 kodu](https://github.com/calamares/calamares/blob/v3.3.14/src/modules/services-systemd/main.py) yalnızca `units` okur. Ortak eski dosya trixie'de sessizce hiçbir servis işlemi üretmiyordu. Bu, işlemi durduran bir hata olarak sunulmaz; servisler ISO kancasında zaten etkinleştirilir.
 
-Bookworm biçimi korunur; trixie için `installer/overrides/trixie/services-systemd.conf` uygulanır. Etkinleştirilecek aynı dört servis ve önceki nonfatal politika korunur; masaüstü tercihi değişmez. Yeni test, iki tabanlı CI'de **gerçek kurulu Calamares Python işini** sahte `target_env_call` ile çalıştırıp dört beklenen komutun gerçekten üretildiğini sınar. Bu test fiziksel sisteme veya `systemctl`'e çağrı yapmaz; yapılandırmanın sessizce yok sayılmasını yakalar.
+Bookworm biçimi korunur; trixie için `installer/overrides/trixie/services-systemd.conf` uygulanır. Etkinleştirilecek aynı dört servis ve önceki nonfatal politika korunur; masaüstü tercihi değişmez. Yeni test, iki tabanlı CI'de **gerçek kurulu Calamares Python işini** sahte `target_env_call` ile çalıştırıp dört beklenen komutun gerçekten üretildiğini sınar. Bu test fiziksel sisteme veya `systemctl`'e çağrı yapmaz; yapılandırmanın sessizce yok sayılmasını yakalar. `ae2a54c` kaynağındaki [44527596668 PC testleri](https://github.com/PeraPlusbirPasha/O-uzDows/actions/runs/44527596668) iki tabanda da geçti. Yerelde Calamares bulunmadığı için bu tek native test atlanır; resmî 3.2.61 / 3.3.14 kaynaklarıyla yapılan ayrıca izole denemede eski trixie yapılandırmasının sıfır, düzeltilmiş her iki biçimin dört komut ürettiği de yeniden gösterilmiştir.
 
 ## Yeni testin yaptığı ve yapmadığı
 
@@ -90,6 +90,17 @@ Bookworm biçimi korunur; trixie için `installer/overrides/trixie/services-syst
 `44515268150` (`668622d`) çalışmasında iki ISO üretildi; GTK ve firmware → GRUB kontrolleri geçti. Yeni hedef-OS testi ise `source_dirty: null` değerini yanlışlıkla kirli kaynakla aynı şekilde reddettiği için **çekirdek açılışına ulaşmadı**. Bu test hatası, kullanıcının fiziksel kurulum hatasını açıklamaz. Durum, ISO tekrar derlenmeden `44517607846` kanıt-okuma işiyle ayrıştırıldı. Bilinmeyen / temiz / kirli durumları artık ayrı sınanır. Ayrıca 4096 karakterde kesilen kontrol notlarında gerçek son hatanın kaybolmaması için kısa hata kuyruğu ve doğrudan hedef hata notu eklenmiştir.
 
 İkinci çalışmada (`44518014229`, `9ee2a4b`) her iki gerçek çekirdek ve initramfs açıldı; fakat `root=/dev/loop1p1` / `root=/dev/loop1p3` arandı ve normal kök sisteme geçilemedi. Bu adlar CI konteynerine aittir, sanal makinedeki disk `/dev/vda` olur. GRUB'un UUID bağlantısı bulunmadığında aygıt adına düşen resmî kod yolu incelendi. Test artık yalnızca kendi doğrulanmış loop bölümünün eksik UUID bağlantısını sağlar; var olan başka aygıt bağlantılarını ezmez, kendi oluşturduğu bağlantıyı temizler. **Üretilen grub.cfg elle değiştirilmez.** QEMU'ya geçmeden önce gerçek üretilmiş menünün seçilen hedef UUID'sini içerdiği de zorunlu tutulur. Üretim denetimi de geçici `/dev/loop…` / canlı kök referansını reddeder. Bu test ortamı düzeltmesi, fiziksel cihaz hatasının sebebiymiş gibi sunulmaz.
+
+### İlk başarılı gerçek hedef-OS açılışı
+
+[44521646789](https://github.com/PeraPlusbirPasha/O-uzDows/actions/runs/44521646789), `36ff1ea` kaynağında **başarılı** tamamlandı:
+
+| Gerçek ISO içeriğinden hazırlanan hedef | QEMU sonucu |
+| --- | --- |
+| amd64 / trixie / `6.12.117+deb13-amd64` | BIOS **ve** temiz NVRAM'li UEFI fallback → çekirdek → initramfs → hedef UUID'li kökte systemd servisi |
+| i386 / bookworm / `6.1.0-56-686-pae` | BIOS → çekirdek → initramfs → hedef UUID'li kökte systemd servisi |
+
+İki ISO ve SHA-256 çıktıları ancak bu kontrolden sonra yayımlandı. Raporlar hâlâ `gui_installation_tested: false`, `physical_boot_verified: false`, `encrypted_root_tested: false` içerir. Bu sonuç, sonradan eklenen servis biçimi düzeltmesinden önceki `36ff1ea` ISO'larına aittir; yeni kaynak değişiklikleri içeren ISO ayrı kaynak kimliğiyle üretilmelidir. Kullanıcının **kurulum sırasında** aldığı hata hâlâ günlük / ekran olmadan teşhis edilmiş değildir.
 
 ## Son cihaz hatası için gereken kanıt
 
