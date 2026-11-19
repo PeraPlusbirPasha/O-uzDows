@@ -4,12 +4,20 @@ on:
   workflow_dispatch:
     inputs:
       target:
-        description: PC ISO, PC testleri, önceki test kanıtı veya Raspberry Pi imajları
+        description: PC ISO, test/kanıt, release taslağı veya Raspberry Pi imajları
         type: choice
-        options: [pc, pc-tests, pc-diagnostics, raspberrypi]
+        options: [pc, pc-tests, pc-diagnostics, pc-release, raspberrypi]
         default: pc
       evidence_run:
-        description: pc-diagnostics için tamamlanmış PC çalışmasının numarası
+        description: pc-diagnostics / pc-release için başarıyla tamamlanmış PC çalışması
+        type: string
+        default: ""
+      release_tag:
+        description: pc-release için mevcut taslağın etiketi (ör. v1.0.0)
+        type: string
+        default: ""
+      release_id:
+        description: pc-release için mevcut taslağın sayısal GitHub kimliği
         type: string
         default: ""
       architecture:
@@ -32,7 +40,7 @@ concurrency:
 
 jobs:
   verify:
-    if: github.event.inputs.target != 'raspberrypi' && github.event.inputs.target != 'pc-diagnostics'
+    if: github.event.inputs.target != 'raspberrypi' && github.event.inputs.target != 'pc-diagnostics' && github.event.inputs.target != 'pc-release'
     name: Yapılandırma ve GTK · ${{ matrix.suite }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -137,7 +145,7 @@ jobs:
 
   installed-boot:
     name: Firmware → GRUB · ${{ matrix.suite }}
-    if: github.event.inputs.target != 'raspberrypi' && github.event.inputs.target != 'pc-diagnostics'
+    if: github.event.inputs.target != 'raspberrypi' && github.event.inputs.target != 'pc-diagnostics' && github.event.inputs.target != 'pc-release'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     strategy:
@@ -184,7 +192,7 @@ jobs:
   build:
     name: ISO · ${{ matrix.arch }}
     needs: [verify, installed-boot]
-    if: github.event_name != 'pull_request' && github.event.inputs.target != 'raspberrypi' && github.event.inputs.target != 'pc-tests' && github.event.inputs.target != 'pc-diagnostics'
+    if: github.event_name != 'pull_request' && github.event.inputs.target != 'raspberrypi' && github.event.inputs.target != 'pc-tests' && github.event.inputs.target != 'pc-diagnostics' && github.event.inputs.target != 'pc-release'
     runs-on: ubuntu-latest
     timeout-minutes: 120
     strategy:
@@ -303,6 +311,32 @@ jobs:
                   raise SystemExit('RAM kanıtı kontrol notu sınırını aştı; kesilmiş JSON yayımlanmadı.')
               print('::notice title=Önceki tam Xfce RAM örnekleri::' + text.replace('%', '%25'))
           PY
+
+  release:
+    name: Doğrulanmış PC ISO → Release taslağı (derlemez)
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.target == 'pc-release'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write
+      actions: read
+    concurrency:
+      group: oguzdows-release-${{ github.repository }}-${{ inputs.release_id }}
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Kaynak, SHA-256 ve boot/RAM kanıtlarıyla taslağa aktar
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_RUN: ${{ inputs.evidence_run }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
+          RELEASE_ID: ${{ inputs.release_id }}
+        run: |
+          python3 scripts/ci-run.py --title 'Release ISO aktarımı' -- \
+            python3 scripts/release-assets.py --run "$SOURCE_RUN" --release-id "$RELEASE_ID" --tag "$RELEASE_TAG"
 
   raspberrypi:
     name: Raspberry Pi
