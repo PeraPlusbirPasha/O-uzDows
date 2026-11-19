@@ -35,6 +35,8 @@ Kendi ekranlarımızdaki ürün adı OğuzDows’tur. Paket deposu adresleri, de
 
 Kullanım, anahtarın açık kökeni, sınırlar ve tam oturum **600 MB ölçüm protokolü**: **[Masaüstü ve bakım rehberi](docs/MASAUSTU-VE-BAKIM.md)**. Ölçüm: `oguzdows-memory-report --idle-confirmed --output "$HOME/oguzdows-bosta-ram.json"` (120 sn yerleşme + 6 örnek). Bileşen RSS'i, tam masaüstü RAM sonucu gibi sunulmaz. Pi'nin ARM kaynak/hesap/boot korumaları ayrı kalır; PC bakım/Pardus/mağaza ona taşınmaz.
 
+**Ölçülmüş PC imajı (`bcd0331`):** 2 GiB RAM / 2 vCPU / ağsız QEMU'da tam Xfce oturumunun en yüksek kullanımı **amd64 459,0 MB, i386 518,8 MB**; iki ölçüm de 600 MB koşulunu geçti. Bu, fiziksel PC/Pi veya gerçek KDE/GNOME garantisi değildir. ISO bağlantıları, altı gerçek örneğin kanıtı ve test sınırları: **[Masaüstü test kanıtı](docs/MASAUSTU-TEST-KANITI.md)**.
+
 ## Eski cihazlar ve sürücüler
 
 | İmaj | Hedef | Açılış |
