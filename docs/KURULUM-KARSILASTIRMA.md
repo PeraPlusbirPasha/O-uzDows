@@ -17,6 +17,7 @@ Resmî ISO **derleme tarifleri ve kurucu kaynak kodları** incelendi; Kali/Mint'
   - [`partitioning.py`](https://github.com/linuxmint/live-installer/blob/95c8204f67291fee3eb761e0cea11933faee703b/usr/lib/live-installer/partitioning.py)
 - Linux Mint `ubiquity`, kaynak ucu `ed33101dcf0d615efa00014659b489151280a6e6`:
   - [`scripts/install.py`](https://github.com/linuxmint/ubiquity/blob/ed33101dcf0d615efa00014659b489151280a6e6/scripts/install.py)
+- GRUB [2.06 `10_linux`](https://github.com/rhboot/grub2/blob/grub-2.06/util/grub.d/10_linux.in) ve [2.12 `10_linux`](https://github.com/rhboot/grub2/blob/grub-2.12/util/grub.d/10_linux.in): `/dev/disk/by-uuid` / `by-partuuid` adlarının yokluğunda `root=` için geçici aygıt adına düşülebilir.
 - Calamares, kullandığımız iki tabanla ilişkili `v3.2.61` ve `v3.3.14` kaynakları:
   - [`initramfs.conf`: canlı paketleri önce purge et uyarısı](https://github.com/calamares/calamares/blob/v3.3.14/src/modules/initramfs/initramfs.conf)
   - [`InitramfsJob.cpp`: gerçek update-initramfs çağrısı](https://github.com/calamares/calamares/blob/v3.3.14/src/modules/initramfs/InitramfsJob.cpp)
@@ -45,6 +46,8 @@ Artık şu altı paket tek zorunlu `remove` işlemiyle purge edilir:
 `live-boot`, `live-boot-initramfs-tools`, `live-config`, `live-config-systemd`, `live-tools`, `calamares`.
 
 Calamares'in APT arka ucu purge + autoremove kullanır. Veritabanı güncellemesi / sistem yükseltmesi açılmadı. Ek sürücü işi ayrı kalır; onun isteğe bağlı hata davranışı değiştirilmedi.
+
+**Gerçek yeni ISO'dan edinilen karşı kanıt:** `44518014229` çalışmasında her iki squashfs'te `live-tools` zaten kurulu değildi ve `update-initramfs` diversion kaydı yoktu. Diğer canlı paketler başarıyla purge edildi; initramfs gerçekten yenilendi. Dolayısıyla sarmalayıcı olasılığı bu CI başarısızlığının nedeni değildir; kullanıcının cihazında da neden olduğu söylenemez. Zorunlu temizlik düzeltmesi bir güvenilirlik önlemidir, kanıtlanmış fiziksel hata teşhisi değil.
 
 ### 2. Sıfır çıkış kodu yeterli değil
 
@@ -76,9 +79,11 @@ PC `build-info.json` artık `source_revision` ve `source_dirty` içerir. Git / g
 
 **Sınırlar:** bu bir Calamares GUI bölümleme / kullanıcı oluşturma otomasyonu değildir. Düz ext4 hedefi hazırlar; LUKS, dual boot, seçili ek sürücüler, masaüstünde etkileşim, fiziksel firmware ve fiziksel bilgisayar performansı ayrıca sınanmalıdır. Yeni testin kaynakta bulunması geçtiği anlamına gelmez; sonucu ilgili Actions çalışması ve `OguzDows-ISO-hedef-test-*` çıktısından okunmalıdır.
 
-### İlk denemenin durumu
+### İlk denemelerin durumu
 
 `44515268150` (`668622d`) çalışmasında iki ISO üretildi; GTK ve firmware → GRUB kontrolleri geçti. Yeni hedef-OS testi ise `source_dirty: null` değerini yanlışlıkla kirli kaynakla aynı şekilde reddettiği için **çekirdek açılışına ulaşmadı**. Bu test hatası, kullanıcının fiziksel kurulum hatasını açıklamaz. Durum, ISO tekrar derlenmeden `44517607846` kanıt-okuma işiyle ayrıştırıldı. Bilinmeyen / temiz / kirli durumları artık ayrı sınanır. Ayrıca 4096 karakterde kesilen kontrol notlarında gerçek son hatanın kaybolmaması için kısa hata kuyruğu ve doğrudan hedef hata notu eklenmiştir.
+
+İkinci çalışmada (`44518014229`, `9ee2a4b`) her iki gerçek çekirdek ve initramfs açıldı; fakat `root=/dev/loop1p1` / `root=/dev/loop1p3` arandı ve normal kök sisteme geçilemedi. Bu adlar CI konteynerine aittir, sanal makinedeki disk `/dev/vda` olur. GRUB'un UUID bağlantısı bulunmadığında aygıt adına düşen resmî kod yolu incelendi. Test artık yalnızca kendi doğrulanmış loop bölümünün eksik UUID bağlantısını sağlar; var olan başka aygıt bağlantılarını ezmez, kendi oluşturduğu bağlantıyı temizler. **Üretilen grub.cfg elle değiştirilmez.** QEMU'ya geçmeden önce gerçek üretilmiş menünün seçilen hedef UUID'sini içerdiği de zorunlu tutulur. Üretim denetimi de geçici `/dev/loop…` / canlı kök referansını reddeder. Bu test ortamı düzeltmesi, fiziksel cihaz hatasının sebebiymiş gibi sunulmaz.
 
 ## Son cihaz hatası için gereken kanıt
 

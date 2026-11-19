@@ -61,6 +61,35 @@ class IsoTargetSmokeContractTests(unittest.TestCase):
         with self.assertRaises(RuntimeError):
             smoke.validate_source(build, 'a' * 40, 'i386')
 
+    def test_ci_uuid_link_only_names_its_own_loop_and_never_overwrites_existing_devices(self):
+        uuid = '12345678-1234-1234-1234-123456789abc'
+        device = '/dev/loop12345p1'
+        with tempfile.TemporaryDirectory() as directory, patch.object(Path, 'is_block_device', return_value=True):
+            base = Path(directory) / 'uuid'
+            owned = smoke.expose_loop_uuid(device, uuid, base)
+            self.assertEqual(os.readlink(owned[0]), device)
+            self.assertIsNone(smoke.expose_loop_uuid(device, uuid, base))
+            smoke.remove_owned_uuid_links([owned])
+            self.assertFalse(owned[0].is_symlink())
+            owned = smoke.expose_loop_uuid(device, uuid, base)
+            owned[0].unlink()
+            owned[0].symlink_to('/dev/loop12346p1')
+            with self.assertRaisesRegex(RuntimeError, 'başka bir aygıta'):
+                smoke.expose_loop_uuid(device, uuid, base)
+            smoke.remove_owned_uuid_links([owned])
+            self.assertEqual(os.readlink(owned[0]), '/dev/loop12346p1')
+        for device_value, uuid_value in (('/dev/sda1', uuid), ('/dev/loop1', uuid), (device, '../escape')):
+            with tempfile.TemporaryDirectory() as directory:
+                base = Path(directory) / 'must-not-exist'
+                with self.assertRaises(RuntimeError):
+                    smoke.expose_loop_uuid(device_value, uuid_value, base)
+                self.assertFalse(base.exists())
+        with tempfile.TemporaryDirectory() as directory, patch.object(Path, 'is_block_device', return_value=False):
+            base = Path(directory) / 'must-not-exist'
+            with self.assertRaises(RuntimeError):
+                smoke.expose_loop_uuid(device, uuid, base)
+            self.assertFalse(base.exists())
+
     def test_real_iso_package_and_diversion_evidence_is_recorded_read_only(self):
         with tempfile.TemporaryDirectory() as directory, tempfile.TemporaryDirectory() as result:
             root, output = Path(directory), Path(result)

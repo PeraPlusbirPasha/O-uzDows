@@ -54,6 +54,33 @@ def validate_source(build, revision, arch):
         print('::notice title=Kaynak kimliği sınırı::Commit kimliği eşleşti; Git çalışma ağacı temizliği belirlenemedi (null). Temiz olduğu iddia edilmiyor.', flush=True)
 
 
+def expose_loop_uuid(device, uuid, directory=Path('/dev/disk/by-uuid')):
+    """Udev daemonu olmayan CI'de yalnızca doğrulanan özel loop'un UUID adı.
+
+    GRUB 10_linux, UUID'yi bilse bile /dev/disk bağlantısı yoksa geçici aygıt
+    adını root= yapar. Üretilen grub.cfg'yi elle düzeltmek yerine aynı udev
+    adlandırma koşulunu sağla. Var olan hiçbir aygıt bağlantısını ezme.
+    """
+    if not re.fullmatch(r'/dev/loop[0-9]+p[0-9]+', device) or not re.fullmatch(r'[0-9a-f-]{36}', uuid):
+        raise RuntimeError('Özel loop bölümü / UUID dışında bağlantı oluşturulamaz.')
+    if not Path(device).is_block_device():
+        raise RuntimeError('UUID bağlantısı için geçerli loop blok aygıtı yok.')
+    directory.mkdir(parents=True, exist_ok=True)
+    link = directory / uuid
+    if link.exists() or link.is_symlink():
+        if link.resolve() != Path(device).resolve():
+            raise RuntimeError('Var olan UUID bağlantısı başka bir aygıta ait; değiştirilmedi.')
+        return None
+    link.symlink_to(device)
+    return (link, device)
+
+
+def remove_owned_uuid_links(links):
+    for link, device in links:
+        if link.is_symlink() and os.readlink(link) == device:
+            link.unlink()  # Yalnızca bu testin oluşturduğu ve değişmemiş bağlantı.
+
+
 def record_live_state(root, output, phase):
     """Gerçek ISO paketlerini / diversion ve bakım betiklerini kanıta ekle."""
     status = target_system.nonempty(root, 'var/lib/dpkg/status').read_text()
@@ -129,6 +156,7 @@ def main():
     iso_root.mkdir()
     target.mkdir()
     mounts = []
+    uuid_links = []
     loop = None
     report = {'arch': args.arch, 'source_revision': args.expected_revision, 'modes': [],
               'gui_installation_tested': False, 'physical_boot_verified': False, 'encrypted_root_tested': False}
@@ -178,6 +206,10 @@ def main():
         root_uuid = subprocess.check_output(['blkid', '-s', 'UUID', '-o', 'value', root_device], text=True).strip()
         if not re.fullmatch(r'[0-9a-f-]{36}', root_uuid):
             raise RuntimeError('Özel test kök UUID değeri geçersiz.')
+        created_link = expose_loop_uuid(root_device, root_uuid)
+        if created_link:
+            uuid_links.append(created_link)
+        report['root_uuid'] = root_uuid
         fstab = f'UUID={root_uuid} / ext4 defaults 0 1\n'
         if esp_device:
             esp_uuid = subprocess.check_output(['blkid', '-s', 'UUID', '-o', 'value', esp_device], text=True).strip()
@@ -238,8 +270,8 @@ def main():
             fallback.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(target / 'boot/efi/EFI/OguzDows/grubx64.efi', fallback)
         chroot('grub-mkconfig', '-o', '/boot/grub/grub.cfg')
-        report['kernel'] = target_system.verify_grub_menu(target)
         shutil.copy2(target / 'boot/grub/grub.cfg', output / 'target-grub.cfg')
+        report['kernel'] = target_system.verify_grub_menu(target, expected_root='UUID=' + root_uuid)
         # Mevcut üretim disk denetimini gerçek dosyalarla da çalıştır.
         sys.modules['libcalamares'] = SimpleNamespace(utils=SimpleNamespace(debug=print))
         boot = load('iso_target_disk_check', 'installer/modules/oguzdowsboot/main.py')
@@ -251,6 +283,8 @@ def main():
         while mounts:
             run('umount', mounts[-1])
             mounts.pop()
+        remove_owned_uuid_links(uuid_links)
+        uuid_links.clear()
         run('losetup', '--detach', loop)
         loop = None
         for mode in (('bios', 'efi') if esp_device else ('bios',)):
@@ -268,6 +302,11 @@ def main():
         for location in reversed(mounts):
             if subprocess.run(['umount', str(location)], check=False).returncode:
                 safe = False
+        try:
+            remove_owned_uuid_links(uuid_links)
+        except OSError as error:
+            safe = False
+            print('Özel UUID bağlantısı temizlenemedi: ' + str(error), file=sys.stderr)
         if loop and safe:
             safe = subprocess.run(['losetup', '--detach', loop], check=False).returncode == 0
         if safe:

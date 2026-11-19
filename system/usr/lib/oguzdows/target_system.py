@@ -131,8 +131,12 @@ def verify_initramfs(root, before, contents=None):
     return after
 
 
-def verify_grub_menu(root):
-    """Bir GRUB metni değil, mevcut çekirdek + initrd çifti ve disk kökü gerekir."""
+def verify_grub_menu(root, expected_root=None):
+    """Mevcut çekirdek + initrd çifti ve geçici olmayan disk kökü gerekir.
+
+    expected_root, izole ISO testinde UUID'nin hedefle eşleşmesini de zorunlu
+    tutar. /dev/mapper gibi meşru şifreli kurulum kökleri varsayılanda korunur.
+    """
     versions = kernel_snapshot(root)
     text = nonempty(root, 'boot/grub/grub.cfg').read_text(errors='replace')
     kernel = None
@@ -145,7 +149,12 @@ def verify_grub_menu(root):
             continue
         if words[0] in ('linux', 'linuxefi'):
             kernel = None
-            if len(words) < 3 or 'boot=live' in words or not any(w.startswith('root=') and len(w) > 5 for w in words[2:]):
+            roots = [w.removeprefix('root=') for w in words[2:] if w.startswith('root=')]
+            if len(words) < 3 or 'boot=live' in words or len(roots) != 1 or not roots[0]:
+                continue
+            if roots[0].startswith(('/dev/loop', '/dev/sr', '/run/live/', '/lib/live/')):
+                continue  # Canlı/CI oturumuna ait aygıt, diskten açılışta yoktur.
+            if expected_root is not None and roots[0] != expected_root:
                 continue
             for version in versions:
                 if words[1] in ('/boot/vmlinuz-' + version, '/vmlinuz-' + version):

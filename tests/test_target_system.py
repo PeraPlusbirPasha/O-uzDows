@@ -110,6 +110,18 @@ class TargetSystemTests(unittest.TestCase):
             put(root, 'boot/grub/grub.cfg', 'linux /vmlinuz-' + VERSION + ' root=/dev/mapper/root ro\ninitrd /intel-ucode.img /initrd.img-' + VERSION)
             self.assertEqual(core.verify_grub_menu(root), VERSION)
 
+    def test_temporary_live_root_multiple_roots_and_wrong_expected_uuid_are_rejected(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            fixture(root)
+            self.assertEqual(core.verify_grub_menu(root, expected_root='UUID=abc'), VERSION)
+            with self.assertRaises(core.TargetError):
+                core.verify_grub_menu(root, expected_root='UUID=another-target')
+            for argument in ('/dev/loop1p3', '/dev/sr0', '/run/live/rootfs/target', '/lib/live/mount/rootfs', 'UUID=abc root=/dev/loop1p1'):
+                put(root, 'boot/grub/grub.cfg', 'linux /boot/vmlinuz-' + VERSION + ' root=' + argument + '\ninitrd /boot/initrd.img-' + VERSION)
+                with self.subTest(root=argument), self.assertRaisesRegex(core.TargetError, 'birlikte'):
+                    core.verify_grub_menu(root)
+
     def test_live_root_relative_root_and_escape_symlinks_are_rejected(self):
         for root in (Path('/'), Path('.')):
             with self.assertRaises(core.TargetError):
