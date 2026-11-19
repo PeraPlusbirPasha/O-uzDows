@@ -17,9 +17,10 @@ gi.require_version('Gtk', '3.0')
 gi.require_version('Gdk', '3.0')
 gi.require_version('GdkX11', '3.0')
 from gi.repository import Gdk, GdkX11, Gio, GLib, Gtk
-from Xlib import X
+from Xlib import X, Xutil
 from Xlib.protocol import event
 from support import ROOT, load
+from x11_smoke import request_minimize
 
 
 def main():
@@ -32,12 +33,13 @@ def main():
     errors = []
     report = {'real_gnome_software': True, 'real_isolated_launcher': True, 'real_xfwm': True,
               'remote_added': False, 'package_installation_tested': False, 'packagekit_exercised': False,
-              'consent_preanswered_for_lifecycle_test': True, 'private_system_bus_without_services': True}
+              'consent_preanswered_for_lifecycle_test': True, 'private_system_bus_without_services': True,
+              'gnome_software_version': subprocess.check_output(['/usr/bin/gnome-software', '--version'], text=True).strip()}
     lifecycle = load('native_store_lifecycle', 'system/usr/lib/oguzdows/store_lifecycle.py')
     with tempfile.TemporaryDirectory(prefix='oguzdows-store-native-', ignore_cleanup_errors=True) as directory:
-        os.environ.update(XDG_CONFIG_HOME=directory, XDG_STATE_HOME=directory,
+        os.environ.update(XDG_CONFIG_HOME=directory, XDG_STATE_HOME=directory, XDG_DATA_HOME=directory,
                           XDG_CACHE_HOME=directory, GSETTINGS_BACKEND='keyfile', GSK_RENDERER='cairo',
-                          GTK_A11Y='none', MESA_SHADER_CACHE_DISABLE='true',
+                          GTK_A11Y='none', MESA_SHADER_CACHE_DISABLE='true', GS_DEBUG='1',
                           GNOME_SOFTWARE_PLUGINS_ALLOWLIST='appstream,flatpak,icons,key-colors,provenance,provenance-license')
         # Konteynerde systemd/system-bus yoktur. Yalnızca bu testin kendi
         # UNIX soketi; hiçbir gerçek sistem servisini/paket yöneticisini açmaz.
@@ -67,6 +69,32 @@ def main():
             wrapper, monitor = None, None
             phase = {'name': 'waiting-wm', 'ticks': 0}
             loop = GLib.MainLoop()
+            def diagnose():
+                snapshot = {'native_dbus_owner': has_owner(), 'wrapper_exit': wrapper.poll() if wrapper else None,
+                            'wm_exit': wm.poll(), 'system_bus_exit': system_bus.poll()}
+                for name, command in (('root_properties', ['xprop', '-root', '_NET_CLIENT_LIST', '_NET_SUPPORTING_WM_CHECK']),
+                                      ('window_tree', ['xwininfo', '-root', '-tree'])):
+                    result = subprocess.run(command, capture_output=True, text=True, check=False, timeout=5)
+                    snapshot[name] = (result.stdout + result.stderr)[-2200:]
+                if monitor:
+                    clients = monitor.root.get_full_property(monitor.clients, X.AnyPropertyType)
+                    snapshot['managed_windows'] = []
+                    for identifier in (clients.value if clients is not None else ()):
+                        result = subprocess.run(['xprop', '-id', str(int(identifier)), '_GTK_APPLICATION_ID',
+                                                 'WM_CLASS', 'WM_STATE', '_NET_WM_PID'],
+                                                capture_output=True, text=True, check=False, timeout=5)
+                        snapshot['managed_windows'].append(result.stdout[-1200:])
+                snapshot['native_processes'] = []
+                for entry in Path('/proc').iterdir():
+                    if not entry.name.isdigit():
+                        continue
+                    try:
+                        if (entry / 'comm').read_text().strip() == 'gnome-software':
+                            snapshot['native_processes'].append({'pid': int(entry.name),
+                                'wchan': (entry / 'wchan').read_text().strip()})
+                    except OSError:
+                        continue
+                report['failure_snapshot'] = snapshot
             def tick():
                 nonlocal wrapper, monitor
                 try:
@@ -85,6 +113,7 @@ def main():
                         except Exception as error:
                             phase['last_wm_error'] = str(error)
                             return GLib.SOURCE_CONTINUE
+                        phase.pop('last_wm_error', None)
                         wrapper = subprocess.Popen(['/usr/bin/python3', '-I', str(ROOT / 'system/usr/lib/oguzdows/store.py'), '--updates'],
                             stdout=shop_log, stderr=subprocess.STDOUT)
                         phase['name'] = 'waiting-window'
@@ -103,18 +132,26 @@ def main():
                             image = Gdk.pixbuf_get_from_window(native, 0, 0, native.get_width(), native.get_height())
                             if image:
                                 image.savev(str(args.output / 'store-native.png'), 'png', [], [])
-                        monitor.connection.create_resource_object('window', windows[0]).iconify(monitor.connection.get_default_screen())
-                        monitor.connection.flush()
+                        request_minimize(monitor, windows[0])
                         phase['name'], phase['check_after'] = 'minimized', phase['ticks'] + 15
                     elif phase['name'] == 'minimized' and phase['ticks'] >= phase['check_after']:
                         assert has_owner() and wrapper.poll() is None
+                        window = monitor.connection.create_resource_object('window', phase['window'])
+                        state = window.get_wm_state()
+                        assert state is not None and state.state == Xutil.IconicState, 'Xfwm küçültme isteğini uygulamadı.'
+                        assert window.get_attributes().map_state != X.IsViewable, 'Küçültülen pencere hâlâ görünür.'
                         assert phase['window'] in monitor.windows(), 'Küçültülen pencere yanlışlıkla kapalı sayıldı.'
                         report['minimize_preserved'] = True
-                        monitor.connection.create_resource_object('window', phase['window']).map()
+                        window.map()
                         monitor.connection.flush()
                         phase['name'], phase['check_after'] = 'restored', phase['ticks'] + 8
                     elif phase['name'] == 'restored' and phase['ticks'] >= phase['check_after']:
                         connection = monitor.connection
+                        window = connection.create_resource_object('window', phase['window'])
+                        state = window.get_wm_state()
+                        assert state is not None and state.state == Xutil.NormalState, 'Xfwm pencereyi geri getirmedi.'
+                        assert window.get_attributes().map_state == X.IsViewable, 'Geri getirilen pencere görünür değil.'
+                        report['restore_verified'] = True
                         request = event.ClientMessage(window=phase['window'],
                             client_type=connection.intern_atom('_NET_CLOSE_WINDOW'), data=(32, [X.CurrentTime, 1, 0, 0, 0]))
                         monitor.root.send_event(request, event_mask=X.SubstructureRedirectMask | X.SubstructureNotifyMask)
@@ -151,6 +188,10 @@ def main():
                         return GLib.SOURCE_REMOVE
                 except Exception as error:
                     errors.append(str(error))
+                    try:
+                        diagnose()
+                    except Exception as diagnostic_error:
+                        report['diagnostic_error'] = str(diagnostic_error)
                     loop.quit()
                     return GLib.SOURCE_REMOVE
                 return GLib.SOURCE_CONTINUE
@@ -177,6 +218,11 @@ def main():
     report['errors'] = errors
     (args.output / 'store-native.json').write_text(json.dumps(report, ensure_ascii=False, indent=2) + '\n')
     if errors:
+        print('::notice title=Mağaza hata anı::' + json.dumps(report, ensure_ascii=False).replace('%', '%25'), flush=True)
+        native_log = (args.output / 'store-native.log').read_text(errors='replace')
+        for index, chunk in enumerate((native_log[-6000:-3000], native_log[-3000:])):
+            print('::notice title=Mağaza native günlük ' + str(index + 1) + '::'
+                  + chunk.replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A'), flush=True)
         details = '\n'.join((args.output / name).read_text(errors='replace')[-1800:]
                             for name in ('store-system-bus.log', 'store-xfwm.log', 'store-native.log'))
         raise AssertionError('\n'.join(errors) + '\nGerçek mağaza günlükleri:\n' + details)
