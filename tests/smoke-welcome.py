@@ -96,14 +96,17 @@ def main():
                 screenshot("welcome-small.png")
                 assert len(app.wallpaper_buttons)==0, 'Galeri başlangıçta yüklenmemeli'
                 app.stack.set_visible_child_name("wallpapers")
-                assert len(app.wallpaper_buttons)==12, 'Galeri yalnızca açılınca yüklenmeli'
+                assert len(app.wallpaper_buttons)==6, 'Yeni altı manzara yalnızca galeri açılınca yüklenmeli'
             except Exception as error:
                 errors.append(str(error))
             return GLib.SOURCE_REMOVE
 
         def hardware():
             try:
-                screenshot("wallpapers.png")
+                screenshot('wallpapers.png')
+                app.stack.set_visible_child_name('styles')
+                assert len(app.profile_choice.get_model()) == 5
+                screenshot('desktop-styles.png')
                 app.window.resize(900, 600)
                 app.show_drivers()
             except Exception as error:

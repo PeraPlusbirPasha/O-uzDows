@@ -21,6 +21,19 @@ PC_ONLY = (
     "usr/local/sbin/oguzdows-driver-helper", "usr/share/applications/oguzdows-install.desktop",
     "usr/share/polkit-1/actions/org.oguzdows.install.policy",
     "usr/share/polkit-1/actions/org.oguzdows.drivers.policy",
+    # PC tabanına sınırlandırılmış bakım / mağaza, ARMv6 ve Pi apt kaynaklarıyla
+    # karıştırılmaz. Görünüm profilleri, tespih ve çevrimdışı İmece ortaktır.
+    "usr/lib/oguzdows/maintenance.py", "usr/lib/oguzdows/updater.py",
+    "usr/lib/oguzdows/store.py", "usr/lib/oguzdows/store_core.py", "usr/lib/oguzdows/store_lifecycle.py", "usr/lib/oguzdows/memory_probe.py",
+    "usr/local/sbin/oguzdows-maintenance", "usr/local/bin/oguzdows-update",
+    "usr/local/bin/oguzdows-store", "usr/local/bin/oguzdows-memory-report",
+    "usr/share/applications/oguzdows-update.desktop", "usr/share/applications/oguzdows-store.desktop",
+    "usr/local/share/applications/org.gnome.Software.desktop",
+    "usr/share/polkit-1/actions/org.oguzdows.maintenance.policy",
+    "etc/apt/sources.list.d/oguzdows-pardus.sources", "etc/apt/preferences.d/oguzdows-pardus",
+    "usr/share/keyrings/oguzdows-pardus.asc",
+    "usr/share/glib-2.0/schemas/90_oguzdows-store.gschema.override",
+    "etc/xdg/autostart/org.gnome.Software.desktop",
 )
 
 
@@ -59,6 +72,9 @@ def configure(arch: str, output: Path) -> None:
                     ignore=shutil.ignore_patterns("__pycache__", "*.py[cod]"))
     shutil.copytree(ROOT / "boot", overlay / "usr/share/plymouth/themes/oguzdows")
     shutil.copytree(ROOT / "assets", overlay / "usr/share/oguzdows/assets")
+    documentation = overlay / "usr/share/doc/oguzdows"
+    documentation.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(ROOT / "docs/MASAUSTU-VE-BAKIM.md", documentation / "masaustu-ve-bakim.md")
     shutil.copy2(ROOT / "scripts/render-assets.py", overlay / "usr/lib/oguzdows/render-assets.py")
     shutil.copy2(ROOT / "scripts/verify-pi.py", overlay / "usr/lib/oguzdows/verify-pi.py")
     write(overlay / "etc/locale.gen", "tr_TR.UTF-8 UTF-8\nen_US.UTF-8 UTF-8\n")

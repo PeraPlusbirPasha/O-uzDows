@@ -14,6 +14,7 @@ import offline
 import wallpapers
 import boot_report
 import install_status as installer_state
+import profiles
 from pi_support import current_policy, is_pi, model as pi_model
 
 import gi
@@ -45,6 +46,7 @@ class Welcome(Gtk.Application):
         self.report_text = ""
         self.mark_on_close = False
         self.wallpaper_buttons = []
+        self.profile_busy = False
         self.rifki = None
         self.install_data = {}
         self.previous_session = None
@@ -107,17 +109,19 @@ class Welcome(Gtk.Application):
 
     def do_command_line(self, command_line: Gio.ApplicationCommandLine) -> int:
         args = set(command_line.get_arguments()[1:])
-        if args - {"--autostart", "--drivers", "--wallpapers", "--install", "--assistant"}:
-            print("Kullanım: oguzdows-welcome [--autostart|--drivers|--wallpapers|--install|--assistant]", file=sys.stderr)
+        if args - {"--autostart", "--drivers", "--wallpapers", "--styles", "--install", "--assistant"}:
+            print("Kullanım: oguzdows-welcome [--autostart|--drivers|--wallpapers|--styles|--install|--assistant]", file=sys.stderr)
             return 2
         if "--autostart" in args and self.state_file.exists():
             return 0
-        self.mark_on_close = self.mark_on_close or not bool(args & {"--drivers", "--wallpapers"})
+        self.mark_on_close = self.mark_on_close or not bool(args & {"--drivers", "--wallpapers", "--styles"})
         self.activate()
         if "--drivers" in args:
             self.show_drivers()
         if "--wallpapers" in args:
             self.stack.set_visible_child_name("wallpapers")
+        if "--styles" in args:
+            self.stack.set_visible_child_name("styles")
         if "--assistant" in args:
             self.open_assistant()
         if "--install" in args:
@@ -159,8 +163,9 @@ class Welcome(Gtk.Application):
         switcher.set_halign(Gtk.Align.CENTER)
         body.pack_start(switcher, False, False, 0)
         self.stack.add_titled(self.welcome_page(), "welcome", "Hoş geldin")
-        self.stack.add_titled(self.hardware_page(), "hardware", "Donanım ve Sürücüler")
-        self.stack.add_titled(self.wallpapers_page(), "wallpapers", "Duvar Kâğıtları")
+        self.stack.add_titled(self.hardware_page(), "hardware", "Donanım")
+        self.stack.add_titled(self.wallpapers_page(), "wallpapers", "Manzaralar")
+        self.stack.add_titled(self.styles_page(), "styles", "Tarzlar")
         self.stack.connect("notify::visible-child-name", self.page_changed)
         self.stack.add_named(self.result_page(), "install-result")
         body.pack_start(self.stack, True, True, 0)
@@ -204,6 +209,10 @@ class Welcome(Gtk.Application):
                 self.install_button.set_tooltip_text("Kurulum canlı OğuzDows USB'sinden başlatılır.")
         choices.add(self.install_button)
         choices.add(self.card("Donanımını tanı", "Aygıtları, yüklü firmware'i ve gömülü ek sürücüleri gör.", "preferences-system-symbolic", lambda *_: self.show_drivers()))
+        choices.add(self.card('Masaüstü tarzını seç', 'Beş hafif görünüm. Pencere düğmeleri ve panel daima okunaklı.', 'preferences-desktop-theme-symbolic', lambda *_: self.stack.set_visible_child_name('styles')))
+        if not is_pi():
+            choices.add(self.card('Güncelleyici ve Mağaza', 'Güncellemeleri, firmware önerilerini ve uygulamaları açık onayla yönet.', 'system-software-update-symbolic', lambda *_: self.launch(['/usr/local/bin/oguzdows-update'])))
+        choices.add(self.card('İmece araçları', 'Çay Molası · Türkçe Hızlı Yazım · Heybe · Yerel paylaşım paketi.', 'applications-utilities-symbolic', lambda *_: self.launch(['/usr/local/bin/oguzdows-imece'])))
         page.pack_start(choices, False, False, 0)
         setup_note = (f"{pi_model() or 'Raspberry Pi'} · {current_policy()['profile']} profili. Değişikliklerin SD/USB üzerinde kalıcıdır." if is_pi() else "Kurulum günlüğü: /var/log/oguzdows/installer.log")
         self.install_status = label(setup_note, "muted", 90)
@@ -291,7 +300,7 @@ class Welcome(Gtk.Application):
     def wallpapers_page(self) -> Gtk.Box:
         page = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=14)
         page.pack_start(label("Türkiye'nin renkleri masaüstünde.", "section-title"), False, False, 6)
-        page.pack_start(label("Altı çizim ve altı yeni foto-gerçekçi Türkiye manzarası. Yeni manzaralar yapay zekâ üretimidir, gerçek çekim değildir. Tamamı çevrimdışı; arka plan servisi yok.", "muted", 90), False, False, 0)
+        page.pack_start(label('Önceki duvar kâğıtlarının tamamı altı yeni Türkiye manzarasıyla değiştirildi. Her birinin sağ altında OğuzDows logosu var. Foto-gerçekçi görseller yapay zekâ üretimidir, gerçek çekim değildir. Tamamı çevrimdışı; arka plan servisi yok.', 'muted', 90), False, False, 0)
         grid = Gtk.FlowBox()
         grid.set_selection_mode(Gtk.SelectionMode.NONE)
         grid.set_min_children_per_line(1)
@@ -303,6 +312,60 @@ class Welcome(Gtk.Application):
         self.wallpaper_status = label("Seçimin SD/USB üzerinde kaydedilir; yeniden başlatınca korunur." if is_pi() else "Seçimin sonraki oturumda korunur. Canlı USB'de kalıcılık yoksa yeniden başlatmada sıfırlanır.", "muted", 90)
         page.pack_start(self.wallpaper_status, False, False, 0)
         return page
+
+    def styles_page(self):
+        page = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=14)
+        page.pack_start(label('Aynı hafif masaüstü, sana göre bir tarz.', 'section-title'), False, False, 0)
+        page.pack_start(label('Bu beş seçenek Xfce görünüm profilidir; gerçek KDE / GNOME veya başka bir işletim sistemi kurmaz. İlk değişiklikte mevcut görünüm ayarların yedeklenir. Opak panel ve belirgin pencere düğmeleri korunur.', 'muted', 85), False, False, 0)
+        self.profile_choice = Gtk.ComboBoxText()
+        for identifier, item in profiles.PROFILES.items():
+            self.profile_choice.append(identifier, item['name'] + ' · ' + item['description'])
+        self.profile_choice.set_active_id('oguzdows')
+        page.pack_start(self.profile_choice, False, False, 0)
+        self.profile_apply = Gtk.Button(label='Seçili tarzı uygula')
+        self.profile_apply.connect('clicked', lambda *_: self.change_style(self.profile_choice.get_active_id()))
+        page.pack_start(self.profile_apply, False, False, 0)
+        self.profile_restore = Gtk.Button(label='İlk görünüm ayarlarıma dön')
+        self.profile_restore.connect('clicked', lambda *_: self.change_style(None))
+        page.pack_start(self.profile_restore, False, False, 0)
+        self.profile_status = label('Varsayılan: OğuzDows · Yerel hareketli tespih imleci · Bileşik efektler kapalı', 'muted', 85)
+        page.pack_start(self.profile_status, False, False, 0)
+        page.pack_start(label('Tespih tanesinin parıltısı yerel Xcursor kareleriyle hareket eder; ayrı bir uygulama / katman çalışmaz. Tıklamaları dinlemez. İstersen Fare ayarlarından Adwaita imlecine dönebilirsin.', 'muted', 85), False, False, 0)
+        if is_pi():
+            page.pack_start(label('Pi kaynak profilleri korunur; bu sürümde PC güncelleyicisi veya gerçek KDE / GNOME kurulum düğmeleri Pi’ye taşınmaz.', 'muted', 85), False, False, 0)
+        else:
+            page.pack_start(Gtk.Separator(), False, False, 0)
+            page.pack_start(label('Gerçek KDE / GNOME oturumu ayrıca kurulabilir. Bunlar daha fazla RAM ve disk ister; 600 MB hedefi yalnızca varsayılan Xfce içindir. Kurulum öncesi Güncelleyici paket planını gösterir. Giriş ekranından oturum seçilir.', 'muted', 85), False, False, 0)
+            row = Gtk.Box(spacing=8)
+            for identifier, title in (('kde', 'Gerçek KDE planı…'), ('gnome', 'Gerçek GNOME planı…')):
+                button = Gtk.Button(label=title)
+                button.connect('clicked', lambda _button, name=identifier: self.launch(['/usr/local/bin/oguzdows-update', '--desktop', name]))
+                row.pack_start(button, True, True, 0)
+            page.pack_start(row, False, False, 0)
+        return page
+
+    def change_style(self, identifier):
+        if self.profile_busy:
+            return
+        self.profile_busy = True
+        self.profile_apply.set_sensitive(False)
+        self.profile_restore.set_sensitive(False)
+        self.profile_status.set_text('Yalnızca bu hesabın görünümü düzenleniyor…')
+        def work():
+            try:
+                profiles.restore() if identifier is None else profiles.apply(identifier)
+                message = 'İlk görünüm ayarların geri yüklendi.' if identifier is None else profiles.PROFILES[identifier]['name'] + ' uygulandı. Gerçek bir masaüstü kurulmadı.'
+            except (OSError, ValueError, RuntimeError, subprocess.SubprocessError) as error:
+                message = 'Görünüm değiştirilemedi: ' + str(error)
+            GLib.idle_add(self.style_finished, message)
+        threading.Thread(target=work, daemon=True).start()
+
+    def style_finished(self, message):
+        self.profile_busy = False
+        self.profile_apply.set_sensitive(True)
+        self.profile_restore.set_sensitive(True)
+        self.profile_status.set_text(message)
+        return GLib.SOURCE_REMOVE
 
     def populate_wallpapers(self):
         if self.wallpaper_buttons:
@@ -631,8 +694,8 @@ class Welcome(Gtk.Application):
         dialog.destroy()
 
     def on_close(self, *_):
-        if self.driver_busy or self.install_busy:
-            self.message("Kurucu / sürücü işlemi devam ediyor.", "İşlemi yarıda kesmemek için önce kurucuyu kapat veya sürücü işleminin bitmesini bekle.")
+        if self.driver_busy or self.install_busy or self.profile_busy:
+            self.message('Kurucu / ayar işlemi devam ediyor.', 'İşlemi yarıda kesmemek için önce kurucuyu kapat veya sürücü / görünüm işleminin bitmesini bekle.')
             return True
         if self.mark_on_close:
             try:

@@ -38,9 +38,11 @@ class AssetTests(unittest.TestCase):
                 for state in ("active", "inactive", "prelight", "pressed"):
                     self.assertTrue((theme / f"{button}-{state}.png").is_file())
             manifest = json.loads((root / "usr/share/oguzdows/wallpapers.json").read_text())
-            self.assertTrue({"ay-yildiz", "istanbul", "kapadokya", "pamukkale", "kackar", "anadolu"}.issubset({item["id"] for item in manifest}))
-            self.assertEqual(len(manifest), 12)
-            self.assertEqual(sum(item.get("origin") == "AI-generated" for item in manifest), 6)
+            self.assertEqual({item['id'] for item in manifest}, {'bogaz-sabahi', 'kackar-sisi', 'kapadokya-isigi', 'oludeniz-kiyisi', 'tuz-golu-aksami', 'ani-kisi'})
+            self.assertEqual(len(manifest), 6)
+            self.assertTrue(all(item.get('origin') == 'AI-generated' and item.get('logo') == 'bottom-right' for item in manifest))
+            for retired in ('istanbul', 'kapadokya', 'pamukkale', 'kackar', 'anadolu'):
+                self.assertFalse((wallpaper.parent / (retired + '.png')).exists())
             pixels = set()
             for item in manifest:
                 with Image.open(root / item["path"].lstrip("/")) as image:
@@ -48,7 +50,9 @@ class AssetTests(unittest.TestCase):
                     pixels.add(image.tobytes())
                 with Image.open(root / item["preview"].lstrip("/")) as preview:
                     self.assertEqual(preview.size, (320, 180))
-            self.assertEqual(len(pixels), 12)
+            self.assertEqual(len(pixels), 6)
+            with Image.open(wallpaper) as default, Image.open(wallpaper.parent / 'bogaz-sabahi.jpg') as scenery:
+                self.assertEqual(default.tobytes(), scenery.tobytes())
             for state in ("active", "inactive"):
                 with Image.open(theme / f"close-{state}.png") as close:
                     self.assertEqual(close.getchannel("A").getextrema(), (255, 255))

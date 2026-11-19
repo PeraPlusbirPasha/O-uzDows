@@ -1,4 +1,14 @@
 # Yalnızca x86 ISO: PC sürücüleri, mikro kod, DKMS ve disk kurucusu.
+# İstek üzerine Türkçe bakım ve APT / Flatpak mağazası.
+python3-apt
+python3-xlib
+gpgv
+gnome-software
+gnome-software-plugin-flatpak
+flatpak
+packagekit
+xdg-desktop-portal
+xdg-desktop-portal-gtk
 xorg
 xserver-xorg-video-all
 intel-microcode

@@ -9,6 +9,7 @@ Bu, firmware→GRUB testinden daha kapsamlıdır; fiziksel PC / LUKS testi deği
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import re
@@ -111,11 +112,72 @@ def record_live_state(root, output, phase):
     print('::notice title=ISO canlı paket durumu ' + phase + '::' + json.dumps(report), flush=True)
 
 
-def boot_os(image, mode, output, work, root_uuid):
+def desktop_contract(root):
+    """Paket, sahiplik, kapalı depo ve yeni görseller gerçek ISO'da olmalı."""
+    secured = ('usr', 'usr/lib', 'usr/share', 'usr/local', 'usr/local/sbin', 'usr/lib/oguzdows',
+               'usr/local/sbin/oguzdows-maintenance', 'usr/lib/oguzdows/maintenance.py',
+               'usr/lib/oguzdows/hardware.py', 'usr/lib/oguzdows/pi_support.py',
+               'usr/share/polkit-1/actions/org.oguzdows.maintenance.policy',
+               'etc/apt/preferences.d/oguzdows-pardus', 'etc/apt/sources.list.d/oguzdows-pardus.sources',
+               'usr/share/keyrings/oguzdows-pardus.asc')
+    for relative in secured:
+        path = target_system.inside(root, relative)
+        details = path.stat()
+        if details.st_uid != 0 or details.st_gid != 0 or details.st_mode & 0o022:
+            raise RuntimeError('Yetkili bakım kodu / üst dizini root sahipli ve yazmaya kapalı değil: ' + relative)
+    installed = set()
+    status = target_system.nonempty(root, 'var/lib/dpkg/status').read_text()
+    for paragraph in status.split('\n\n'):
+        fields = dict(line.split(': ', 1) for line in paragraph.splitlines() if ': ' in line and not line.startswith((' ', '\t')))
+        if fields.get('Status') == 'install ok installed':
+            installed.add(fields.get('Package'))
+    required = {'python3-apt', 'gnome-software', 'gnome-software-plugin-flatpak', 'flatpak', 'gpgv', 'xdg-desktop-portal-gtk'}
+    if required - installed:
+        raise RuntimeError('ISO bakım / mağaza paketleri eksik: ' + ', '.join(sorted(required - installed)))
+    if 'Enabled: no' not in target_system.nonempty(root, 'etc/apt/sources.list.d/oguzdows-pardus.sources').read_text():
+        raise RuntimeError('Pardus kanalı ISO içinde varsayılan kapalı değil.')
+    if 'Hidden=true' not in target_system.nonempty(root, 'etc/xdg/autostart/org.gnome.Software.desktop').read_text():
+        raise RuntimeError('Mağazanın otomatik açılışı engellenmemiş.')
+    for record in json.loads((ROOT / 'artwork/landscapes.json').read_text()):
+        picture = target_system.nonempty(root, 'usr/share/backgrounds/oguzdows/' + record['file'])
+        if hashlib.sha256(picture.read_bytes()).hexdigest() != record['packaged_sha256']:
+            raise RuntimeError('ISO yeni logolu manzarayı taşımıyor: ' + record['file'])
+    target_system.nonempty(root, 'usr/share/icons/OguzDowsTespih/cursors/left_ptr')
+    return {'packages': sorted(required), 'privileged_ownership_verified': True,
+            'pardus_enabled': False, 'replacement_wallpapers': 6, 'native_cursor': True}
+
+
+def configure_idle_test(root, uid):
+    """SADECE geçici CI diskinde otomatik giriş; üretim katmanını değiştirmez."""
+    if uid < 1000:
+        raise RuntimeError('Geçici grafik test hesabı normal bir kullanıcı olmalı.')
+    user = 'oguz-idle-proof'
+    target_system.inside(root, 'var/log/oguzdows').mkdir(parents=True, exist_ok=True)
+    put(root, f'home/{user}/.local/state/oguzdows/welcome-seen', 'Disposable graphical measurement\n')
+    put(root, 'etc/lightdm/lightdm.conf.d/99-oguzdows-disposable-idle.conf',
+        f'[Seat:*]\nautologin-user={user}\nautologin-user-timeout=0\nuser-session=oguzdows\nautologin-session=oguzdows\n')
+    put(root, 'usr/local/sbin/oguzdows-disposable-idle', '#!/bin/sh\nset -eu\n'
+        + f'/usr/local/bin/oguzdows-memory-report --user {uid} --wait-for-desktop 180 --settle-seconds 120 '
+          '--samples 6 --interval 5 --idle-confirmed --output /var/log/oguzdows/disposable-idle.json '
+          '> /var/log/oguzdows/disposable-idle.stdout\n'
+        + "/usr/bin/python3 -I - <<'PY' > /dev/ttyS0\nimport json\nfrom pathlib import Path\n"
+          "data = json.loads(Path('/var/log/oguzdows/disposable-idle.json').read_text())\n"
+          "print('OGUZDOWS-DESKTOP-IDLE-JSON:' + json.dumps(data, ensure_ascii=True, separators=(',', ':')), flush=True)\nPY\n", 0o755)
+    unit = 'oguzdows-disposable-idle.service'
+    put(root, 'etc/systemd/system/' + unit,
+        '[Unit]\nDescription=Disposable full Xfce idle measurement\nAfter=display-manager.service\n'
+        '[Service]\nType=oneshot\nTimeoutStartSec=420\nExecStart=/usr/local/sbin/oguzdows-disposable-idle\n'
+        '[Install]\nWantedBy=graphical.target\n')
+    wants = root / 'etc/systemd/system/graphical.target.wants'
+    wants.mkdir(parents=True, exist_ok=True)
+    (wants / unit).symlink_to('../' + unit)
+
+
+def boot_os(image, mode, output, work, root_uuid, graphical_idle=False):
     serial = output / ('target-os-' + mode + '.serial.log')
     marker = 'OGUZDOWS-TARGET-OS-OK:' + root_uuid
     args = ['qemu-system-x86_64', '-machine', 'pc,accel=tcg', '-m', '2048', '-smp', '2',
-            '-display', 'none', '-monitor', 'none', '-serial', 'file:' + str(serial),
+            '-vga', 'std', '-display', 'none', '-monitor', 'none', '-serial', 'file:' + str(serial),
             '-drive', f'file={image},format=raw,if=none,id=testdisk,snapshot=on',
             '-device', 'virtio-blk-pci,drive=testdisk', '-nic', 'none', '-boot', 'c', '-no-reboot']
     if mode == 'efi':
@@ -123,16 +185,28 @@ def boot_os(image, mode, output, work, root_uuid):
     with (output / ('target-os-' + mode + '.qemu.log')).open('w') as log:
         process = subprocess.Popen(args, stdout=log, stderr=subprocess.STDOUT)
         try:
-            deadline = time.monotonic() + 240
+            timeout = 600 if graphical_idle else 240
+            deadline = time.monotonic() + timeout
             while time.monotonic() < deadline:
                 text = serial.read_text(errors='replace') if serial.exists() else ''
-                if marker in text:
+                if marker in text and not graphical_idle:
                     print(mode + ': gerçek hedef çekirdek, initramfs ve systemd disk kökünde açıldı.', flush=True)
-                    return
+                    return None
+                # UART dosyası hâlâ yazılıyor olabilir; yarım JSON'u hata sayma.
+                idle_match = re.search(r'OGUZDOWS-DESKTOP-IDLE-JSON:([^\r\n]+)\r?\n', text) if graphical_idle else None
+                if marker in text and idle_match:
+                    measurement = json.loads(idle_match[1])
+                    if not all(item.get('graphical_xfce') for item in measurement.get('samples', [])) or not measurement.get('samples'):
+                        raise RuntimeError('Hedef kullanıcı için tam Xfce grafik oturumu açılamadı: ' + json.dumps(measurement.get('invalid_reasons')))
+                    (output / 'desktop-idle.json').write_text(json.dumps(measurement, ensure_ascii=False, indent=2) + '\n')
+                    status = 'notice' if measurement.get('target_met') else 'warning'
+                    summary = {key: measurement.get(key) for key in ('valid_idle_measurement', 'median_used_mb', 'max_used_mb', 'target_met', 'invalid_reasons')}
+                    print('::' + status + ' title=Tam Xfce oturumu RAM (VM)::' + json.dumps(summary, ensure_ascii=False), flush=True)
+                    return summary
                 if process.poll() is not None:
                     raise RuntimeError(mode + ': hedef OS erken kapandı:\n' + text[-7000:])
                 time.sleep(.5)
-            raise RuntimeError(mode + ': hedef OS işareti 240 saniyede oluşmadı:\n' + text[-7000:])
+            raise RuntimeError(mode + f': hedef OS / grafik ölçüm işareti {timeout} saniyede oluşmadı:\n' + text[-7000:])
         finally:
             if process.poll() is None:
                 process.terminate()
@@ -149,6 +223,7 @@ def main():
     parser.add_argument('--arch', choices=('amd64', 'i386'), required=True)
     parser.add_argument('--expected-revision', required=True)
     parser.add_argument('--output', type=Path, default=Path('test-results/iso-target'))
+    parser.add_argument('--graphical-idle', action='store_true', help='Geçici test hesabıyla tam Xfce oturumu ve yerleşmiş RAM raporu')
     args = parser.parse_args()
     if os.geteuid() != 0 or os.environ.get('CI') != 'true':
         parser.error('Yalnızca ayrıcalıklı, tek kullanımlık CI konteynerinde çalıştırılır.')
@@ -207,6 +282,7 @@ def main():
         report['build'] = build
         validate_source(build, args.expected_revision, args.arch)
         report['mount_configuration'] = iso_mount_configuration(target, args.arch)
+        report['desktop_contract'] = desktop_contract(target)
         esp_device = None
         if args.arch == 'amd64':
             esp_device = firmware.partition_device(loop, 2)
@@ -250,6 +326,13 @@ def main():
         record_live_state(target, output, 'after')
         target_system.require_clean_target(target)
         before = target_system.kernel_snapshot(target)
+        if args.graphical_idle:
+            # Üretim kullanıcı / otomatik giriş politikasına dokunmaz. Bu hesap
+            # yalnızca testin özel, hiç yayımlanmayan disk dosyasında bulunur.
+            chroot('useradd', '--create-home', '--shell', '/bin/bash', 'oguz-idle-proof')
+            uid = int(subprocess.check_output(['chroot', str(target), 'id', '-u', 'oguz-idle-proof'], text=True).strip())
+            configure_idle_test(target, uid)
+            chroot('chown', '-R', 'oguz-idle-proof:oguz-idle-proof', '/home/oguz-idle-proof')
         put(target, 'etc/initramfs-tools/conf.d/calamares-safe-initramfs.conf', 'UMASK=0077\n')
         put(target, 'etc/initramfs-tools/conf.d/resume', 'RESUME=none\n')
         # Calamares InitramfsJob ile aynı gerçek komut, aynı güvenli UMASK.
@@ -298,7 +381,9 @@ def main():
         run('losetup', '--detach', loop)
         loop = None
         for mode in (('bios', 'efi') if esp_device else ('bios',)):
-            boot_os(image, mode, output, work, root_uuid)
+            idle = boot_os(image, mode, output, work, root_uuid, graphical_idle=args.graphical_idle and mode == 'bios')
+            if idle is not None:
+                report['desktop_idle'] = idle
             report['modes'].append(mode)
         print('::notice title=ISO hedef sistem açılışı::' + json.dumps(report), flush=True)
     except Exception as error:

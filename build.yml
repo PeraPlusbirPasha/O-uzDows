@@ -56,7 +56,16 @@ jobs:
           apt-get install -y --no-install-recommends python3 python3-yaml python3-pil \
             python3-gi gir1.2-gtk-3.0 shellcheck fonts-inter fonts-noto-core \
             fonts-dejavu-core adwaita-icon-theme xauth xvfb dbus-x11 pciutils usbutils rfkill \
-            calamares x11-utils
+            calamares x11-utils xfconf xfwm4 libxcursor1 python3-apt python3-xlib \
+            gpgv ca-certificates flatpak gnome-software gnome-software-plugin-flatpak libglib2.0-bin
+
+      - name: Mağaza varsayılanlarını gerçek şemalarla derle
+        run: |
+          cp system/usr/share/glib-2.0/schemas/*.override /usr/share/glib-2.0/schemas/
+          glib-compile-schemas --strict /usr/share/glib-2.0/schemas
+          test "$(gsettings get org.gnome.software download-updates)" = false
+          test "$(gsettings get org.gnome.software download-updates-notify)" = false
+          test "$(gsettings get org.gnome.desktop.interface cursor-theme)" = "'OguzDowsTespih'"
 
       - name: Birim ve yapılandırma testleri
         run: python3 -m unittest discover -s tests -p 'test_*.py' -v
@@ -74,6 +83,23 @@ jobs:
           python3 scripts/ci-run.py --title 'GTK arayüz kontrolü' -- \
             xvfb-run -a -s '-screen 0 1024x768x24' dbus-run-session -- \
             python3 tests/smoke-welcome.py --output test-results
+
+      - name: Güncelleyici, onay akışı, beş gerçek xfconf tarzı ve İmece
+        run: |
+          python3 scripts/ci-run.py --title 'Bakım ve İmece GTK' -- \
+            xvfb-run -a -s '-screen 0 1024x768x24' dbus-run-session -- \
+            python3 tests/smoke-maintenance-ui.py --output test-results
+
+      - name: Gerçek mağaza küçültme, pencere kapatma ve D-Bus süreç ömrü
+        run: |
+          python3 scripts/ci-run.py --title 'Mağaza güvenli tam çıkış' -- \
+            xvfb-run -a -s '-screen 0 1280x900x24' dbus-run-session -- \
+            python3 tests/smoke-store.py --output test-results
+
+      - name: Paket kurmadan gerçek APT planları ve isteğe bağlı güncel Pardus imzası
+        run: |
+          python3 scripts/ci-run.py --title 'Bakım aday ve imza kontrolü' -- \
+            python3 tests/smoke-maintenance.py --suite '${{ matrix.suite }}' --output test-results
 
       - name: Hafif başlatıcı, boşta yük ve kurulumda Rıfkı duraklatma
         run: |
@@ -193,7 +219,7 @@ jobs:
         run: |
           python3 scripts/ci-run.py --title 'ISO hedef OS ${{ matrix.arch }}' -- \
             python3 tests/smoke-iso-target.py --iso 'OguzDows-${{ matrix.arch }}.iso' \
-            --arch '${{ matrix.arch }}' --expected-revision "$GITHUB_SHA" \
+            --arch '${{ matrix.arch }}' --expected-revision "$GITHUB_SHA" --graphical-idle \
             --output 'test-results/iso-target-${{ matrix.arch }}'
 
       - name: Hedef sistem açılış kanıtları

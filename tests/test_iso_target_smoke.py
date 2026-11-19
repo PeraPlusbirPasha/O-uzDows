@@ -45,6 +45,58 @@ class IsoTargetSmokeContractTests(unittest.TestCase):
             self.assertNotIn('OGUZDOWS-TARGET-OS-OK', str(command))
             process.terminate.assert_called_once()
 
+    def test_graphical_idle_setup_is_confined_to_disposable_root_and_locked_test_account(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            with self.assertRaises(RuntimeError):
+                smoke.configure_idle_test(root, 0)
+            self.assertFalse(list(root.iterdir()))
+            smoke.configure_idle_test(root, 1001)
+            marker = root / 'home/oguz-idle-proof/.local/state/oguzdows/welcome-seen'
+            self.assertTrue(marker.is_file())
+            script = (root / 'usr/local/sbin/oguzdows-disposable-idle').read_text()
+            for argument in ('--user 1001', '--wait-for-desktop 180', '--settle-seconds 120', '--samples 6 --interval 5', '--idle-confirmed'):
+                self.assertIn(argument, script)
+            self.assertIn('OGUZDOWS-DESKTOP-IDLE-JSON:', script)
+            self.assertIn('/dev/ttyS0', script)
+            self.assertTrue((root / 'etc/systemd/system/graphical.target.wants/oguzdows-disposable-idle.service').is_symlink())
+            self.assertFalse((ROOT / 'system/etc/lightdm/lightdm.conf.d/99-oguzdows-disposable-idle.conf').exists())
+            self.assertFalse((ROOT / 'system/etc/systemd/system/oguzdows-disposable-idle.service').exists())
+
+    def test_vm_graphical_report_does_not_call_an_above_target_measurement_success(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            measurement = {'samples': [{'graphical_xfce': True}], 'valid_idle_measurement': True,
+                           'max_used_mb': 650.0, 'median_used_mb': 649.0, 'target_met': False, 'invalid_reasons': []}
+            serial = root / 'target-os-bios.serial.log'
+            serial.write_text('OGUZDOWS-TARGET-OS-OK:abc\nOGUZDOWS-DESKTOP-IDLE-JSON:' + json.dumps(measurement) + '\n')
+            process = Mock()
+            process.poll.return_value = None
+            with patch.object(smoke.subprocess, 'Popen', return_value=process), patch('builtins.print') as notice:
+                result = smoke.boot_os(root / 'private.img', 'bios', root, root, 'abc', graphical_idle=True)
+            self.assertFalse(result['target_met'])
+            self.assertIn('::warning', notice.call_args.args[0])
+            self.assertEqual(json.loads((root / 'desktop-idle.json').read_text()), measurement)
+            measurement['samples'][0]['graphical_xfce'] = False
+            serial.write_text('OGUZDOWS-TARGET-OS-OK:abc\nOGUZDOWS-DESKTOP-IDLE-JSON:' + json.dumps(measurement) + '\n')
+            with patch.object(smoke.subprocess, 'Popen', return_value=process), self.assertRaisesRegex(RuntimeError, 'tam Xfce'):
+                smoke.boot_os(root / 'private.img', 'bios', root, root, 'abc', graphical_idle=True)
+
+    def test_uart_does_not_parse_partial_graphical_json_before_the_record_is_complete(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            serial = root / 'target-os-bios.serial.log'
+            prefix = 'OGUZDOWS-TARGET-OS-OK:abc\nOGUZDOWS-DESKTOP-IDLE-JSON:'
+            serial.write_text(prefix + '{"samples":')
+            process = Mock()
+            process.poll.return_value = None
+            measurement = {'samples': [{'graphical_xfce': True}], 'target_met': False}
+            def finish_uart(_delay):
+                serial.write_text(prefix + json.dumps(measurement) + '\r\n')
+            with patch.object(smoke.subprocess, 'Popen', return_value=process), patch.object(smoke.time, 'sleep', side_effect=finish_uart) as pause, patch('builtins.print'):
+                smoke.boot_os(root / 'private.img', 'bios', root, root, 'abc', graphical_idle=True)
+            pause.assert_called_once()
+
     def test_unknown_checkout_cleanliness_is_not_called_clean_or_confused_with_known_dirty(self):
         build = {'source_revision': 'a' * 40, 'arch': 'i386', 'source_dirty': False}
         smoke.validate_source(build, 'a' * 40, 'i386')

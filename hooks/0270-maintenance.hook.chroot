@@ -1,0 +1,27 @@
+#!/bin/sh
+# Paket yöneticisini çalıştırmaz; içerik ve sahiplik derleme katmanından gelir.
+set -eu
+# Kaynak overlay'inin geliştirici UID'si yetkili kodun üst dizinlerine sızmasın.
+for directory in /usr /usr/lib /usr/share /usr/local /usr/local/bin /usr/local/sbin \
+    /usr/share/polkit-1 /usr/share/polkit-1/actions /usr/share/keyrings \
+    /etc /etc/apt /etc/apt/preferences.d /etc/apt/sources.list.d; do
+    chown root:root "$directory"
+    chmod go-w "$directory"
+done
+chown -R root:root /usr/lib/oguzdows
+chmod -R go-w /usr/lib/oguzdows
+chown root:root /usr/local/sbin/oguzdows-maintenance \
+    /usr/local/bin/oguzdows-update /usr/local/bin/oguzdows-store \
+    /usr/local/bin/oguzdows-memory-report /usr/local/bin/oguzdows-imece
+chmod 0755 /usr/local/sbin/oguzdows-maintenance \
+    /usr/local/bin/oguzdows-update /usr/local/bin/oguzdows-store \
+    /usr/local/bin/oguzdows-memory-report /usr/local/bin/oguzdows-imece
+chown root:root /usr/share/keyrings/oguzdows-pardus.asc \
+    /etc/apt/preferences.d/oguzdows-pardus \
+    /etc/apt/sources.list.d/oguzdows-pardus.sources \
+    /usr/share/polkit-1/actions/org.oguzdows.maintenance.policy
+chmod 0644 /usr/share/keyrings/oguzdows-pardus.asc \
+    /etc/apt/preferences.d/oguzdows-pardus \
+    /etc/apt/sources.list.d/oguzdows-pardus.sources \
+    /usr/share/polkit-1/actions/org.oguzdows.maintenance.policy
+glib-compile-schemas /usr/share/glib-2.0/schemas

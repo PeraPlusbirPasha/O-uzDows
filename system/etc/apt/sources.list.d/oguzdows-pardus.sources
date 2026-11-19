@@ -1,0 +1,10 @@
+# OğuzDows: yalnızca seçili Pardus uygulamaları; temel paketler pin ile engellenir.
+Types: deb
+URIs: https://depo.pardus.org.tr/pardus
+Suites: yirmibes
+Components: main
+Architectures: amd64
+Signed-By: /usr/share/keyrings/oguzdows-pardus.asc
+Check-Valid-Until: yes
+Valid-Until-Max: 7776000
+Enabled: no

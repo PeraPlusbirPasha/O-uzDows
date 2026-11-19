@@ -41,6 +41,23 @@ class WallpaperTests(unittest.TestCase):
             self.assertIn(["xfconf-query", "-c", "xfce4-desktop", "-p", prop, "-s", str(image)], calls)
             self.assertFalse(any("monitor0" in " ".join(call) for call in calls))
 
+    def test_initialize_migrates_retired_ids_once_without_resetting_valid_or_custom_choices(self):
+        with tempfile.TemporaryDirectory() as directory:
+            state = Path(directory) / 'wallpaper'
+            with patch.object(wallpapers, 'state_path', return_value=state), patch.object(wallpapers, 'apply') as apply:
+                wallpapers.initialize()
+                apply.assert_called_once_with('bogaz-sabahi')
+                for old, new in wallpapers.LEGACY.items():
+                    apply.reset_mock()
+                    state.write_text(old + '\n')
+                    wallpapers.initialize()
+                    apply.assert_called_once_with(new)
+                for selected in ('bogaz-sabahi', 'ani-kisi', 'kendi-gorselim'):
+                    apply.reset_mock()
+                    state.write_text(selected + '\n')
+                    wallpapers.initialize()
+                    apply.assert_not_called()
+
     def test_failed_desktop_change_does_not_record_a_false_success(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

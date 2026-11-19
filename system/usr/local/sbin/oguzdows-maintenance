@@ -1,0 +1,128 @@
+#!/usr/bin/python3 -I
+"""OğuzDows Güncelleyici için dar, Polkit yetkili arka uç."""
+import base64
+import fcntl
+import json
+import os
+import re
+import subprocess
+import sys
+import tempfile
+import urllib.request
+from pathlib import Path
+
+sys.path.insert(0, '/usr/lib/oguzdows')
+import maintenance as core
+from hardware import is_live
+
+
+class HTTPSRedirects(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, request, response, code, message, headers, new_url):
+        if not new_url.startswith('https://'):
+            raise core.MaintenanceError('Depo HTTPS bağlantısını güvensiz adrese yönlendirdi; kanal kapalı kaldı.')
+        return super().redirect_request(request, response, code, message, headers, new_url)
+
+
+def verify_pardus(execute):
+    # Anahtar sunucusundan / ağdan yeni anahtar alınmaz. Gömülü, SHA-256 ile
+    # sabitlenen tek üretim anahtarı güncel InRelease üzerinde gerçekten denenir.
+    opener = urllib.request.build_opener(HTTPSRedirects())
+    with opener.open(core.PARDUS_INRELEASE, timeout=30) as response:
+        if not response.url.startswith('https://'):
+            raise core.MaintenanceError('Güvenli depo bağlantısı gerekli.')
+        data = response.read(2 * 1024 * 1024 + 1)
+    if len(data) > 2 * 1024 * 1024:
+        raise core.MaintenanceError('Depo imza dosyası beklenen sınırdan büyük.')
+    armor = core.PARDUS_KEY.read_text()
+    block = ''.join(line for line in armor.splitlines() if line and not line.startswith(('-----', '=')))
+    with tempfile.TemporaryDirectory(prefix='oguzdows-pardus-') as temporary:
+        directory = Path(temporary)
+        key = directory / 'trusted.gpg'
+        key.write_bytes(base64.b64decode(block, validate=True))
+        release = directory / 'InRelease'
+        release.write_bytes(data)
+        execute(['/usr/bin/gpgv', '--homedir', str(directory), '--keyring', str(key), str(release)])
+    return data.decode('utf-8')
+
+
+def main():
+    args = sys.argv[1:]
+    valid = (args in (['refresh'], ['drivers'], ['pardus-enable'], ['pardus-disable'])
+             or len(args) == 2 and args[0] == 'plan'
+             or len(args) == 3 and args[0] == 'apply')
+    if not valid or os.geteuid() != 0:
+        print(json.dumps({'error': 'Geçerli işlem ve yönetici yetkisi gerekli.'}, ensure_ascii=False))
+        return 2
+    descriptor = None
+    lists_descriptor = None
+    try:
+        info = core.build_info()
+        architecture = subprocess.check_output(['/usr/bin/dpkg', '--print-architecture'], env=core.ENV, text=True).strip()
+        if architecture != info['arch']:
+            raise core.MaintenanceError('Çalışan mimari ile imaj kimliği eşleşmiyor; paketler değiştirilmedi.')
+        if (args[0] != 'pardus-disable' and core.CHANNEL.is_file()
+                and re.search(r'^Enabled:\s*yes\s*$', core.CHANNEL.read_text(), re.MULTILINE)):
+            core.channel_controls(info)
+        if args[0] in ('apply', 'pardus-enable') and is_live():
+            raise core.MaintenanceError('Kalıcı paket işlemleri kurulu sistem içindir. Canlı USB yerine disk oturumunu açın.')
+        descriptor = os.open('/run/lock/oguzdows-maintenance.lock', os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW, 0o600)
+        fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        if args[0] in ('plan', 'apply'):
+            # Başka apt update, önizleme / doğrulama sırasında aday listesini
+            # değiştirmesin. APT'nin kullandığı POSIX kilit türü korunur.
+            lists_descriptor = os.open('/var/lib/apt/lists/lock', os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW, 0o640)
+            fcntl.lockf(lists_descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        directory = Path('/var/log/oguzdows')
+        directory.mkdir(mode=0o755, exist_ok=True)
+        fd = os.open(directory / 'updater.log', os.O_CREAT | os.O_WRONLY | os.O_APPEND | os.O_NOFOLLOW, 0o600)
+        os.fchmod(fd, 0o600)
+        with os.fdopen(fd, 'w') as log:
+            def execute(command):
+                log.write('\nİşlem: ' + ' '.join(command) + '\n')
+                log.flush()
+                result = subprocess.run(command, env=core.ENV, stdin=subprocess.DEVNULL,
+                                        stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                                        text=True, errors='replace', check=False)
+                log.write(result.stdout)
+                log.flush()
+                if result.returncode:
+                    raise core.MaintenanceError('Paket işlemi tamamlanamadı. Başka paket yöneticisi açıksa bitmesini bekleyin.\n'
+                                                + result.stdout[-4500:] + '\nGünlük: /var/log/oguzdows/updater.log')
+                return result.stdout
+            if args[0] == 'refresh':
+                execute([*core.APT, 'update'])
+                result = {'message': 'İmzalı paket listeleri yenilendi. Şimdi planı görüntüleyin.'}
+            elif args[0] == 'drivers':
+                import apt
+                cache = apt.Cache()
+                suggestions = core.driver_suggestions(suite=info['suite'])
+                for item in suggestions:
+                    item['installed'] = all(package in cache and cache[package].is_installed for package in item['packages'])
+                result = {'drivers': suggestions,
+                          'note': 'Kurulu firmware ayrıca işaretlenir. Üretici / sürücü bağı eşleşmesi yalnızca öneridir; sorunun firmware olduğunu kanıtlamaz.'}
+            elif args[0].startswith('pardus-'):
+                result = core.atomic_channel(args[0] == 'pardus-enable', info, verify_release=lambda: verify_pardus(execute))
+            else:
+                import apt
+                cache = apt.Cache()
+                if args[0] == 'plan':
+                    result = core.make_plan(args[1], info, execute, cache)
+                else:
+                    result = core.apply_plan(args[1], args[2], info, execute, cache)
+        print(json.dumps(result, ensure_ascii=False))
+        return 0
+    except BlockingIOError:
+        error = 'Başka bir paket / OğuzDows bakım işlemi sürüyor. Kilit dosyasını silmeyin; işlemin bitmesini bekleyin.'
+    except (OSError, ValueError, KeyError, subprocess.SubprocessError) as problem:
+        error = str(problem)
+    finally:
+        if lists_descriptor is not None:
+            os.close(lists_descriptor)
+        if descriptor is not None:
+            os.close(descriptor)
+    print(json.dumps({'error': error}, ensure_ascii=False))
+    return 1
+
+
+if __name__ == '__main__':
+    raise SystemExit(main())

@@ -6,6 +6,7 @@ import argparse
 import json
 import math
 import shutil
+import struct
 from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFont
@@ -75,190 +76,11 @@ def kilim(draw: ImageDraw.ImageDraw, width: int, y: int, unit: int, color: str) 
         draw.polygon([(x + unit - r, y), (x + unit, y - r), (x + unit + r, y), (x + unit, y + r)], fill=TURQUOISE)
 
 
-def wallpaper() -> Image.Image:
-    width, height = 1920, 1080
-    image = Image.new("RGB", (width, height))
-    draw = ImageDraw.Draw(image)
-    for y in range(height):
-        t = y / height
-        draw.line((0, y, width, y), fill=(int(25 - t * 11), int(29 - t * 12), int(41 - t * 16)))
-    art = Image.new("RGBA", image.size)
-    ad = ImageDraw.Draw(art)
-    ad.polygon([(1120, 0), (1920, 0), (1920, 850)], fill=(138, 28, 48, 34))
-    ad.polygon([(1510, 0), (1920, 0), (1920, 430)], fill=(201, 50, 70, 18))
-    for r in range(480, 1000, 95):
-        ad.ellipse((1510 - r, 480 - r, 1510 + r, 480 + r), outline=(217, 205, 192, 10), width=2)
-    image = Image.alpha_composite(image.convert("RGBA"), art)
-    mark = emblem(560)
-    image.alpha_composite(mark, (1190, 215))
-    draw = ImageDraw.Draw(image)
-    draw.line((150, 405, 150, 604), fill=RED, width=4)
-    draw.text((183, 405), "AY YILDIZ / 01", font=font(16, True), fill=TURQUOISE)
-    draw.text((176, 433), "OğuzDows", font=font(102, True), fill=PAPER)
-    draw.text((183, 575), "Köklerinden güç alır.", font=font(26), fill="#b9becb")
-    draw.text((183, 614), "Özgürce üretir.", font=font(26), fill="#b9becb")
-    draw.text((152, 966), "TÜRKÇE  /  YALIN  /  ÖZGÜR", font=font(13, True), fill="#8d98a9")
-    kilim(draw, width, 1048, 16, "#672c3b")
-    return image.convert("RGB")
-
-
-def landscape_sky(top: str, bottom: str) -> Image.Image:
-    image = Image.new("RGB", (1920, 1080))
-    draw = ImageDraw.Draw(image)
-    a, b = (tuple(int(color[i:i + 2], 16) for i in (1, 3, 5)) for color in (top, bottom))
-    for y in range(1080):
-        t = y / 1079
-        draw.line((0, y, 1920, y), fill=tuple(round(x * (1 - t) + z * t) for x, z in zip(a, b)))
-    return image
-
-
-def sign_landscape(image: Image.Image, name: str) -> Image.Image:
-    draw = ImageDraw.Draw(image)
-    draw.line((1460, 942, 1510, 942), fill=TURQUOISE, width=3)
-    draw.text((1460, 960), name, font=font(23, True), fill=PAPER)
-    draw.text((1460, 998), "OğuzDows / Türkiye koleksiyonu", font=font(13), fill="#d2d9dd")
-    return image
-
-
-def istanbul() -> Image.Image:
-    image = landscape_sky("#192438", "#d49b83")
-    d = ImageDraw.Draw(image)
-    d.ellipse((1380, 140, 1620, 380), fill="#e6b791")
-    d.polygon([(0, 595), (210, 570), (400, 598), (760, 555), (1000, 580), (1340, 550), (1660, 500), (1920, 530), (1920, 1080), (0, 1080)], fill="#496476")
-    # Tarihî yarımada silueti ve minareler; ufukta sakin bir çizgi.
-    for x, h in ((1460, 74), (1515, 110), (1645, 104), (1700, 64)):
-        d.rectangle((x, 545 - h, x + 7, 560), fill="#303c50")
-        d.polygon([(x - 3, 545 - h), (x + 3, 526 - h), (x + 10, 545 - h)], fill="#303c50")
-    d.rectangle((1530, 505, 1635, 565), fill="#303c50")
-    d.ellipse((1530, 453, 1635, 555), fill="#303c50")
-    # Boğaz köprüsü.
-    for x in (825, 1275):
-        d.rectangle((x, 370, x + 14, 635), fill="#29384b")
-        d.rectangle((x - 6, 395, x + 20, 407), fill="#29384b")
-    points = [(x, int(388 + 113 * (1 - ((x - 1057) / 225) ** 2))) for x in range(832, 1283, 5)]
-    d.line([(590, 560), (832, 388), *points, (1525, 560)], fill="#e6bf9a", width=3)
-    for x in range(850, 1275, 23):
-        y = int(388 + 113 * (1 - ((x - 1057) / 225) ** 2))
-        d.line((x, y, x, 569), fill="#a2a4a7", width=1)
-    d.line((580, 574, 1540, 574), fill="#29384b", width=10)
-    for y in range(690, 1050, 26):
-        x = 300 + (y * 29) % 670
-        d.line((x, y, x + 230, y), fill="#65818a", width=2)
-    # Kız Kulesi, öndeki küçük adacık.
-    d.ellipse((1190, 811, 1440, 851), fill="#263747")
-    d.rectangle((1260, 736, 1380, 820), fill="#af9584")
-    d.rectangle((1301, 657, 1340, 767), fill="#c4a58b")
-    d.polygon([(1293, 660), (1321, 625), (1348, 660)], fill="#30374a")
-    d.line((1321, 625, 1321, 598), fill="#30374a", width=3)
-    d.rectangle((1313, 686, 1327, 712), fill="#333e4b")
-    d.polygon([(0, 950), (230, 920), (510, 973), (750, 1080), (0, 1080)], fill="#182a3a")
-    return sign_landscape(image, "İSTANBUL / BOĞAZ")
-
-
-def kapadokya() -> Image.Image:
-    image = landscape_sky("#423549", "#f0b88c")
-    d = ImageDraw.Draw(image)
-    d.ellipse((1200, 210, 1440, 450), fill="#f8d7a2")
-    for points, color in [
-        ([(0, 650), (380, 570), (660, 630), (980, 485), (1250, 590), (1610, 470), (1920, 580), (1920, 1080), (0, 1080)], "#b27c74"),
-        ([(0, 790), (330, 710), (770, 790), (1130, 640), (1460, 705), (1770, 600), (1920, 690), (1920, 1080), (0, 1080)], "#8b6265"),
-    ]:
-        d.polygon(points, fill=color)
-    for x, y, h, w in ((640, 890, 250, 90), (840, 900, 330, 110), (1040, 860, 210, 90), (1250, 940, 380, 120), (1510, 930, 270, 100), (1730, 920, 350, 115)):
-        d.polygon([(x - w, y), (x - w * .35, y - h * .75), (x, y - h), (x + w * .3, y - h * .75), (x + w, y)], fill="#d8a080")
-        d.polygon([(x, y - h), (x + w * .3, y - h * .75), (x + w, y), (x + 15, y)], fill="#a36e64")
-        d.polygon([(x - w * .6, y - h * .76), (x - 4, y - h - 14), (x + w * .6, y - h * .76)], fill="#5d4851")
-        d.rounded_rectangle((x - 8, y - 95, x + 10, y - 64), radius=8, fill="#59454b")
-    for x, y, r, color in ((990, 275, 40, RED), (1550, 335, 28, "#e5b07e"), (720, 390, 20, "#395d6b"), (1750, 200, 23, "#a44e5b")):
-        d.ellipse((x - r, y - r, x + r, y + r), fill=color)
-        d.polygon([(x - r * .8, y + r * .55), (x - 6, y + r * 1.5), (x + 6, y + r * 1.5), (x + r * .8, y + r * .55)], fill=color)
-        d.line((x - 7, y + r * 1.4, x - 5, y + r * 1.8), fill="#56454f", width=2)
-        d.line((x + 7, y + r * 1.4, x + 5, y + r * 1.8), fill="#56454f", width=2)
-        d.rectangle((x - 6, y + r * 1.8, x + 6, y + r * 1.95), fill="#56454f")
-    d.polygon([(0, 920), (480, 860), (850, 995), (1150, 1080), (0, 1080)], fill="#4a3949")
-    return sign_landscape(image, "KAPADOKYA / ŞAFAK")
-
-
-def pamukkale() -> Image.Image:
-    image = landscape_sky("#183c52", "#9bbdbe")
-    d = ImageDraw.Draw(image)
-    d.ellipse((1430, 150, 1610, 330), fill="#e5dbb5")
-    d.polygon([(0, 580), (300, 490), (600, 570), (970, 435), (1310, 530), (1640, 420), (1920, 500), (1920, 1080), (0, 1080)], fill="#4a777e")
-    # Traverten basamakları: beyaz kalsit kıyıları, turkuaz su aynaları.
-    for index in range(9):
-        y = 530 + index * 69
-        edge = [(x, int(y + 34 * math.sin(x / 270 + index * .6))) for x in range(-50, 1980, 12)]
-        d.polygon([*edge, (1980, 1080), (-50, 1080)], fill="#eee4ce" if index % 2 else "#d9d8cb")
-        water = [(x, yy + 12) for x, yy in edge]
-        lower = [(x, yy + 35 + index * 2) for x, yy in reversed(edge)]
-        d.polygon([*water, *lower], fill="#61b6b9" if index % 2 else "#4798a5")
-        d.line(edge, fill="#fff4dc", width=7)
-    d.polygon([(0, 550), (130, 650), (250, 930), (600, 1080), (0, 1080)], fill="#294d5e")
-    # Basit gölge, beyaz yüzey üzerinde alttaki yazıların kontrastını korur.
-    d.polygon([(1370, 905), (1920, 880), (1920, 1080), (1370, 1080)], fill="#234956")
-    return sign_landscape(image, "PAMUKKALE / TRAVERTEN")
-
-
-def kackar() -> Image.Image:
-    image = landscape_sky("#172c43", "#9bc1bb")
-    d = ImageDraw.Draw(image)
-    d.ellipse((1440, 140, 1600, 300), fill="#dce2cf")
-    d.polygon([(0, 740), (240, 560), (520, 660), (860, 310), (1200, 630), (1450, 370), (1920, 690), (1920, 1080), (0, 1080)], fill="#627e89")
-    d.polygon([(678, 500), (860, 310), (1050, 490), (920, 457), (852, 407), (795, 490), (755, 452)], fill="#d4dfd9")
-    d.polygon([(1340, 474), (1450, 370), (1600, 475), (1500, 445), (1450, 421), (1395, 474)], fill="#c7d9d6")
-    d.polygon([(0, 820), (420, 530), (780, 880), (1190, 620), (1510, 830), (1920, 650), (1920, 1080), (0, 1080)], fill="#2c6265")
-    d.polygon([(0, 860), (380, 740), (800, 920), (1280, 760), (1920, 910), (1920, 1080), (0, 1080)], fill="#397376")
-    d.polygon([(0, 1050), (400, 840), (820, 1060), (1390, 870), (1920, 1020), (1920, 1080), (0, 1080)], fill="#153f4b")
-    for x in range(20, 1420, 52):
-        y = 1010 + int(40 * math.sin(x / 160))
-        h = 50 + (x * 7) % 85
-        d.rectangle((x - 2, y - 20, x + 2, y + 15), fill="#152f3b")
-        d.polygon([(x, y - h), (x - 26, y), (x + 26, y)], fill="#163b46")
-    return sign_landscape(image, "KAÇKAR / YAYLALAR")
-
-
-def anadolu() -> Image.Image:
-    image = landscape_sky("#191b2b", "#262338")
-    d = ImageDraw.Draw(image)
-    colors = ("#a7354a", "#e1bb83", "#3e9395", "#795060")
-    # Elibelinde ve baklava ritminden esinlenen özgün, geometrik bir yorum.
-    for column in range(7):
-        x = 690 + column * 195
-        for row in range(-1, 6):
-            y = row * 230 + (column % 2) * 115
-            color = colors[(row + column) % len(colors)]
-            d.polygon([(x, y - 85), (x + 72, y), (x, y + 85), (x - 72, y)], outline=color, width=6)
-            d.polygon([(x, y - 47), (x + 39, y), (x, y + 47), (x - 39, y)], fill=color)
-            d.line([(x - 88, y - 54), (x - 110, y - 31), (x - 88, y), (x - 110, y + 31), (x - 88, y + 54)], fill=color, width=4)
-    # Deseni sağda yoğunlaştır; masaüstü simgelerinin solu sakin kalır.
-    shade = Image.new("RGBA", image.size)
-    sd = ImageDraw.Draw(shade)
-    for x in range(1920):
-        sd.line((x, 0, x, 1080), fill=(19, 22, 32, max(0, int(220 * (1 - x / 1200)))))
-    image = Image.alpha_composite(image.convert("RGBA"), shade).convert("RGB")
-    d = ImageDraw.Draw(image)
-    d.rectangle((1400, 925, 1900, 1045), fill="#191d2d")
-    return sign_landscape(image, "ANADOLU / KİLİM")
-
-
 def render_wallpapers(root: Path) -> None:
+    # Eski çizimler emekli edildi. JPEG'ler bir kez, prepare-landscapes.py ile
+    # sağ altta markalanır; her derlemede tekrar logo / JPEG kaybı eklenmez.
     entries = []
     gallery = (
-        ("ay-yildiz", "Ay Yıldız", "wallpaper.png", wallpaper),
-        ("istanbul", "İstanbul · Boğaz", "istanbul.png", istanbul),
-        ("kapadokya", "Kapadokya · Şafak", "kapadokya.png", kapadokya),
-        ("pamukkale", "Pamukkale · Traverten", "pamukkale.png", pamukkale),
-        ("kackar", "Kaçkar · Yaylalar", "kackar.png", kackar),
-        ("anadolu", "Anadolu · Kilim", "anadolu.png", anadolu),
-    )
-    for identifier, name, filename, factory in gallery:
-        image = factory()
-        path = "/usr/share/backgrounds/oguzdows/" + filename
-        preview = "/usr/share/oguzdows/wallpaper-previews/" + filename
-        save(image, root, path)
-        save(image.resize((320, 180), Image.Resampling.LANCZOS), root, preview)
-        entries.append({"id": identifier, "name": name, "path": path, "preview": preview})
-    photographs = (
         ("bogaz-sabahi", "Boğaz · Sabah Işığı"),
         ("kackar-sisi", "Kaçkar · Sis Denizinde"),
         ("kapadokya-isigi", "Kapadokya · Gün Doğumu"),
@@ -266,7 +88,7 @@ def render_wallpapers(root: Path) -> None:
         ("tuz-golu-aksami", "Tuz Gölü · Akşam Aynası"),
         ("ani-kisi", "Ani · Kış Sessizliği"),
     )
-    for identifier, name in photographs:
+    for identifier, name in gallery:
         relative = "usr/share/backgrounds/oguzdows/" + identifier + ".jpg"
         source = root / relative
         if not source.is_file():
@@ -276,10 +98,17 @@ def render_wallpapers(root: Path) -> None:
         if source.resolve() != target_image.resolve():
             shutil.copyfile(source, target_image)
         with Image.open(source) as image:
+            if image.size != (1920, 1080):
+                raise ValueError("Paketlenen manzara boyutu yanlış: " + identifier)
             preview = "/usr/share/oguzdows/wallpaper-previews/" + identifier + ".jpg"
             save(image.resize((320, 180), Image.Resampling.LANCZOS), root, preview)
-        entries.append({"id": identifier, "name": name, "path": "/" + relative, "preview": preview, "origin": "AI-generated"})
+            if identifier == 'bogaz-sabahi':
+                # Pi / eski ayarlar bu yolu kullanır; içerik yeni manzaradır.
+                save(image.copy(), root, "/usr/share/backgrounds/oguzdows/wallpaper.png")
+        entries.append({"id": identifier, "name": name, "path": "/" + relative,
+                        "preview": preview, "origin": "AI-generated", "logo": "bottom-right"})
     target = root / "usr/share/oguzdows/wallpapers.json"
+    target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(json.dumps(entries, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
 
@@ -424,9 +253,84 @@ def render_nazar(root: Path) -> None:
     (base / "index.theme").write_text(index, encoding="utf-8")
 
 
+def cursor_frame(size: int, phase: int, role: str = 'pointer') -> Image.Image:
+    """Tespih tanesi vurgusu döner; nişangâh / tıklama noktası sabittir."""
+    n = 96
+    image = Image.new('RGBA', (n, n))
+    draw = ImageDraw.Draw(image)
+    # Boncuklar ilmek üzerinde ilerler, ilmek hafifçe sallanır; ok / hotspot
+    # yerinde kalır. Sadece renk yanıp sönmesi değil, gerçek küçük konum farkı.
+    sway = 3 * math.sin(phase * 2 * math.pi / 10)
+    points = [(64 + sway + 20 * math.cos((i + phase / 10) * 2 * math.pi / 10),
+               48 + 26 * math.sin((i + phase / 10) * 2 * math.pi / 10)) for i in range(10)]
+    draw.line(points + [points[0]], fill='#30241e', width=5)
+    for index, (x, y) in enumerate(points):
+        radius = 7 if role != 'busy' else 8
+        draw.ellipse((x-radius, y-radius, x+radius, y+radius), fill='#e6ae55' if index == phase % 10 else '#97512f', outline='#fff1d5', width=2)
+        draw.ellipse((x-3, y-4, x, y-1), fill='#ffe6af')
+    draw.line([(64 + sway, 75), (64 + sway, 84), (56 + sway, 92)], fill='#503326', width=4)
+    draw.line([(64 + sway, 84), (68 + sway, 92)], fill='#e6ae55', width=3)
+    if role == 'text':
+        draw.line([(17, 9), (33, 9), (25, 9), (25, 67), (17, 67), (33, 67)], fill='#17202b', width=9)
+        draw.line([(17, 9), (33, 9), (25, 9), (25, 67), (17, 67), (33, 67)], fill=PAPER, width=4)
+    elif role == 'link':
+        draw.rounded_rectangle((12, 26, 43, 65), radius=8, fill=PAPER, outline='#17202b', width=3)
+        draw.rounded_rectangle((13, 4, 24, 48), radius=5, fill=PAPER, outline='#17202b', width=3)
+        draw.line((28, 30, 28, 47), fill='#17202b', width=3)
+        draw.line((36, 34, 36, 47), fill='#17202b', width=3)
+    elif role != 'busy':
+        draw.polygon([(7, 4), (7, 66), (22, 51), (34, 76), (45, 71), (33, 47), (54, 47)], fill=PAPER, outline='#17202b', width=4)
+    return image.resize((size, size), Image.Resampling.LANCZOS)
+
+
+def xcursor_bytes(frames):
+    """Xcursor v1: TOC + 36 bayt image başlığı + premultiplied ARGB32."""
+    chunks, table = [], []
+    position = 16 + len(frames) * 12
+    for image, nominal, hotspot, delay in frames:
+        width, height = image.size
+        chunk = struct.pack('<9I', 36, 0xfffd0002, nominal, 1, width, height, *hotspot, delay)
+        for r, g, b, a in struct.iter_unpack('4B', image.convert('RGBA').tobytes()):
+            chunk += struct.pack('<I', (a << 24) | ((r*a//255) << 16) | ((g*a//255) << 8) | (b*a//255))
+        table.append(struct.pack('<3I', 0xfffd0002, nominal, position))
+        chunks.append(chunk)
+        position += len(chunk)
+    return struct.pack('<4I', 0x72756358, 16, 0x00010000, len(frames)) + b''.join(table + chunks)
+
+
+def render_cursor(root: Path) -> None:
+    base = root / 'usr/share/icons/OguzDowsTespih'
+    cursors = base / 'cursors'
+    cursors.mkdir(parents=True, exist_ok=True)
+    (base / 'index.theme').write_text('[Icon Theme]\nName=OğuzDows Tespih\nComment=Yerel hareketli tespih; sürekli uygulama gerektirmez\nInherits=Adwaita\n', encoding='utf-8')
+    for name, role, animated in (('left_ptr', 'pointer', True), ('hand2', 'link', True),
+                                  ('watch', 'busy', True), ('left_ptr_watch', 'pointer', True),
+                                  ('xterm', 'text', False)):
+        frames = []
+        for size in (24, 32, 48):
+            hotspot = (max(1, round(size * .07)), max(1, round(size * .04)))
+            if role == 'text':
+                hotspot = (round(size * 25/96), round(size * 38/96))
+            elif role == 'link':
+                hotspot = (round(size * 18/96), round(size * 4/96))
+            elif role == 'busy':
+                hotspot = (size // 2, size // 2)
+            frames.extend((cursor_frame(size, frame, role), size, hotspot, 120)
+                          for frame in range(10 if animated else 1))
+        (cursors / name).write_bytes(xcursor_bytes(frames))
+    for alias, name in {'default': 'left_ptr', 'arrow': 'left_ptr', 'top_left_arrow': 'left_ptr',
+                         'pointer': 'hand2', 'hand': 'hand2', 'pointing_hand': 'hand2',
+                         'wait': 'watch', 'progress': 'left_ptr_watch', 'text': 'xterm'}.items():
+        path = cursors / alias
+        if path.is_symlink() or path.is_file():
+            path.unlink()
+        path.symlink_to(name)
+
+
 def render(root: Path) -> None:
     render_wallpapers(root)
     render_nazar(root)
+    render_cursor(root)
     source = Path(__file__).resolve().parents[1] / "system/usr/share/oguzdows/rifki"
     target = root / "usr/share/oguzdows/rifki"
     if source.is_dir() and source.resolve() != target.resolve():

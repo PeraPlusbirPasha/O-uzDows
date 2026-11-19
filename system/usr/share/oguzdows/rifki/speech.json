@@ -2,18 +2,19 @@
   "25974694aa713be6fabbd374151963608645dd7afc54f409c3a6558dd650daae": "topic-boot.wav",
   "1b81d522c11348aa088fcfc5c1fc7544e4e0e9e236c346346aa11f874a72c7fa": "topic-network.wav",
   "acc2ff915e84403a2c00b45d4afa191c3b162859e0bdf4153ea8d9415d3147eb": "topic-drivers.wav",
-  "88aab4d27c7182164216b9ea9fa7632a048d9af964059428aef23a7ab00f6718": "topic-wallpapers.wav",
   "ca0722056e5db5e0a23caae709d127bb941ffb9734d74d4d3c2f240a394f8244": "topic-battery.wav",
   "80b5b8b31c463033fff89510639ba3d63eb45fbae170dfd552c8d441b631fa8d": "topic-install.wav",
   "f7cf7bdefe275f504b787cfbbb7622cd5ccfb182d90857ab77e3cad7334b6e9f": "topic-disk.wav",
   "5d367113a50dbd61971dcb1068a0d93beaf825adc0bfe3ce0c848c8487a51b24": "topic-help.wav",
   "c72e1509d9578f25abbfdfe26515ff05311d0690fe6662ef1708b0dcf344947c": "panel-welcome.wav",
   "6c19252cd93c7599573e3cbfbde8440252eb905fb3c36096d42ef75c0b247fff": "panel-hardware.wav",
-  "04f34db163d6dd2d9ba29e4409deda35bee6c766afb13fd4221062a4f4ed5748": "panel-wallpapers.wav",
   "ba766ef7bc7354efcfb1a1c4ddde382c1afa4061f1b69e7d8267b6825da7a206": "panel-settings-light.wav",
   "68e28bf3271720a63383818fa861d4f488565bce88f6b401f26edfd66fbf9220": "intro-light.wav",
   "3224881ef9f0415c7898c40e583bd98922b6cc9b4533dc79f624889df5906119": "light-note.wav",
   "095f96da4c91f392e4bbcbcb35beb3b12dbfec3951edcb3e9e0a9e91847a65cf": "stage-preparing.wav",
   "259107d5c758d3d1235657dc59d2b43d5397a7ad8a94d5f407974859858e1564": "stage-ready.wav",
-  "1640237ec3cfb8f06d5435d6f4b228540589ac53e11a91e2a7f4d2d424ead371": "stage-boot.wav"
+  "1640237ec3cfb8f06d5435d6f4b228540589ac53e11a91e2a7f4d2d424ead371": "stage-boot.wav",
+  "9fa113ccb6984232eb188ec6118db6325445f21875ad94681879c7061795a991": "panel-wallpapers.wav",
+  "e7a4606568ad630faff171fbc5cb82a6f19d2e19f47128f224794ed833db7984": "topic-wallpapers.wav",
+  "a3b777e8e2b388d7004c8d3d7ba8a20cdbe256505bbd142c36cf12831e564062": "panel-styles.wav"
 }

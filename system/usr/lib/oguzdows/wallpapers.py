@@ -10,6 +10,9 @@ import sys
 from pathlib import Path
 
 CATALOG = Path("/usr/share/oguzdows/wallpapers.json")
+DEFAULT = 'bogaz-sabahi'
+LEGACY = {'ay-yildiz': DEFAULT, 'istanbul': DEFAULT, 'kapadokya': 'kapadokya-isigi',
+          'pamukkale': 'oludeniz-kiyisi', 'kackar': 'kackar-sisi', 'anadolu': 'tuz-golu-aksami'}
 
 
 def catalog(path: Path = CATALOG) -> list[dict]:
@@ -61,12 +64,19 @@ def apply(identifier: str, items=None, state: Path | None = None) -> None:
     temporary.replace(path)
 
 
+def initialize():
+    # Sadece ilk giriş / emekliye ayrılan çizimden geçiş. Geçerli seçim veya
+    # kullanıcının Xfce'den seçtiği başka görsel her girişte zorlanmaz.
+    path = state_path()
+    selected = path.read_text().strip() if path.exists() else None
+    if selected is None or selected in LEGACY:
+        apply(LEGACY.get(selected, DEFAULT))
+
+
 if __name__ == "__main__":
     if sys.argv[1:] != ["--initialize"]:
         raise SystemExit("Kullanım: wallpapers.py --initialize")
-    # Her girişte varsayılanı zorlamak, kullanıcının yeni seçimini siliyordu.
-    if not state_path().exists():
-        try:
-            apply("ay-yildiz")
-        except (OSError, ValueError, RuntimeError, subprocess.TimeoutExpired) as error:
-            print(f"OğuzDows duvar kâğıdı: {error}", file=sys.stderr)
+    try:
+        initialize()
+    except (OSError, ValueError, RuntimeError, subprocess.TimeoutExpired) as error:
+        print(f"OğuzDows duvar kâğıdı: {error}", file=sys.stderr)

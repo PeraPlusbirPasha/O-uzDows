@@ -6,10 +6,11 @@
     <property name="EnableEventSounds" type="bool" value="false"/>
   </property>
   <property name="Gtk" type="empty">
-    <property name="CursorThemeName" type="string" value="Adwaita"/>
+    <property name="CursorThemeName" type="string" value="OguzDowsTespih"/>
+    <property name="CursorThemeSize" type="int" value="32"/>
     <property name="FontName" type="string" value="Inter 10"/>
     <property name="MonospaceFontName" type="string" value="DejaVu Sans Mono 10"/>
-    <property name="EnableAnimations" type="bool" value="true"/>
+    <property name="EnableAnimations" type="bool" value="false"/>
     <property name="DecorationLayout" type="string" value="menu:minimize,maximize,close"/>
   </property>
   <property name="Xft" type="empty">

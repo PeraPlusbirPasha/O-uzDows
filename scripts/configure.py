@@ -79,6 +79,9 @@ def configure(arch: str, output: Path) -> None:
     plymouth = overlay / "usr/share/plymouth/themes/oguzdows"
     shutil.copytree(ROOT / "boot", plymouth, dirs_exist_ok=True)
     shutil.copytree(ROOT / "assets", overlay / "usr/share/oguzdows/assets", dirs_exist_ok=True)
+    documentation = overlay / "usr/share/doc/oguzdows"
+    documentation.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(ROOT / "docs/MASAUSTU-VE-BAKIM.md", documentation / "masaustu-ve-bakim.md")
     shutil.copy2(ROOT / "scripts/render-assets.py", overlay / "usr/lib/oguzdows/render-assets.py")
 
     # Paketlerin önerilen ayar paketlerinden marka/config taşınmasına izin verme.

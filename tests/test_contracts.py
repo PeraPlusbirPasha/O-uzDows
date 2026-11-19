@@ -27,9 +27,14 @@ class ContractsTests(unittest.TestCase):
             for path in (ROOT / directory).rglob("*"):
                 if not path.is_file() or "__pycache__" in path.parts or path.suffix in {".png", ".jpg", ".wav"}:
                     continue
-                text = path.read_text().replace("DEBIAN_FRONTEND", "PACKAGE_FRONTEND").lower()
+                text = path.read_text().replace('DEBIAN_FRONTEND', 'PACKAGE_FRONTEND').lower()
+                # İmzalı APT Origin alanı ve açık depo kökeni teknik gerçektir;
+                # bunları markalamak imza / taban sürümü denetimini bozar.
+                provenance = {'system/usr/lib/oguzdows/maintenance.py', 'system/usr/lib/oguzdows/updater.py'}
+                technical = str(path.relative_to(ROOT)) in provenance or '/usr/share/doc/oguzdows/' in str(path)
                 with self.subTest(path=path.relative_to(ROOT)):
-                    self.assertNotIn("debian", text)
+                    if not technical:
+                        self.assertNotIn('debian', text)
                     self.assertNotIn("whitesur", text)
                     self.assertNotIn("macos", text)
 

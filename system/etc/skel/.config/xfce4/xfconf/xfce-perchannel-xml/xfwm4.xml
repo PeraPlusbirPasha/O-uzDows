@@ -5,7 +5,7 @@
     <property name="title_font" type="string" value="Inter Semi-Bold 10"/>
     <property name="button_layout" type="string" value="O|HMC"/>
     <property name="title_alignment" type="string" value="left"/>
-    <property name="use_compositing" type="bool" value="true"/>
+    <property name="use_compositing" type="bool" value="false"/>
     <property name="show_frame_shadow" type="bool" value="true"/>
     <property name="show_popup_shadow" type="bool" value="false"/>
     <property name="shadow_opacity" type="int" value="25"/>
