@@ -9,6 +9,7 @@ class X11Windows:
         self.connection = display.Display()
         self.root = self.connection.screen().root
         self.clients = self.connection.intern_atom('_NET_CLIENT_LIST')
+        self.supporting = self.connection.intern_atom('_NET_SUPPORTING_WM_CHECK')
         self.application = self.connection.intern_atom('_GTK_APPLICATION_ID')
         self.root.change_attributes(event_mask=X.PropertyChangeMask | X.SubstructureNotifyMask)
         self.connection.flush()
@@ -29,6 +30,11 @@ class X11Windows:
         # de tutar. Unmap olayını doğrudan kapatma saymak HATALI olurdu.
         clients = self.root.get_full_property(self.clients, self.X.AnyPropertyType)
         if clients is None:
+            # Xfwm ilk pencereden önce boş liste özelliğini hiç oluşturmuyor.
+            # Destekleyen WM varsa bu sadece sıfır istemcidir; WM yoksa ise
+            # durumu bilinmiyor say ve görünür, elle çıkış kontrolüne dön.
+            if self.root.get_full_property(self.supporting, self.X.AnyPropertyType) is not None:
+                return []
             raise RuntimeError('Pencere yöneticisinin EWMH istemci listesi yok.')
         found = []
         for identifier in clients.value:

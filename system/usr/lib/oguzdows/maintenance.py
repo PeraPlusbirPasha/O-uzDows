@@ -120,9 +120,12 @@ def parse_plan(text):
     changes = []
     for line in text.splitlines():
         if line.startswith('Inst '):
-            match = re.fullmatch(r'Inst ([a-z0-9][a-z0-9+.-]*(?::[a-z0-9]+)?) (?:\[[^\]]+\] )?\(([^\s()]+) .+\)', line)
+            # APT bazı ara bağımlılık durumlarını kapanış parantezinden sonra
+            # [] / [paket:amd64 ] ile gösterir. Bu tanı eki paket / sürümün
+            # parçası değildir; gerçek aday ve imzalı köken yine denetlenir.
+            match = re.fullmatch(r'Inst ([a-z0-9][a-z0-9+.-]*(?::[a-z0-9]+)?) (?:\[[^\]]+\] )?\(([^\s()]+) .+\)(?: \[[^\]\r\n]*\])*', line)
             if not match:
-                raise MaintenanceError('APT planındaki paket / sürüm biçimi tanınmadı; işlem yapılmadı.')
+                raise MaintenanceError('APT planındaki paket / sürüm biçimi tanınmadı; işlem yapılmadı.\nTeknik satır: ' + line[:350])
             changes.append({'package': match[1], 'version': match[2], 'detail': line})
     return changes
 

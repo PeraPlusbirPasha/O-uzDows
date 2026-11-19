@@ -179,11 +179,14 @@ class StoreTests(unittest.TestCase):
     def test_x11_requires_ewmh_and_only_matches_exact_software_identity(self):
         monitor = lifecycle.X11Windows.__new__(lifecycle.X11Windows)
         monitor.X, monitor.error = NS(AnyPropertyType=0), NS(XError=RuntimeError)
-        monitor.clients, monitor.application = 1, 2
+        monitor.clients, monitor.application, monitor.supporting = 1, 2, 3
         monitor.root, monitor.connection = Mock(), Mock()
         monitor.root.get_full_property.return_value = None
         with self.assertRaisesRegex(RuntimeError, 'EWMH'):
             monitor.windows()
+        monitor.root.get_full_property.side_effect = lambda atom, _kind: NS(value=[123]) if atom == monitor.supporting else None
+        self.assertEqual(monitor.windows(), [])
+        monitor.root.get_full_property.side_effect = None
         monitor.root.get_full_property.return_value = NS(value=[5, 6, 7])
         objects = {}
         for identifier, app, classes in ((5, None, ('gnome-software', 'Gnome-software')),

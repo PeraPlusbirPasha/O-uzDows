@@ -82,7 +82,11 @@ class MaintenanceTests(unittest.TestCase):
     def test_plan_parsing_is_strict_about_removal_and_version_format(self):
         self.assertEqual(core.parse_plan(PLAN)[0]['version'], '2')
         self.assertEqual(core.parse_plan('0 upgraded, 0 newly installed.\n'), [])
-        for text in (PLAN + 'Remv important [1]\n', 'Inst -o (1 repo [all])', 'Inst broken output', 'Inst bad/name (1 repo [all])'):
+        for suffix in (' []', ' [other:amd64 ]', ' [libfoo:amd64 ] [libbar:amd64 ]'):
+            parsed = core.parse_plan(PLAN.splitlines()[1] + suffix + '\n')
+            self.assertEqual((parsed[0]['package'], parsed[0]['version']), ('firmware-realtek', '2'))
+        for text in (PLAN + 'Remv important [1]\n', 'Inst -o (1 repo [all])', 'Inst broken output', 'Inst bad/name (1 repo [all])',
+                     'Inst valid (1 repo [all]) arbitrary trailing text'):
             with self.subTest(text=text), self.assertRaises(core.MaintenanceError):
                 core.parse_plan(text)
 

@@ -14,6 +14,7 @@ from pathlib import Path
 import gi
 
 gi.require_version('Gtk', '3.0')
+gi.require_version('Gdk', '3.0')
 gi.require_version('GdkX11', '3.0')
 from gi.repository import Gdk, GdkX11, Gio, GLib, Gtk
 from Xlib import X
@@ -35,7 +36,7 @@ def main():
     lifecycle = load('native_store_lifecycle', 'system/usr/lib/oguzdows/store_lifecycle.py')
     with tempfile.TemporaryDirectory(prefix='oguzdows-store-native-') as directory:
         os.environ.update(XDG_CONFIG_HOME=directory, XDG_STATE_HOME=directory,
-                          XDG_CACHE_HOME=directory, GSETTINGS_BACKEND='keyfile',
+                          XDG_CACHE_HOME=directory, GSETTINGS_BACKEND='keyfile', GSK_RENDERER='cairo',
                           GNOME_SOFTWARE_PLUGINS_ALLOWLIST='appstream,flatpak,icons,key-colors,provenance,provenance-license')
         # İnceleme servisine gönderim / ilk açılış tanıtımı bu ömür testinin işi değil.
         for key, value in (('first-run', 'false'), ('review-server', "''")):
@@ -60,13 +61,14 @@ def main():
                 try:
                     phase['ticks'] += 1
                     if phase['ticks'] > 600:
-                        raise AssertionError('Gerçek mağaza ömür testi 120 saniyeyi aştı: ' + phase['name'])
+                        raise AssertionError('Gerçek mağaza ömür testi 120 saniyeyi aştı: ' + phase['name'] + ' · ' + phase.get('last_wm_error', ''))
                     if phase['name'] == 'waiting-wm':
                         try:
                             if monitor is None:
                                 monitor = lifecycle.X11Windows()
                             monitor.windows()
-                        except Exception:
+                        except Exception as error:
+                            phase['last_wm_error'] = str(error)
                             return GLib.SOURCE_CONTINUE
                         wrapper = subprocess.Popen(['/usr/bin/python3', '-I', str(ROOT / 'system/usr/lib/oguzdows/store.py'), '--updates'],
                             stdout=shop_log, stderr=subprocess.STDOUT)

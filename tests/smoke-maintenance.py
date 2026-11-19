@@ -26,11 +26,14 @@ def main():
     cache = apt.Cache()
     def execute(command):
         result = subprocess.run(command, env=core.ENV, capture_output=True, text=True, errors='replace', check=False, timeout=180)
+        if command[0] == '/usr/bin/apt-get':
+            (args.output / ('apt-plan-' + request.replace(':', '-') + '.log')).write_text(result.stdout + result.stderr)
         if result.returncode:
             raise core.MaintenanceError(result.stdout[-3000:] + result.stderr[-3000:])
         return result.stdout + result.stderr
     requests = ['upgrade'] + (['desktop:kde', 'desktop:gnome'] if args.suite == 'trixie' else [])
     for request in requests:
+        print('Gerçek APT planı: ' + request, flush=True)
         plan = core.make_plan(request, info, execute, cache)
         report['plans'][request] = {'changes': len(plan['changes']), 'token': plan['token'], 'all_origins_verified': True}
         (args.output / ('apt-plan-' + request.replace(':', '-') + '.log')).write_text(plan['detail'])
