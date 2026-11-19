@@ -65,6 +65,12 @@ Bunlar diski yeniden bölümlemez; eksik kanıtta başarı verilmesini engeller.
 
 PC `build-info.json` artık `source_revision` ve `source_dirty` içerir. Git / güvenilir kaynak kimliği bulunamazsa commit uydurulmaz; `unknown` yazılır. Git çalışma ağacı durumu belirlenemiyorsa `source_dirty: null` kalır; `false` (temiz) diye sunulmaz. ISO testi beklenen commit / mimari eşleşmesini zorunlu tutar ve bilinen kirli kaynağı reddeder; `null` durumunu ise açık bir sınır notuyla kaydeder. Başlatıcı bu bilgiyi günlüğün başına da yazar. Böylece aynı dosya adına sahip eski USB ile yeni kaynağı karıştırmak daha kolay fark edilir.
 
+### 4. Calamares 3.2 / 3.3 servis biçimi aynı değil
+
+İnceleme sırasında `services-systemd.conf` için ayrı bir uyumsuzluk bulundu: [3.2.61 kodu](https://github.com/calamares/calamares/blob/v3.2.61/src/modules/services-systemd/main.py) `services` / `disable` anahtarlarını okurken [3.3.14 kodu](https://github.com/calamares/calamares/blob/v3.3.14/src/modules/services-systemd/main.py) yalnızca `units` okur. Ortak eski dosya trixie'de sessizce hiçbir servis işlemi üretmiyordu. Bu, işlemi durduran bir hata olarak sunulmaz; servisler ISO kancasında zaten etkinleştirilir.
+
+Bookworm biçimi korunur; trixie için `installer/overrides/trixie/services-systemd.conf` uygulanır. Etkinleştirilecek aynı dört servis ve önceki nonfatal politika korunur; masaüstü tercihi değişmez. Yeni test, iki tabanlı CI'de **gerçek kurulu Calamares Python işini** sahte `target_env_call` ile çalıştırıp dört beklenen komutun gerçekten üretildiğini sınar. Bu test fiziksel sisteme veya `systemctl`'e çağrı yapmaz; yapılandırmanın sessizce yok sayılmasını yakalar.
+
 ## Yeni testin yaptığı ve yapmadığı
 
 `tests/smoke-iso-target.py`, yalnızca ayrıcalıklı ve tek kullanımlık CI konteynerinde çalışır:
@@ -87,7 +93,7 @@ PC `build-info.json` artık `source_revision` ve `source_dirty` içerir. Git / g
 
 ## Son cihaz hatası için gereken kanıt
 
-Fotoğraf ve hangi ISO'nun USB'ye yazıldığı ilk adımdır. Canlı oturumda terminal açılabiliyorsa yalnızca aşağıdaki salt-okunur çıktılar istenir:
+Kullanıcının son seçimi: **kurucu açılıyor, hata kurulum işlemi sırasında çıkıyor; işlem tamamlanmıyor**. Dolayısıyla disk açılışı testinin geçmesi bu cihazdaki hatayı tek başına açıklamaz. Öncelik hata penceresinin tamamı, durduğu modül, günlük ve hangi ISO'nun USB'ye yazıldığıdır. Canlı oturumda terminal açılabiliyorsa yalnızca aşağıdaki salt-okunur çıktılar istenir:
 
 ```sh
 cat /usr/share/oguzdows/build-info.json

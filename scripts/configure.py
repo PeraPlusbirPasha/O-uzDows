@@ -67,6 +67,12 @@ def configure(arch: str, output: Path) -> None:
                     ignore=shutil.ignore_patterns("__pycache__", "*.py[cod]", "rifki_pet.py", "rifki_scene.py", "rifki_motion.py", "rig", "envelopes.json", "intro-full.wav", "hello.wav", "help.wav", "disk.wav", "talk-blink.png"))
     shutil.copytree(ROOT / "installer" / "modules", overlay / "etc/calamares/modules", dirs_exist_ok=True,
                     ignore=shutil.ignore_patterns("__pycache__", "*.py[cod]"))
+    # Bookworm Calamares 3.2 ile trixie 3.3 bazı anahtarları farklı okur.
+    # Ortak masaüstü tercihlerini değil yalnızca sürüme özel kurucu biçimini değiştir.
+    overrides = ROOT / "installer/overrides" / info["suite"]
+    if overrides.is_dir():
+        shutil.copytree(overrides, overlay / "etc/calamares/modules", dirs_exist_ok=True,
+                        ignore=shutil.ignore_patterns("__pycache__", "*.py[cod]"))
     shutil.copy2(ROOT / "installer/settings.conf", overlay / "etc/calamares/settings.conf")
     branding = overlay / "usr/share/calamares/branding/oguzdows"
     shutil.copytree(ROOT / "installer/branding", branding, dirs_exist_ok=True)
