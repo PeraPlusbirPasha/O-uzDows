@@ -32,12 +32,22 @@ def main():
     errors = []
     report = {'real_gnome_software': True, 'real_isolated_launcher': True, 'real_xfwm': True,
               'remote_added': False, 'package_installation_tested': False, 'packagekit_exercised': False,
-              'consent_preanswered_for_lifecycle_test': True}
+              'consent_preanswered_for_lifecycle_test': True, 'private_system_bus_without_services': True}
     lifecycle = load('native_store_lifecycle', 'system/usr/lib/oguzdows/store_lifecycle.py')
-    with tempfile.TemporaryDirectory(prefix='oguzdows-store-native-') as directory:
+    with tempfile.TemporaryDirectory(prefix='oguzdows-store-native-', ignore_cleanup_errors=True) as directory:
         os.environ.update(XDG_CONFIG_HOME=directory, XDG_STATE_HOME=directory,
                           XDG_CACHE_HOME=directory, GSETTINGS_BACKEND='keyfile', GSK_RENDERER='cairo',
+                          GTK_A11Y='none', MESA_SHADER_CACHE_DISABLE='true',
                           GNOME_SOFTWARE_PLUGINS_ALLOWLIST='appstream,flatpak,icons,key-colors,provenance,provenance-license')
+        # Konteynerde systemd/system-bus yoktur. Yalnızca bu testin kendi
+        # UNIX soketi; hiçbir gerçek sistem servisini/paket yöneticisini açmaz.
+        system_socket = Path(directory) / 'system-bus'
+        os.environ['DBUS_SYSTEM_BUS_ADDRESS'] = 'unix:path=' + str(system_socket)
+        bus_config = Path(directory) / 'private-system-bus.conf'
+        bus_config.write_text('<busconfig><type>system</type><listen>' + os.environ['DBUS_SYSTEM_BUS_ADDRESS']
+            + '</listen><auth>EXTERNAL</auth><policy context="default"><allow user="*"/>'
+              '<allow own="*"/><allow send_destination="*"/><allow receive_sender="*"/>'
+              '</policy></busconfig>\n')
         # İnceleme servisine gönderim / ilk açılış tanıtımı bu ömür testinin işi değil.
         for key, value in (('first-run', 'false'), ('review-server', "''")):
             subprocess.run(['gsettings', 'set', 'org.gnome.software', key, value], check=True)
@@ -51,7 +61,8 @@ def main():
                 GLib.VariantType.new('(b)'), Gio.DBusCallFlags.NONE, 3000, None)
             return result.unpack()[0]
         assert not has_owner(), 'Mağaza açılmadan native D-Bus servisi çalışmamalı.'
-        with (args.output / 'store-xfwm.log').open('w') as wm_log, (args.output / 'store-native.log').open('w') as shop_log:
+        with (args.output / 'store-xfwm.log').open('w') as wm_log, (args.output / 'store-native.log').open('w') as shop_log, (args.output / 'store-system-bus.log').open('w') as bus_log:
+            system_bus = subprocess.Popen(['dbus-daemon', '--nofork', '--config-file=' + str(bus_config)], stdout=bus_log, stderr=subprocess.STDOUT)
             wm = subprocess.Popen(['xfwm4', '--compositor=off'], stdout=wm_log, stderr=subprocess.STDOUT)
             wrapper, monitor = None, None
             phase = {'name': 'waiting-wm', 'ticks': 0}
@@ -63,6 +74,10 @@ def main():
                     if phase['ticks'] > 600:
                         raise AssertionError('Gerçek mağaza ömür testi 120 saniyeyi aştı: ' + phase['name'] + ' · ' + phase.get('last_wm_error', ''))
                     if phase['name'] == 'waiting-wm':
+                        if system_bus.poll() is not None:
+                            raise AssertionError('Testin özel system-bus süreci açılamadı.')
+                        if not system_socket.exists():
+                            return GLib.SOURCE_CONTINUE
                         try:
                             if monitor is None:
                                 monitor = lifecycle.X11Windows()
@@ -108,7 +123,7 @@ def main():
                     elif phase['name'] == 'closed-by-window-manager':
                         clients = monitor.root.get_full_property(monitor.clients, X.AnyPropertyType)
                         controls = []
-                        for identifier in clients.value:
+                        for identifier in (clients.value if clients is not None else ()):
                             window = monitor.connection.create_resource_object('window', int(identifier))
                             try:
                                 identity = window.get_full_property(monitor.application, X.AnyPropertyType)
@@ -156,12 +171,16 @@ def main():
                     monitor.close()
                 wm.terminate()
                 wm.wait(timeout=10)
+                system_bus.terminate()
+                system_bus.wait(timeout=10)
+    report['phase'] = phase['name']
     report['errors'] = errors
     (args.output / 'store-native.json').write_text(json.dumps(report, ensure_ascii=False, indent=2) + '\n')
     if errors:
         details = '\n'.join((args.output / name).read_text(errors='replace')[-1800:]
-                            for name in ('store-native.log', 'store-xfwm.log'))
+                            for name in ('store-system-bus.log', 'store-xfwm.log', 'store-native.log'))
         raise AssertionError('\n'.join(errors) + '\nGerçek mağaza günlükleri:\n' + details)
+    print('::notice title=Mağaza gerçek süreç ömrü::' + json.dumps(report, ensure_ascii=False))
     print('Gerçek mağaza küçültülünce açık kaldı; pencere kapatmak iş iptal etmedi. Açık tam çıkıştan sonra native süreç / D-Bus sahibi kalmadı. Paket kurulmadı.')
 
 

@@ -59,7 +59,7 @@ def main():
             report['pardus'] = {'current_signature_verified': False, 'source_enabled': False, 'error': str(error)}
             print('::warning title=Pardus isteğe bağlı kanalı::Güncel çevrimiçi imza doğrulanamadı; kanal kapalı kalır. ' + str(error).replace('\n', ' ')[:800])
     (args.output / 'maintenance-native.json').write_text(json.dumps(report, ensure_ascii=False, indent=2) + '\n')
-    print(json.dumps(report, ensure_ascii=False))
+    print('::notice title=Bakım gerçek APT planları::' + json.dumps(report, ensure_ascii=False))
 
 
 if __name__ == '__main__':
