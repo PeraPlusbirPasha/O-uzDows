@@ -60,20 +60,26 @@ jobs:
             fonts-dejavu-core python3-gi gir1.2-gtk-3.0 xvfb xauth dbus-x11
       - name: Birim / kaynak / hesap güvenliği testleri
         run: |
-          python3 -W error::ResourceWarning -m unittest discover -s tests -p 'test_*.py' -v
-          shellcheck build-pi.sh scripts/verify-pi-image.sh raspberrypi/export-check.sh \
+          python3 scripts/ci-run.py --title 'Pi birim ve kaynak kontrolleri' -- \
+            python3 -W error::ResourceWarning -m unittest discover -s tests -p 'test_*.py' -v
+          python3 scripts/ci-run.py --title 'Pi kabuk betikleri' -- \
+            shellcheck build-pi.sh scripts/verify-pi-image.sh raspberrypi/export-check.sh \
             raspberrypi/stage/prerun.sh raspberrypi/stage/00-desktop/*-run.sh \
             raspberrypi/stage/00-desktop/files/configure-system.sh
-          python3 scripts/configure-pi.py --arch armhf --output /tmp/oguzdows-pi-armhf
-          python3 scripts/configure-pi.py --arch arm64 --output /tmp/oguzdows-pi-arm64
+          python3 scripts/ci-run.py --title 'Pi armhf yapılandırma' -- \
+            python3 scripts/configure-pi.py --arch armhf --output /tmp/oguzdows-pi-armhf
+          python3 scripts/ci-run.py --title 'Pi arm64 yapılandırma' -- \
+            python3 scripts/configure-pi.py --arch arm64 --output /tmp/oguzdows-pi-arm64
       - name: Pi görünümünü gerçek GTK ile aç (host üzerinde, kart testi değil)
         env:
           GSETTINGS_BACKEND: memory
           NO_AT_BRIDGE: '1'
         run: |
           sudo cp -a system/usr/share/themes/OguzDows /usr/share/themes/
-          sudo python3 scripts/render-assets.py --root /
-          xvfb-run -a -s '-screen 0 1024x768x24' dbus-run-session -- \
+          sudo python3 scripts/ci-run.py --title 'Pi tema görselleri' -- \
+            python3 scripts/render-assets.py --root /
+          python3 scripts/ci-run.py --title 'Pi GTK görünümü' -- \
+            xvfb-run -a -s '-screen 0 1024x768x24' dbus-run-session -- \
             python3 tests/smoke-welcome.py --pi --output test-results/pi-ui
       - uses: actions/upload-artifact@v4
         if: always()
