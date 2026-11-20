@@ -21,6 +21,7 @@ from support import ROOT, load
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output", type=Path, default=Path("test-results"))
+    parser.add_argument("--live", action="store_true", help="Canlı PC karşılayıcısını denetle")
     parser.add_argument("--pi", action="store_true", help="Pi sayfa dalını host GTK üzerinde denetle; kart taklidi değildir")
     args = parser.parse_args()
     args.output.mkdir(parents=True, exist_ok=True)
@@ -48,11 +49,13 @@ def main():
             assert icons.load_icon(name, 24, 0).get_width() == 24
         assert icons.lookup_icon("battery-missing-symbolic", 24, 0), "Belirsiz pil durumu için ayrı simge olmalı"
         assert icons.lookup_icon("ac-adapter-symbolic", 24, 0), "Pilsiz AC durumu için ayrı fiş simgesi olmalı"
-        provider = Gtk.CssProvider()
-        provider.load_from_path(str(ROOT / "system/usr/share/themes/OguzDows/gtk-3.0/gtk.css"))
+        for name in ('OguzDows', 'OguzDowsLight', 'OguzDowsXP', 'OguzDowsXPDark'):
+            provider = Gtk.CssProvider()
+            provider.load_from_path(str(ROOT / 'system/usr/share/themes' / name / 'gtk-3.0/gtk.css'))
         notify_provider = Gtk.CssProvider()
         notify_provider.load_from_path(str(ROOT / "system/usr/share/themes/OguzDows/xfce-notify-4.0/gtk.css"))
         welcome = load("oguzdows_welcome_smoke", "system/usr/lib/oguzdows/welcome.py")
+        welcome.is_live = lambda: args.live
         if args.pi:
             welcome.is_pi = lambda: True
             welcome.pi_model = lambda: "Raspberry Pi · arayüz kontrolü (host)"
@@ -80,6 +83,11 @@ def main():
             try:
                 assert app.stack.get_visible_child_name() == "welcome"
                 assert not app.show_again.get_active()
+                assert len(app.sidebar.get_children()) == 7
+                assert not app.previous_button.get_sensitive()
+                assert app.next_button.get_sensitive()
+                if not args.pi:
+                    assert app.install_button.get_visible() == args.live, 'Kurulu karşılayıcı kurulum kartı göstermemeli'
                 if args.pi:
                     assert app.install_button.get_sensitive(), "Pi ayar kartı etkin olmalı"
                     assert not app.broadcom_button.get_visible(), "Pi'de PC STA düğmesi görünmemeli"
@@ -106,7 +114,17 @@ def main():
                 screenshot('wallpapers.png')
                 app.stack.set_visible_child_name('styles')
                 assert len(app.profile_choice.get_model()) == 5
+                assert len(app.profile_buttons) == 5
                 screenshot('desktop-styles.png')
+                app.step_page(1)
+                assert app.stack.get_visible_child_name() == 'appearance'
+                assert app.sidebar.get_selected_row().page_name == 'appearance'
+                assert set(app.theme_buttons) == {'light', 'dark'}
+                screenshot('appearance.png')
+                app.navigate('support')
+                assert not app.next_button.get_sensitive()
+                app.navigate('applications')
+                screenshot('applications.png')
                 app.window.resize(900, 600)
                 app.show_drivers()
             except Exception as error:

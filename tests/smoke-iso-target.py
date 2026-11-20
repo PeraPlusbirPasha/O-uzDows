@@ -155,7 +155,7 @@ def configure_idle_test(root, uid):
         raise RuntimeError('Geçici grafik test hesabı normal bir kullanıcı olmalı.')
     user = 'oguz-idle-proof'
     target_system.inside(root, 'var/log/oguzdows').mkdir(parents=True, exist_ok=True)
-    put(root, f'home/{user}/.local/state/oguzdows/welcome-seen', 'Disposable graphical measurement\n')
+    put(root, f'home/{user}/.local/state/oguzdows/welcome-installed-1.1-seen', 'Disposable graphical measurement\n')
     put(root, 'etc/lightdm/lightdm.conf.d/99-oguzdows-disposable-idle.conf',
         f'[Seat:*]\nautologin-user={user}\nautologin-user-timeout=0\nuser-session=oguzdows\nautologin-session=oguzdows\n')
     put(root, 'usr/local/sbin/oguzdows-disposable-idle', '#!/bin/sh\nset -eu\n'

@@ -6,5 +6,5 @@ Comment=Al kırmızısı, turkuaz ve Anadolu geometrisi
 [X-GNOME-Metatheme]
 GtkTheme=OguzDows
 MetacityTheme=OguzDows
-IconTheme=Adwaita
-CursorTheme=Adwaita
+IconTheme=OguzDows
+CursorTheme=OguzDowsTespih

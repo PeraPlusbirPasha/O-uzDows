@@ -54,7 +54,7 @@ class IsoTargetSmokeContractTests(unittest.TestCase):
                 smoke.configure_idle_test(root, 0)
             self.assertFalse(list(root.iterdir()))
             smoke.configure_idle_test(root, 1001)
-            marker = root / 'home/oguz-idle-proof/.local/state/oguzdows/welcome-seen'
+            marker = root / 'home/oguz-idle-proof/.local/state/oguzdows/welcome-installed-1.1-seen'
             self.assertTrue(marker.is_file())
             script = (root / 'usr/local/sbin/oguzdows-disposable-idle').read_text()
             for argument in ('--user 1001', '--wait-for-desktop 180', '--settle-seconds 120', '--samples 6 --interval 5', '--idle-confirmed'):

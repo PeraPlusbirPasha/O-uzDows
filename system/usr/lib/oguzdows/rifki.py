@@ -95,7 +95,7 @@ class Avatar(Gtk.Image):
 
 
 class Companion(Gtk.ApplicationWindow):
-    def __init__(self,app,callbacks,reduced=False,installing=False):
+    def __init__(self,app,callbacks,reduced=False,installing=False,speaker=None):
         super().__init__(application=app)
         self.callbacks=callbacks
         self.installing=bool(installing)
@@ -105,7 +105,8 @@ class Companion(Gtk.ApplicationWindow):
         self.last_cue=None
         self.status_data={}
         self.last_stage=None
-        self.speaker=Speaker(GLib.idle_add,self.voice_error)
+        self.owns_speaker = speaker is None
+        self.speaker = Speaker(GLib.idle_add, self.voice_error) if speaker is None else speaker
         self.set_title('Rıfkı · Hafif yardımcı')
         self.set_icon_name('oguzdows')
         self.set_default_size(354,min(570,self.get_screen().get_height()-80))
@@ -192,7 +193,7 @@ class Companion(Gtk.ApplicationWindow):
         scroll.set_policy(Gtk.PolicyType.NEVER,Gtk.PolicyType.AUTOMATIC)
         scroll.add(body)
         self.add(scroll)
-        self.connect('destroy',lambda *_:self.speaker.close())
+        self.connect('destroy',lambda *_:self.speaker.close() if self.owns_speaker else self.speaker.stop())
         self.say(HELLO)
 
     def voice_error(self,text):

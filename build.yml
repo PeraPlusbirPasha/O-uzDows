@@ -86,12 +86,15 @@ jobs:
 
       - name: Gerçek GTK arayüzünü aç ve doğrula
         run: |
-          cp -a system/usr/share/themes/OguzDows /usr/share/themes/
+          cp -a system/usr/share/themes/. /usr/share/themes/
           python3 scripts/ci-run.py --title 'Tema görselleri' -- \
             python3 scripts/render-assets.py --root /
           python3 scripts/ci-run.py --title 'GTK arayüz kontrolü' -- \
             xvfb-run -a -s '-screen 0 1024x768x24' dbus-run-session -- \
             python3 tests/smoke-welcome.py --output test-results
+          python3 scripts/ci-run.py --title 'Canlı karşılayıcı GTK kontrolü' -- \
+            xvfb-run -a -s '-screen 0 1024x768x24' dbus-run-session -- \
+            python3 tests/smoke-welcome.py --live --output test-results/live
 
       - name: Güncelleyici, onay akışı, beş gerçek xfconf tarzı ve İmece
         run: |

@@ -79,7 +79,7 @@ jobs:
           GSETTINGS_BACKEND: memory
           NO_AT_BRIDGE: '1'
         run: |
-          sudo cp -a system/usr/share/themes/OguzDows /usr/share/themes/
+          sudo cp -a system/usr/share/themes/. /usr/share/themes/
           sudo python3 scripts/ci-run.py --title 'Pi tema görselleri' -- \
             python3 scripts/render-assets.py --root /
           python3 scripts/ci-run.py --title 'Pi GTK görünümü' -- \

@@ -4,10 +4,10 @@
   <property name="panels" type="array">
     <value type="int" value="1"/>
     <property name="panel-1" type="empty">
-      <property name="position" type="string" value="p=6;x=0;y=0"/>
+      <property name="position" type="string" value="p=10;x=0;y=0"/>
       <property name="length" type="uint" value="100"/>
       <property name="position-locked" type="bool" value="true"/>
-      <property name="size" type="uint" value="38"/>
+      <property name="size" type="uint" value="36"/>
       <property name="background-style" type="uint" value="0"/>
       <property name="enter-opacity" type="uint" value="100"/>
       <property name="leave-opacity" type="uint" value="100"/>
@@ -24,7 +24,7 @@
   </property>
   <property name="plugins" type="empty">
     <property name="plugin-1" type="string" value="whiskermenu">
-      <property name="button-title" type="string" value="OğuzDows"/>
+      <property name="button-title" type="string" value="Başlat"/>
       <property name="custom-menu-file" type="string" value="/etc/xdg/menus/oguzdows-applications.menu"/>
       <property name="button-icon" type="string" value="oguzdows"/>
       <property name="show-button-title" type="bool" value="true"/>

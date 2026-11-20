@@ -128,7 +128,8 @@ class ContractsTests(unittest.TestCase):
         for entry in menu.findall(".//Directory"):
             self.assertTrue((ROOT / "system/usr/share/desktop-directories" / entry.text).is_file())
         rc = (ROOT / "system/etc/skel/.config/xfce4/panel/whiskermenu-1.rc").read_text()
-        self.assertIn("button-title=OğuzDows", rc)
+        self.assertIn("button-title=Başlat", rc)
+        self.assertIn("button-icon=oguzdows", rc)
         self.assertIn("custom-menu-file=/etc/xdg/menus/oguzdows-applications.menu", rc)
         live = (ROOT / "system/usr/lib/oguzdows/live-setup.sh").read_text()
         self.assertIn("usermod -c 'OğuzDows Canlı Oturum' oguz", live)
