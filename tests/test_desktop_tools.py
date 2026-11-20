@@ -229,7 +229,7 @@ class StoreTests(unittest.TestCase):
         execute = Mock(side_effect=['x86_64', 'flathub\thttps://dl.flathub.org/repo/\tuser'])
         store.setup_flathub(execute)
         self.assertEqual(execute.call_count, 2)
-        for arch in ('i386', 'arm', 'aarch64', 'x86_64\nmalformed'):
+        for arch in ('i386', 'arm', 'x86_64\nmalformed'):
             execute = Mock(return_value=arch)
             with self.assertRaises(ValueError):
                 store.setup_flathub(execute)

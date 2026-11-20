@@ -4,7 +4,7 @@
 
 Çalışan Calamares mount / hedef / initramfs / GRUB zinciri değiştirilmez. Yeni özellikler varsayılan Xfce üzerine eklenir. PC: **amd64 → trixie, i386 → bookworm**. ISO kaynak kimliği yine `build-info.json` içindedir. Daha önce kurulmuş sisteme bu kaynak değişiklikleri kendiliğinden taşınmaz; Güncelleyici dağıtımın Git deposunu indirip root olarak çalıştırmaz.
 
-Pi, PC bakım yardımcısını, Pardus kaynağını ve mağaza paketlerini almaz. Yeni görseller, yerel tespih imleci, beş Xfce görünümü ve çevrimdışı İmece araçları ortaktır. ARMv6 / eski Pi / i386 üzerinde Flathub veya gerçek KDE/GNOME kullanılabilirliği varsayılmaz. Bu değişiklik yeni bir fiziksel Pi performans doğrulaması değildir.
+1.1’de yerel C mağaza Pi tariflerinde de kendi mimarisi için derlenir; yalnızca sabit uygulama demetleri kendi imzalı cihaz kaynaklarından planlanır. PC’nin genel bakım / sürücü / Pardus / gelişmiş GNOME işleri Pi’ye taşınmaz. Yeni görseller, yerel tespih imleci, beş Xfce görünümü ve çevrimdışı İmece araçları ortaktır. ARMv6 / eski Pi / i386 üzerinde Flathub veya gerçek KDE/GNOME kullanılabilirliği varsayılmaz. Bu değişiklik yeni bir fiziksel Pi performans doğrulaması değildir.
 
 ## OğuzDows Güncelleyici
 
@@ -24,24 +24,30 @@ Yardımcı `/usr/local/sbin/oguzdows-maintenance`, izole Python ve dar argüman 
 
 Eski Broadcom STA ve Intel 2100/2200/2915 için mevcut lisans, donanım ve başlık kontrolleri olan çevrimdışı rehber korunur. NVIDIA'nın rastgele/eski kapalı çekirdek modülleri kurulmaz. Ubuntu/Kali/Mint çekirdek veya libc paketleri sistem depolarına karıştırılmaz.
 
-## Mağaza: GNOME Yazılımlar + Flatpak
+## OğuzDows Mağaza: yerel C / GTK 3 + isteğe bağlı Flathub
 
-PC imajında **GNOME Software**, Flatpak eklentisi, PackageKit ve GTK portalı bulunur. Software 48'in açılışta gerektirdiği `iso-codes` dil verisi de açıkça paketlenir; önerilen paketlerin kendiliğinden kurulacağı varsayılmaz. Bu bir veri paketidir, ek arka plan servisi değildir. Snap eklenmez. Menüde **OğuzDows Mağaza**:
+**1.1 kaynak dalının varsayılanı `native/store.c` içinden mimariye uygun derlenen mağazadır.** HTML / webview / Electron veya Python GTK penceresinin yeni adı değildir. Pencere olay döngüsü paket işini beklemez; ayrı, kısa ömürlü JSON işçisi kullanılır. 27 uygulamalık çevrimdışı seçki, kategori / kurulu / arama filtreleri, uygulama ayrıntısı, kaynak, plan onayı ve güncelleme sayfaları vardır. Dar pencerede yan menü simgelere, arama / filtre satırları alt alta yerleşir; boş sonuç açıklanır. Yayımlanmış v1.0.0 ISO'ları bu yeni kodu içermez.
 
-- Sistem (APT) uygulamaları hemen kullanılabilir.
-- İlk açılışta Flathub ayrıca sorulur; yalnızca **x86_64** Flatpak mimarisinde bu sürümün otomatik kurulumu sunulur. i386'de APT mağazası kullanılabilir; Flathub'daki her uygulamanın 32-bit sürümü varmış gibi davranılmaz.
-- Kaynak yalnızca kullanıcının hesabına, resmî **`https://dl.flathub.org/repo/flathub.flatpakrepo`** tanımından eklenir. GPG denetimi kapatılmaz. Bu ilk anahtar edinimi HTTPS'e dayanır; ayrıca bağımsız bir anahtar doğrulaması olduğu iddia edilmez. Flathub adıyla farklı / imzasız bir kaynak varsa sessizce değiştirilmez.
-- **Güncelleyici → Flatpak uygulama güncellemelerini mağazada göster** hem kullanıcı hem sistem kapsamındaki Flatpak'lar için GNOME Yazılımlar'ın Güncellemeler sayfasını açar. Oradaki işlem/onay akışı kullanılır. APT planı ile Flatpak işlemi aynı şey değildir.
-- **Depolar ve Mağaza → Flathub kaynağını kur / denetle** ile ilk tercih yeniden açılabilir.
-- Mağazanın XDG otomatik başlangıcı bastırılır; otomatik güncelleme indirme varsayılan kapalıdır. Mağaza/PackageKit/portal kullanıcı açtığında veya bir uygulama istediğinde çalışabilir.
-- OğuzDows başlatıcısı, varsayılan Xfce/X11'de mağaza pencerelerini **olay tabanlı** izler. Son mağaza penceresi kapanınca sessiz bir servis bırakmak yerine **açık tam çıkış kontrolünü** gösterir. Küçültme / çalışma alanı değişimi kapatma sayılmaz. Sırf pencere gizlendi diye indirme/kurulum iptal edilmez.
-- Mağazada bütün işlemlerin bittiğini kontrol ettikten sonra **İşlemler bitti · Mağazayı tamamen kapat** düğmesini kullanın. GNOME Yazılımlar'ın kendi **`--quit`** iptal/temizleme protokolü çağrılır; süreç SIGTERM/SIGKILL ile öldürülmez. **Bu komut iptal edilebilir aktif işleri durdurabilir**; işlerin tamamlandığını kullanıcı doğrulamalıdır. Kontrol penceresinin X düğmesi de ayrıca sorar, varsayılan yanıt Vazgeç'tir. Komut satırında `oguzdows-store --quit` aynı açık tam çıkış isteğidir.
-- Wayland veya EWMH pencere bilgisi olmayan oturumda aynı tam çıkış kontrolü baştan görünür. Bu küçük denetleyici yalnızca mağaza kullanılırken vardır; açılış servisi değildir. Yukarıdaki ömür yönetimi OğuzDows başlatıcısıyla açılan mağaza içindir; başka programın doğrudan başlattığı upstream mağaza/PackageKit servisinin bütün davranışlarını değiştirmez.
-- Açılmış mağazanın süreç tüketimi boşta temiz Xfce ölçümüyle karıştırılmaz; pencere kapalıyken süreç kaldıysa bellek raporu bunu gösterir. CI, gerçek mağazada küçültmenin ve normal pencere kapanışının otomatik iş iptal etmediğini; **açık tam çıkış isteğinden sonra** hem başlatıcının hem GNOME Yazılımlar D-Bus sahibinin çıktığını ayrıca sınar. Bu ömür testi paket kurmaz ve işlem sırasında kapanışın fiziksel doğrulaması değildir.
+1. **Keşfet / Kurulu:** yerel seçkide arama ağ isteği yapmaz. **Flathub’da ara** ayrı bir açık eylemdir; kaynak hazır değilse önce Kaynaklar sayfası gösterilir. Kaynak veya uygulama kendiliğinden eklenmez.
+2. **Ayrıntı:** sistem APT paketi ile varsa kullanıcı Flathub sürümünü ayrı seç. APT'nin gerçek sürüm / Origin / Codename bilgisi; Flatpak'ın sürüm ve özgün izin metadata'sı gösterilir. Bir adın listede bulunması güvenlik / donanım uyumluluğu onayı değildir.
+3. **Kur / güncelle → önce plan:** APT sabit demetleri dar Polkit yardımcısı, aynı sürümün imzalı kökeni ve plan özetiyle doğrulanır. Serbest paket / shell komutu, otomatik kaldırma veya başka dağıtımın temel deposu yoktur. ARM Wine demeti zorlanmaz.
+4. **Flatpak:** yalnızca kullanıcı kurulumu ve `x86_64` / `aarch64` kapsamı sunulur. libflatpak gerçek işlemleri çözümler; önizleme `ready` aşamasında kurulmadan durur. İkinci çözümlemede kaynak / ref / commit / işlem özeti değişmişse uygulama reddedilir ve yeni onay gerekir. Ek depo otomatik eklenmez, GPG denetimi kapatılmaz. Her uygulamanın her mimaride bulunduğu varsayılmaz.
+5. **Güncellemeler:** genel sistem planı PC'ye özeldir; kullanıcı Flathub planı ayrıdır. Pi / deneysel ARM'de sabit uygulama demetleri kullanılabilir, genel sistem güncellemesi cihazın kendi paket yöneticisindendir. Paket listesi yenileme PC Güncelleyici'den yapılır. Sistem kapsamındaki Flatpak ve kaldırma, varsa gelişmiş merkezde ayrı yürütülür.
+6. **Kaynaklar:** resmî **`https://dl.flathub.org/repo/flathub.flatpakrepo`** tanımı ancak açık onayla, yalnızca o hesaba eklenir. İlk anahtar edinimi HTTPS'e dayanır; bağımsız anahtar teslimi olduğu iddia edilmez. Aynı adla farklı / imzasız kaynak sessizce değiştirilmez. Snap yoktur.
 
-Uygulamayı kurmadan önce geliştiricisini, kaynağını, lisansını ve dosya/cihaz izinlerini inceleyin. Flatpak, her uygulamanın zararsız veya her iznin dar olduğu garantisi değildir.
+İşlem sürerken pencerenin X düğmesi ve `--quit` işi iptal etmez; küçültülebilir. İş bittiğinde pencere kapanır ve mağazaya ait boşta daemon bırakılmaz. Root GUI yoktur. Native mağaza açılış servisi veya otomatik güncelleme indirmez. Uygulama / PackageKit / portal servislerinin kullanıcı isteğiyle çalışması, kapalı mağazanın kendiliğinden işlem yapmasıyla karıştırılmaz. Gerçek paket kurulumu ayrıca doğrulanmadan yalnızca fixture GTK başarısı kurulum başarısı diye sunulmaz.
 
-## Kontrollü Pardus 25 kanalı
+### Gelişmiş merkez — ayrı, açık seçim
+
+PC'de GNOME Software + Flatpak eklentisi / PackageKit / GTK portalı korunur; `iso-codes` gereksinimi açıkça paketlidir. Yeni varsayılan değildir: **Gelişmiş paket merkezi** veya `oguzdows-store --advanced` ile istenir. Otomatik başlangıcı ve güncelleme indirmesi kapalıdır. Xfce/X11 pencereleri olay tabanlı izlenir; küçültme / çalışma alanı değişimi kapatma sayılmaz. Son pencere kapanınca ayrı **İşlemler bitti · Mağazayı tamamen kapat** denetimi gösterilir. Wayland / EWMH yoksa denetim baştan görünür.
+
+GNOME Software'ın **`--quit`** iptal / temizleme protokolü yalnızca açık tam çıkış onayıyla çağrılır; süreç SIGTERM/SIGKILL ile öldürülmez. **Bu protokol aktif iptal edilebilir işleri durdurabilir**; bütün işlerin bittiğini kullanıcı doğrulamalıdır. Kontrol penceresinin X düğmesinde de varsayılan Vazgeç'tir. Bu yaşam döngüsü OğuzDows başlatıcısıyla açılan gelişmiş merkez içindir; başka programların başlattığı upstream servislerin bütün davranışını değiştirmez.
+
+Uygulamayı kurmadan önce geliştiricisini, kaynağını, lisansını ve dosya / cihaz izinlerini inceleyin. Flatpak her uygulamanın zararsız veya her iznin dar olduğu garantisi değildir.
+
+## Kontrollü Pardus 25 kanalı — teknik köken / önceki akış
+
+**1.1 ürün arayüzünde bu üçüncü taraf marka için kart / mağaza sunulmaz.** Dar, varsayılan kapalı önceki arka uç ve imza kökeni korunur; kimlikler yeniden markalanmaz. Aşağıdaki bilgiler bir OğuzDows ürün markası veya karışık sistem deposu önerisi değildir.
 
 **Varsayılan kapalı, yalnızca amd64 / trixie.** `/pardus yirmibes main` uygulama kanalı kullanılır; Pardus'un `yirmibes-deb` tabanı veya güvenlik/çekirdek havuzu eklenmez. Şimdiki açık izin listesi:
 
@@ -110,8 +116,10 @@ CI, `smoke-iso-target.py --graphical-idle` ile ISO içeriğinden hazırlanan **y
 
 ## Görseller ve ses kapsamı
 
-Önceki altı çizim emekli edilmiştir; altı manzaranın da içeriği yenilenmiştir. **Boğaz Sabahı, Kaçkar Sisi, Kapadokya Işığı, Ölüdeniz Kıyısı, Tuz Gölü Akşamı, Ani Kışı**: her birinin sağ altında ay-yıldız + OğuzDows işareti. 1920×1080 JPEG, ayrı 320×180 önizleme; varsayılan Boğaz. Eski `wallpaper.png` yolu uyumluluk için aynı yeni manzarayı içerir. Eski çizim seçimleri bir defa yeni karşılıklarına geçirilir, yeni geçerli seçim her girişte sıfırlanmaz.
+1.1’de **20 yerel, sağ altı ay-yıldız / OğuzDows işaretli duvar kâğıdı** vardır. İlk altı Türkiye manzarasına kediler, çay–simit, halk oyunları ve kültür desenleri eklendi. **16 AI görsel + 4 özgün kod çizimi**; gerçek kamera fotoğrafı veya birebir coğrafi / kültürel belge değildir. Her biri 1920×1080 JPEG; ayrı 320×180 önizlemeler yalnızca galeri açılınca yüklenir. Yirmi önizleme toplam 200.133 bayttır. Varsayılan Boğaz ve eski `wallpaper.png` uyumluluk yolu korunur. Kullanıcının geçerli özel seçimi her girişte sıfırlanmaz; Pamukkale Terasları'nın yeni kimliği eski seçim göçüyle çakışmaz.
 
-Görseller bu proje için **yapay zekâyla üretilmiştir, gerçek kamera fotoğrafları veya birebir coğrafi belge değildir**. `artwork/landscapes.json` özgün kaynak ve paketlenen çıktı özetlerini tutar. Paketlenen JPEG'e her derlemede tekrar logo basılmaz. `scripts/prepare-landscapes.py` ayrı geliştirme aracıdır.
+`artwork/landscapes.json` kaynak / çıktı hash'lerini tutar; paketlenen JPEG'e her derlemede tekrar logo basılmaz. `scripts/render-assets.py --root preview` güvenli ayrı bir kökte çalışma-zamanı galerisini üretir. Ham geliştirme görselleri imaja girmez.
 
-Rıfkı'nın doğal Türkçe ses karakteri korunur; değişen manzara açıklamaları yenilenir ve Tarzlar kaydı eklenir. **18 tam metin eşlemesi + sabit sonuç kayıtları** vardır. Yapay zekâ konuşma kaydıdır, gerçek bir insanın stüdyo kaydı değildir. Pi'ye özgü açıklamalar, yeni Güncelleyici/Mağaza/İmece pencereleri ve değişken hata/donanım ayrıntıları henüz bütünüyle seslendirilmez. “Bütün paneller tamamlandı” iddiası yoktur; robotik çalışma-zamanı sese düşülmez.
+Yeni **10 doğal Türkçe kayıt** kullanıcı tarafından dinleme önizlemesinde seçilen sesle hazırlandı; eski temel yardım / aşama / sonuç kayıtları korunur. **24 tam metin eşlemesi + sabit sonuç kayıtları** yereldir. Karşılayıcının yedi sayfasında canlı / kurulu / Pi bağlamına uygun kayıt, tek otomatik anlatım anahtarı ve Dinle / Durdur vardır. Güncelleyici, Mağaza, İmece, Uyumluluk ve Cihaz Merkezi'nde istek üzerine kullanım rehberi dinlenir. Odak kaybı / sayfa değişikliği / kapatma sesi keser. Kurulum D-Bus kapısı sesi engeller; bitince kendiliğinden tekrar başlamaz. Veri yolu kontrol edilemiyorsa bağımsız araçlar yazılı kalır.
+
+Kayıtlar yapay zekâ üretimidir, insan stüdyo kaydı değildir. SHA-256 / tam metin / süre / PCM kökeni `artwork/rifki-narration.json` içinde tutulur. Değişken hata / dosya / donanım raporunun tamamı okunmaz; yanlış başarı kaydı veya robotik çalışma-zamanı sentezi kullanılmaz. Cihazda gerçek ses çıkışı / fiziksel performans ayrıca denenmelidir.

@@ -87,6 +87,20 @@ def render_wallpapers(root: Path) -> None:
         ("oludeniz-kiyisi", "Ölüdeniz · Turkuaz Kıyı"),
         ("tuz-golu-aksami", "Tuz Gölü · Akşam Aynası"),
         ("ani-kisi", "Ani · Kış Sessizliği"),
+        ('istanbul-kedisi', 'İstanbul Kedisi · Kıyıda'),
+        ('van-kedisi', 'Van Kedisi · Mavi ve Kehribar'),
+        ('cay-simit', 'Çay ve Simit · Bir Mola'),
+        ('halay', 'Halay · Yan Yana'),
+        ('horon', 'Horon · Yayla Sevinci'),
+        ('zeybek', 'Zeybek · Ege Rüzgârı'),
+        ('kilim', 'Kilim · Anadolu İzi'),
+        ('ebru', 'Ebru · Suyun Hafızası'),
+        ('lale', 'Lale · Sade Bahar'),
+        ('nazar', 'Nazar · Mavi Cam'),
+        ('vapur', 'Vapur · Kıyı Çizgileri'),
+        ('safranbolu', 'Safranbolu · Ahşap ve Taş'),
+        ('pamukkale-teraslari', 'Pamukkale · Turkuaz Katlar'),
+        ('anadolu-gecesi', 'Anadolu Gecesi · Ev Işıkları'),
     )
     for identifier, name in gallery:
         relative = "usr/share/backgrounds/oguzdows/" + identifier + ".jpg"
@@ -106,7 +120,7 @@ def render_wallpapers(root: Path) -> None:
                 # Pi / eski ayarlar bu yolu kullanır; içerik yeni manzaradır.
                 save(image.copy(), root, "/usr/share/backgrounds/oguzdows/wallpaper.png")
         entries.append({"id": identifier, "name": name, "path": "/" + relative,
-                        "preview": preview, "origin": "AI-generated", "logo": "bottom-right"})
+                        "preview": preview, "origin": "Original illustration" if identifier in ("vapur", "safranbolu", "pamukkale-teraslari", "anadolu-gecesi") else "AI-generated", "logo": "bottom-right"})
     target = root / "usr/share/oguzdows/wallpapers.json"
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(json.dumps(entries, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
@@ -128,10 +142,14 @@ def boot_background(width: int, height: int) -> Image.Image:
     return image.convert("RGB").resize((width, height), Image.Resampling.LANCZOS)
 
 
-def window_theme(root: Path) -> None:
-    base = "usr/share/themes/OguzDows/xfwm4/"
+def window_theme(root: Path, name='OguzDows', light=False, xp=False) -> None:
+    base = f'usr/share/themes/{name}/xfwm4/'
+    active_bg = '#245ca5' if xp and light else ('#183352' if xp else ('#e9edf2' if light else '#1c202a'))
+    inactive_bg = '#385d88' if xp and light else ('#1b3048' if xp else ('#dce3ed' if light else '#191c24'))
+    active_text = '#1e2a3a' if light and not xp else PAPER
+    inactive_text = '#334155' if light and not xp else '#e1e6ef'
     for state in ("active", "inactive"):
-        bg = "#1c202a" if state == "active" else "#191c24"
+        bg = active_bg if state == "active" else inactive_bg
         edge = RED if state == "active" else "#363b49"
         for part in ("title-1", "title-2", "title-3", "title-4", "title-5", "top-left", "top-right"):
             image = Image.new("RGBA", (5, 32), bg)
@@ -140,17 +158,17 @@ def window_theme(root: Path) -> None:
         for part, size in (("left", (3, 1)), ("right", (3, 1)), ("bottom", (1, 3)), ("bottom-left", (3, 3)), ("bottom-right", (3, 3))):
             save(Image.new("RGBA", size, bg), root, base + f"{part}-{state}.png")
     for state in ("active", "inactive", "prelight", "pressed"):
-        color = "#e1e6ef" if state == "inactive" else PAPER
+        color = inactive_text if state == "inactive" else active_text
         for button in ("close", "hide", "maximize", "maximize-toggled", "menu"):
             # Eski GPU'da da bütün düğme döşemesi tamamen opaktır.
-            image = Image.new("RGBA", (28 * 3, 32 * 3), "#191c24" if state == "inactive" else "#1c202a")
+            image = Image.new("RGBA", (28 * 3, 32 * 3), inactive_bg if state == "inactive" else active_bg)
             draw = ImageDraw.Draw(image)
             if button == "close" or state in ("prelight", "pressed"):
                 fill = ("#9f293e" if state == "inactive" else RED) if button == "close" else "#37424b"
                 draw.rounded_rectangle((6, 12, 78, 84), radius=15, fill=fill)
             if button == "close":
-                draw.line((30, 36, 54, 60), fill=color, width=4)
-                draw.line((54, 36, 30, 60), fill=color, width=4)
+                draw.line((30, 36, 54, 60), fill=PAPER, width=4)
+                draw.line((54, 36, 30, 60), fill=PAPER, width=4)
             elif button == "hide":
                 draw.line((27, 57, 57, 57), fill=color, width=4)
             elif button.startswith("maximize"):
@@ -162,10 +180,10 @@ def window_theme(root: Path) -> None:
                     draw.line((27, y, 57, y), fill=TURQUOISE if state != "inactive" else color, width=3)
             save(image.resize((28, 32), Image.Resampling.LANCZOS), root, base + f"{button}-{state}.png")
     path = root / base / "themerc"
-    path.write_text("""active_text_color=#fff9ef
-inactive_text_color=#d4dce8
-active_text_shadow_color=#1c202a
-inactive_text_shadow_color=#191c24
+    path.write_text(f"""active_text_color={active_text}
+inactive_text_color={inactive_text}
+active_text_shadow_color={active_bg}
+inactive_text_shadow_color={inactive_bg}
 button_offset=3
 button_spacing=1
 full_width_title=true
@@ -355,6 +373,9 @@ def render(root: Path) -> None:
     save(emblem(160, tile=True), root, installer + "logo.png")
     save(boot_background(640, 480).crop((80, 20, 560, 210)), root, installer + "welcome.png")
     window_theme(root)
+    window_theme(root, 'OguzDowsLight', light=True)
+    window_theme(root, 'OguzDowsXP', light=True, xp=True)
+    window_theme(root, 'OguzDowsXPDark', xp=True)
 
 
 def main() -> None:

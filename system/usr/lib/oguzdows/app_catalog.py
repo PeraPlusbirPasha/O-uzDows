@@ -1,0 +1,65 @@
+"""Yerel mağazanın gözden geçirilmiş uygulamaları. Veri komut değildir.
+
+Yetkili APT yardımcısı yalnızca buradaki paket demetlerini kabul eder. Kaynak
+sürüm kontrolündedir; kullanıcıdan veya ağdan paket / shell komutu alınmaz.
+"""
+from __future__ import annotations
+
+import re
+
+CATEGORIES = ('Tümü', 'İnternet', 'Ofis', 'Görsel', 'Ses ve video', 'Geliştirme', 'Oyun', 'Araçlar')
+
+
+def app(identifier, name, summary, category, packages, flatpak='', icon='application-x-executable'):
+    return {'id': identifier, 'name': name, 'summary': summary, 'category': category,
+            'packages': tuple(packages.split()), 'flatpak': flatpak, 'icon': icon}
+
+
+APPS = (
+    app('firefox', 'Firefox', 'Gizlilik denetimleri olan web tarayıcısı.', 'İnternet', 'firefox-esr', 'org.mozilla.firefox', 'firefox-esr'),
+    app('thunderbird', 'Thunderbird', 'E-posta, adres defteri ve takvim bir arada.', 'İnternet', 'thunderbird', 'org.mozilla.Thunderbird', 'thunderbird'),
+    app('transmission', 'Transmission', 'Sade ve hafif BitTorrent istemcisi.', 'İnternet', 'transmission-gtk', 'com.transmissionbt.Transmission', 'transmission'),
+    app('filezilla', 'FileZilla', 'FTP ve SFTP ile dosya aktarımı.', 'İnternet', 'filezilla', 'org.filezillaproject.Filezilla', 'filezilla'),
+    app('remmina', 'Remmina', 'Uzak masaüstü bağlantılarını tek yerde yönet.', 'İnternet', 'remmina', 'org.remmina.Remmina', 'org.remmina.Remmina'),
+    app('libreoffice', 'LibreOffice', 'Metin, hesap tablosu ve sunum araçları.', 'Ofis', 'libreoffice-writer libreoffice-calc libreoffice-impress libreoffice-l10n-tr', 'org.libreoffice.LibreOffice', 'libreoffice-startcenter'),
+    app('evince', 'Belge Görüntüleyici', 'PDF ve belge dosyalarını oku.', 'Ofis', 'evince', 'org.gnome.Evince', 'org.gnome.Evince'),
+    app('xournalpp', 'Xournal++', 'El yazısı notlar ve PDF üzerine açıklamalar.', 'Ofis', 'xournalpp', 'com.github.xournalpp.xournalpp', 'com.github.xournalpp.xournalpp'),
+    app('gimp', 'GIMP', 'Fotoğraf düzenleme ve katmanlı görsel üretimi.', 'Görsel', 'gimp', 'org.gimp.GIMP', 'gimp'),
+    app('inkscape', 'Inkscape', 'Ölçeklenebilir vektör çizimler ve illüstrasyon.', 'Görsel', 'inkscape', 'org.inkscape.Inkscape', 'org.inkscape.Inkscape'),
+    app('krita', 'Krita', 'Dijital çizim, fırçalar ve boyama.', 'Görsel', 'krita', 'org.kde.krita', 'krita'),
+    app('blender', 'Blender', '3B modelleme ve animasyon; güçlü donanım ister.', 'Görsel', 'blender', 'org.blender.Blender', 'blender'),
+    app('vlc', 'VLC', 'Çok sayıda ses ve video biçimini oynat.', 'Ses ve video', 'vlc', 'org.videolan.VLC', 'vlc'),
+    app('audacity', 'Audacity', 'Ses kaydı, kesme ve çok kanallı düzenleme.', 'Ses ve video', 'audacity', 'org.audacityteam.Audacity', 'audacity'),
+    app('kdenlive', 'Kdenlive', 'Çok kanallı video kurgu; ek RAM ve GPU ister.', 'Ses ve video', 'kdenlive', 'org.kde.kdenlive', 'kdenlive'),
+    app('obs', 'OBS Studio', 'Ekran kaydı ve canlı yayın; eski cihazlar için ağırdır.', 'Ses ve video', 'obs-studio', 'com.obsproject.Studio', 'com.obsproject.Studio'),
+    app('handbrake', 'HandBrake', 'Video dönüştürme ve sıkıştırma.', 'Ses ve video', 'handbrake', 'fr.handbrake.ghb', 'fr.handbrake.ghb'),
+    app('geany', 'Geany', 'Hızlı açılan hafif kod ve metin düzenleyici.', 'Geliştirme', 'geany', '', 'geany'),
+    app('builder', 'Builder', 'GNOME uygulamaları için geliştirme ortamı.', 'Geliştirme', 'gnome-builder', 'org.gnome.Builder', 'org.gnome.Builder'),
+    app('gitg', 'gitg', 'Git geçmişini ve değişikliklerini görsel incele.', 'Geliştirme', 'gitg', 'org.gnome.gitg', 'org.gnome.gitg'),
+    app('supertuxkart', 'SuperTuxKart', 'Renkli kart yarışı; 3B hızlandırma ister.', 'Oyun', 'supertuxkart', 'net.supertuxkart.SuperTuxKart', 'supertuxkart'),
+    app('supertux', 'SuperTux', 'İki boyutlu, açık kaynak platform oyunu.', 'Oyun', 'supertux', 'org.supertuxproject.SuperTux', 'supertux'),
+    app('aisleriot', 'İskambil Oyunları', 'Tek kişilik kart oyunu koleksiyonu.', 'Oyun', 'aisleriot', 'org.gnome.Aisleriot', 'gnome-aisleriot'),
+    app('keepassxc', 'KeePassXC', 'Parolalarını yerel şifreli kasada sakla.', 'Araçlar', 'keepassxc', 'org.keepassxc.KeePassXC', 'keepassxc'),
+    app('baobab', 'Disk Kullanımı', 'Klasörlerin kapladığı alanı incele.', 'Araçlar', 'baobab', 'org.gnome.baobab', 'org.gnome.baobab'),
+    app('bleachbit', 'BleachBit', 'Temizlik aracıdır; sileceği dosyaları dikkatle incele.', 'Araçlar', 'bleachbit', 'org.bleachbit.BleachBit', 'bleachbit'),
+    app('wine', 'Windows Uyumluluğu', 'Wine ile uygun EXE dosyaları; güvenlik alanı değildir.', 'Araçlar', 'wine', '', 'application-x-ms-dos-executable'),
+)
+BY_ID = {item['id']: item for item in APPS}
+
+
+def get(identifier):
+    try:
+        return BY_ID[identifier]
+    except (KeyError, TypeError):
+        raise ValueError('Mağaza uygulaması tanınmadı; serbest paket adı kabul edilmez.')
+
+
+def packages(identifier):
+    return list(get(identifier)['packages'])
+
+
+def flatpak_id(value):
+    # Argüman / ref / komut değil, tek bir ters-DNS uygulama kimliği.
+    if not isinstance(value, str) or len(value) > 200 or not re.fullmatch(r'[A-Za-z][A-Za-z0-9_-]*(?:\.[A-Za-z0-9_][A-Za-z0-9_-]*){2,}', value):
+        raise ValueError('Geçersiz Flatpak uygulama kimliği.')
+    return value

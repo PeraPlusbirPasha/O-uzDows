@@ -117,6 +117,8 @@ def desktop_contract(root):
     secured = ('usr', 'usr/lib', 'usr/share', 'usr/local', 'usr/local/sbin', 'usr/lib/oguzdows',
                'usr/local/sbin/oguzdows-maintenance', 'usr/lib/oguzdows/maintenance.py',
                'usr/lib/oguzdows/hardware.py', 'usr/lib/oguzdows/pi_support.py',
+               'usr/lib/oguzdows/app_catalog.py', 'usr/lib/oguzdows/store_service.py',
+               'usr/lib/oguzdows/oguzdows-store-native', 'usr/share/oguzdows/build-info.json',
                'usr/share/polkit-1/actions/org.oguzdows.maintenance.policy',
                'etc/apt/preferences.d/oguzdows-pardus', 'etc/apt/sources.list.d/oguzdows-pardus.sources',
                'usr/share/keyrings/oguzdows-pardus.asc')
@@ -131,7 +133,7 @@ def desktop_contract(root):
         fields = dict(line.split(': ', 1) for line in paragraph.splitlines() if ': ' in line and not line.startswith((' ', '\t')))
         if fields.get('Status') == 'install ok installed':
             installed.add(fields.get('Package'))
-    required = {'python3-apt', 'gnome-software', 'gnome-software-plugin-flatpak', 'iso-codes', 'flatpak', 'gpgv', 'xdg-desktop-portal-gtk'}
+    required = {'python3-apt', 'gnome-software', 'gnome-software-plugin-flatpak', 'iso-codes', 'flatpak', 'gpgv', 'xdg-desktop-portal-gtk', 'gir1.2-flatpak-1.0', 'libjson-glib-1.0-0'}
     if required - installed:
         raise RuntimeError('ISO bakım / mağaza paketleri eksik: ' + ', '.join(sorted(required - installed)))
     # Software 48 bu isteğe bağlı gibi görünen veri olmadan SIGTRAP ile çıkar.
@@ -146,7 +148,7 @@ def desktop_contract(root):
             raise RuntimeError('ISO yeni logolu manzarayı taşımıyor: ' + record['file'])
     target_system.nonempty(root, 'usr/share/icons/OguzDowsTespih/cursors/left_ptr')
     return {'packages': sorted(required), 'privileged_ownership_verified': True,
-            'pardus_enabled': False, 'replacement_wallpapers': 6, 'native_cursor': True}
+            'pardus_enabled': False, 'replacement_wallpapers': 20, 'native_cursor': True}
 
 
 def configure_idle_test(root, uid):
@@ -155,7 +157,7 @@ def configure_idle_test(root, uid):
         raise RuntimeError('Geçici grafik test hesabı normal bir kullanıcı olmalı.')
     user = 'oguz-idle-proof'
     target_system.inside(root, 'var/log/oguzdows').mkdir(parents=True, exist_ok=True)
-    put(root, f'home/{user}/.local/state/oguzdows/welcome-seen', 'Disposable graphical measurement\n')
+    put(root, f'home/{user}/.local/state/oguzdows/welcome-installed-1.1-seen', 'Disposable graphical measurement\n')
     put(root, 'etc/lightdm/lightdm.conf.d/99-oguzdows-disposable-idle.conf',
         f'[Seat:*]\nautologin-user={user}\nautologin-user-timeout=0\nuser-session=oguzdows\nautologin-session=oguzdows\n')
     put(root, 'usr/local/sbin/oguzdows-disposable-idle', '#!/bin/sh\nset -eu\n'

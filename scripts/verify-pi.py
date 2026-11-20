@@ -3,13 +3,62 @@
 from __future__ import annotations
 
 import argparse
-import json
 import re
+import sys
 from pathlib import Path
 
 
+# Yalnızca bu betiğin yanındaki kaynak; --root altından kod içe aktarılmaz.
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from pi_contract import checked_path, elf_info, feature_presence, read_bytes, read_json
+
+
 def read(root: Path, name: str) -> str:
-    return (root / name).read_text(encoding="utf-8", errors="replace")
+    return read_bytes(root, name, allow_empty=True).decode('utf-8', errors='replace')
+
+
+def validate_features(root: Path, arch: str) -> None:
+    """Yalnızca veri / ELF başlığı oku; bağlı imajdan hiçbir kod çalıştırma."""
+    contract = read_json(root, 'usr/share/oguzdows/pi-contract.json')
+    report = read_json(root, 'usr/share/oguzdows/pi-build-report.json')
+    info = read_json(root, 'etc/oguzdows/pi-image.json')
+    if (not isinstance(contract, dict) or not isinstance(report, dict)
+            or type(contract.get('schema')) is not int or contract['schema'] != 1
+            or type(report.get('schema')) is not int or report['schema'] != 1):
+        raise ValueError('Pi sözleşme / hedef rapor şeması geçersiz.')
+    expected = contract['architectures'][arch]
+    if not isinstance(report.get('gui'), dict) or not all(isinstance(report['gui'].get(key), str) for key in ('xfce_version', 'native_store_version')):
+        raise ValueError('Pi hedef GUI sürüm raporu eksik / geçersiz.')
+    if (contract['arch'] != arch or contract['pi_gen_commit'] != info['pi_gen_commit']
+            or contract['source_revision'] != info['source_revision']
+            or contract['suite'] != info['suite'] or report.get('python_modules') != contract['python_modules']
+            or report.get('arch') != arch or report.get('errors') != []
+            or report.get('minimum_cpu') != expected['cpu']
+            or report.get('scope') != 'ARM-qemu-user-with-host-Xvfb'
+            or report.get('source_revision') != contract['source_revision']
+            or report.get('pi_gen_commit') != contract['pi_gen_commit']
+            or report.get('suite') != contract['suite']
+            or report.get('gui', {}).get('gtk_window') is not True
+            or 'xfce4-session' not in report.get('gui', {}).get('xfce_version', '')
+            or 'OğuzDows' not in report.get('gui', {}).get('native_store_version', '')):
+        raise ValueError('Pi hedef ABI / gerçek GTK / kaynak raporu eksik veya başarısız.')
+    if any(report.get(key) is not False for key in ('physical_boot', 'hardware_gpu', 'performance_measurement', 'real_package_transactions', 'real_audio_playback')):
+        raise ValueError('Pi yapı raporu yapılmayan fiziksel / işlem testini başarı sayamaz.')
+    if not isinstance(report.get('packages'), dict) or set(report['packages']) != set(contract['required_packages']):
+        raise ValueError('Ortak paket özellikleri hedef raporundan eksilmiş.')
+    if any(not isinstance(value, dict) or value.get('architecture') not in (arch, 'all')
+           or not isinstance(value.get('version'), str) or not value['version'] for value in report['packages'].values()):
+        raise ValueError('Ortak paket sürümü / yerel mimari raporu eksik.')
+    if report.get('feature_presence') != feature_presence(root, contract):
+        raise ValueError('Pi özellik / doğal kayıt / galeri raporu export ile eşleşmedi.')
+    abi = {'/' + name: elf_info(checked_path(root, name), expected)
+           for name in ('usr/bin/python3', 'usr/lib/oguzdows/oguzdows-store-native')}
+    if report.get('abi') != abi:
+        raise ValueError('Pi hedef ABI raporu export içindeki Python / mağazayla eşleşmedi.')
+    release = dict(line.split('=', 1) for line in read(root, 'usr/lib/os-release').splitlines() if '=' in line and not line.startswith('#'))
+    for key, value in (('ID', expected['os_id']), ('VERSION_ID', expected['base_version_id']), ('VERSION_CODENAME', contract['suite'])):
+        if release.get(key, '').strip('"') != value:
+            raise ValueError('Pi OS teknik taban kimliği ürün sürümüyle bozulmuş: ' + key)
 
 
 def validate(root: Path, arch: str, pre_export: bool = False) -> None:
@@ -17,8 +66,8 @@ def validate(root: Path, arch: str, pre_export: bool = False) -> None:
         if not condition:
             raise ValueError(message)
 
-    info = json.loads(read(root, "etc/oguzdows/pi-image.json"))
-    lock = json.loads(read(root, "usr/share/oguzdows/pi-gen.lock.json"))
+    info = read_json(root, "etc/oguzdows/pi-image.json")
+    lock = read_json(root, "usr/share/oguzdows/pi-gen.lock.json")
     require(info["arch"] == arch and info["platform"] == "raspberrypi", "Yanlış Pi mimarisi / platformu.")
     require(info["pi_gen_commit"] == lock[arch]["commit"], "pi-gen kaynak kimliği uyuşmuyor.")
     files = ["boot/firmware/config.txt", "boot/firmware/cmdline.txt", "boot/firmware/start.elf",
@@ -27,15 +76,23 @@ def validate(root: Path, arch: str, pre_export: bool = False) -> None:
              "usr/share/backgrounds/oguzdows/wallpaper.png", "usr/share/oguzdows/wallpapers.json",
              "usr/share/themes/OguzDows/xfwm4/themerc", "usr/lib/oguzdows/pi-firstboot.py",
              "etc/systemd/system/lightdm.service.d/10-oguzdows-firstboot.conf",
-             "etc/systemd/system/ssh.service.d/10-oguzdows-firstboot.conf"]
+             "etc/systemd/system/ssh.service.d/10-oguzdows-firstboot.conf",
+             "usr/lib/raspberrypi-sys-mods/firstboot", "etc/init.d/resize2fs_once",
+             "usr/share/oguzdows/pi-contract.json", "usr/share/oguzdows/pi-build-report.json"]
     for filename in lock[arch]["kernels"] + lock[arch]["dtbs"] + ([] if pre_export else lock[arch]["initramfs"]):
         files.append("boot/firmware/" + filename)
     for filename in files:
-        path = root / filename
-        require(path.is_file() and path.stat().st_size > 0, "Eksik / boş Pi dosyası: " + filename)
+        try:
+            checked_path(root, filename)
+        except (OSError, ValueError) as error:
+            raise ValueError("Eksik / boş / hedef dışı Pi dosyası: " + filename) from error
     config = read(root, "boot/firmware/config.txt")
-    require("dtoverlay=vc4-kms-v3d" in config and "auto_initramfs=1" in config, "KMS / initramfs algılama eksik.")
-    require("arm_64bit=1" in config if arch == "arm64" else "arm_64bit=1" not in config, "Yanlış firmware bit modu.")
+    settings = {line.partition('#')[0].strip() for line in config.splitlines()}
+    require({'dtoverlay=vc4-kms-v3d', 'auto_initramfs=1', 'camera_auto_detect=1', 'display_auto_detect=1',
+             'dtparam=audio=on', 'disable_fw_kms_setup=1', 'arm_boost=1'}.issubset(settings),
+            "Resmî KMS / initramfs / kamera / ekran / ses varsayılanı eksik.")
+    require(("arm_64bit=1" in settings) == (arch == "arm64"), "Yanlış firmware bit modu.")
+    require(not re.search(r'(?m)^\s*kernel\s*=', config), "Bütün Pi modellerine tek kernel zorlanmış.")
     require(not re.search(r"(?m)^\s*(over_voltage\w*|force_turbo|arm_freq)\s*=", config), "Zorunlu overclock bulundu.")
     cmdline = read(root, "boot/firmware/cmdline.txt")
     args = cmdline.split()
@@ -43,6 +100,7 @@ def validate(root: Path, arch: str, pre_export: bool = False) -> None:
     require(any(re.fullmatch(r"root=PARTUUID=[0-9a-fA-F]{8}-02", arg) for arg in args), "Kök PARTUUID çözülmedi.")
     require("ROOTDEV" not in cmdline and "BOOTDEV" not in read(root, "etc/fstab"), "Bölüm yer tutucusu kaldı.")
     require("boot=live" not in args and not any("username=oguz" == arg for arg in args), "Canlı PC hesabı taşındı.")
+    require('init=/usr/lib/raspberrypi-sys-mods/firstboot' in args, "Resmî ilk açılış / bölüm büyütme zinciri kaybolmuş.")
     require("OğuzDows" in read(root, "usr/lib/os-release"), "Ürün kimliği eksik.")
     for filename in ("etc/systemd/system/oguzdows-live-setup.service", "usr/local/sbin/oguzdows-installer",
                      "etc/calamares", "var/lib/oguzdows/firstboot.done", "var/lib/oguzdows/firstboot.pending.json"):
@@ -53,11 +111,11 @@ def validate(root: Path, arch: str, pre_export: bool = False) -> None:
     require(shadow.get("root", "").startswith(("!", "*")), "Root hesabı kilitli değil.")
     for filename in [root / "etc/sudoers", *(root / "etc/sudoers.d").glob("*")]:
         if filename.is_file():
-            require(not any("NOPASSWD" in line.partition("#")[0] for line in filename.read_text().splitlines()),
+            require(not any("NOPASSWD" in line.partition("#")[0] for line in read(root, filename.relative_to(root).as_posix()).splitlines()),
                     "Kalıcı imajda parolasız sudo kuralı var: " + filename.name)
     for filename in (root / "etc/lightdm").rglob("*.conf"):
         require(not any(re.match(r"\s*autologin-user\s*=\s*\S", line.partition("#")[0])
-                        for line in filename.read_text().splitlines()), "Kalıcı imajda otomatik giriş açık.")
+                        for line in read(root, filename.relative_to(root).as_posix()).splitlines()), "Kalıcı imajda otomatik giriş açık.")
     for service in ("oguzdows-pi-firstboot", "oguzdows-pi-tune", "zramswap"):
         require((root / f"etc/systemd/system/multi-user.target.wants/{service}.service").is_symlink(),
                 "Servis etkinleştirilmemiş: " + service)
@@ -67,9 +125,12 @@ def validate(root: Path, arch: str, pre_export: bool = False) -> None:
     require((root / "etc/systemd/system/dphys-swapfile.service").is_symlink()
             and (root / "etc/systemd/system/dphys-swapfile.service").readlink() == Path("/dev/null"), "SD swap devre dışı değil.")
     require(not list((root / "etc/ssh").glob("ssh_host_*_key*")), "Kopyalanmış SSH sunucu anahtarı var.")
+    require(not (root / 'etc/systemd/system/network-online.target.wants/NetworkManager-wait-online.service').is_symlink(),
+            'NetworkManager enable sonrasında ağ bekleyici geri açılmış.')
     if not pre_export:
         require(not read(root, "etc/machine-id").strip(), "Makine kimliği sıfırlanmamış.")
-    print(f"OğuzDows Pi {arch}: dosya / boot / hesap güvenliği doğrulandı ({'export öncesi' if pre_export else 'son imaj'}).")
+    validate_features(root, arch)
+    print(f"OğuzDows Pi {arch}: dosya / boot / hesap güvenliği / özellik varlığı doğrulandı ({'export öncesi' if pre_export else 'son imaj'}).")
     print("Bu sonuç fiziksel Pi açılışı, çevre birimi veya performans doğrulaması değildir.")
 
 

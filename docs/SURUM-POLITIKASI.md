@@ -9,6 +9,10 @@
 - Yayın aracı hem yeni `v2.0` biçimini hem mevcut `v1.0.0` biçimini kabul eder. Bir etiket biçiminin kabul edilmesi o sürümün yayımlandığı anlamına gelmez.
 - Bu düzen bir yayın takvimi, otomatik yükseltme sistemi veya henüz tamamlanmamış özellik taahhüdü değildir. Yeni bir ISO mevcut kurulumları kendiliğinden değiştirmez.
 
+## 1.1 ara güncellemesi
+
+Kullanıcının istediği **v1.1**, v1.0.0 üzerine geliştirilen ara güncellemedir; sonraki ana sürümlerin v2.0 / v3.0 adlandırmasını değiştirmez. Yeni karşılayıcı, tema, mağaza, galeri, Rıfkı ve cihaz / dosya uyumluluğu kaynak dalında geliştirilir. **Henüz yayımlanmış v1.1 ISO yoktur.** v1.0.0 etiketi / ISO'ları / sekiz yayın dosyası korunur. Yeni ISO ve 1.1'e ait tam masaüstü ölçümü kendi kaynak kimliğiyle tamamlanmadan eski sayılar 1.1 sonucu diye sunulmaz. Ayrıntılar: [1.1 geliştirme kaydı](V1.1-GELISTIRME.md).
+
 ## Her yayında aynı kimlik
 
 Her yeni ana yayında ürün içindeki sürüm bilgisi, açık kaynak commit kimliği, yayın etiketi, sürüm notları ve ISO’lar birbiriyle uyumlu olmalıdır. Daha eski ISO’lar yeni ürün değişikliklerini içeriyormuş gibi yeniden etiketlenmez.

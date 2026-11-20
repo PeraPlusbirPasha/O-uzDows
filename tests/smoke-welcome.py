@@ -21,6 +21,8 @@ from support import ROOT, load
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output", type=Path, default=Path("test-results"))
+    parser.add_argument("--phone", action="store_true", help="Deneysel dar telefon karşılayıcısı; fiziksel cihaz testi değil")
+    parser.add_argument("--live", action="store_true", help="Canlı PC karşılayıcısını denetle")
     parser.add_argument("--pi", action="store_true", help="Pi sayfa dalını host GTK üzerinde denetle; kart taklidi değildir")
     args = parser.parse_args()
     args.output.mkdir(parents=True, exist_ok=True)
@@ -48,11 +50,15 @@ def main():
             assert icons.load_icon(name, 24, 0).get_width() == 24
         assert icons.lookup_icon("battery-missing-symbolic", 24, 0), "Belirsiz pil durumu için ayrı simge olmalı"
         assert icons.lookup_icon("ac-adapter-symbolic", 24, 0), "Pilsiz AC durumu için ayrı fiş simgesi olmalı"
-        provider = Gtk.CssProvider()
-        provider.load_from_path(str(ROOT / "system/usr/share/themes/OguzDows/gtk-3.0/gtk.css"))
+        for name in ('OguzDows', 'OguzDowsLight', 'OguzDowsXP', 'OguzDowsXPDark'):
+            provider = Gtk.CssProvider()
+            provider.load_from_path(str(ROOT / 'system/usr/share/themes' / name / 'gtk-3.0/gtk.css'))
         notify_provider = Gtk.CssProvider()
         notify_provider.load_from_path(str(ROOT / "system/usr/share/themes/OguzDows/xfce-notify-4.0/gtk.css"))
         welcome = load("oguzdows_welcome_smoke", "system/usr/lib/oguzdows/welcome.py")
+        welcome.is_live = lambda: args.live
+        if args.phone:
+            welcome.device_support.current = lambda: {'id': 'pinephone', 'arch': 'arm64', 'phone': True, 'name': 'PinePhone · host UI', 'tier': 'Deneysel'}
         if args.pi:
             welcome.is_pi = lambda: True
             welcome.pi_model = lambda: "Raspberry Pi · arayüz kontrolü (host)"
@@ -80,13 +86,20 @@ def main():
             try:
                 assert app.stack.get_visible_child_name() == "welcome"
                 assert not app.show_again.get_active()
+                assert len(app.sidebar.get_children()) == 7
+                assert not app.previous_button.get_sensitive()
+                assert app.next_button.get_sensitive()
+                if not args.pi:
+                    assert app.install_button.get_visible() == args.live, 'Kurulu karşılayıcı kurulum kartı göstermemeli'
                 if args.pi:
                     assert app.install_button.get_sensitive(), "Pi ayar kartı etkin olmalı"
                     assert not app.broadcom_button.get_visible(), "Pi'de PC STA düğmesi görünmemeli"
                     assert not app.intel_button.get_visible(), "Pi'de PC firmware düğmesi görünmemeli"
                     assert "SD/USB" in app.install_status.get_text()
+                if args.phone:
+                    assert app.window.get_size()[0] <= app.window.get_screen().get_width(), 'Telefon karşılayıcısı ekran dışına taşmamalı'
                 screenshot("welcome.png")
-                app.window.resize(600, 440)
+                app.window.resize(min(400, app.window.get_screen().get_width() - 24) if args.phone else 600, 440)
             except Exception as error:
                 errors.append(str(error))
             return GLib.SOURCE_REMOVE
@@ -96,7 +109,7 @@ def main():
                 screenshot("welcome-small.png")
                 assert len(app.wallpaper_buttons)==0, 'Galeri başlangıçta yüklenmemeli'
                 app.stack.set_visible_child_name("wallpapers")
-                assert len(app.wallpaper_buttons)==6, 'Yeni altı manzara yalnızca galeri açılınca yüklenmeli'
+                assert len(app.wallpaper_buttons)==20, 'Yirmi görsel yalnızca galeri açılınca yüklenmeli'
             except Exception as error:
                 errors.append(str(error))
             return GLib.SOURCE_REMOVE
@@ -106,8 +119,18 @@ def main():
                 screenshot('wallpapers.png')
                 app.stack.set_visible_child_name('styles')
                 assert len(app.profile_choice.get_model()) == 5
+                assert len(app.profile_buttons) == 5
                 screenshot('desktop-styles.png')
-                app.window.resize(900, 600)
+                app.step_page(1)
+                assert app.stack.get_visible_child_name() == 'appearance'
+                assert app.sidebar.get_selected_row().page_name == 'appearance'
+                assert set(app.theme_buttons) == {'light', 'dark'}
+                screenshot('appearance.png')
+                app.navigate('support')
+                assert not app.next_button.get_sensitive()
+                app.navigate('applications')
+                screenshot('applications.png')
+                app.window.resize(min(400, app.window.get_screen().get_width() - 24) if args.phone else 900, 600)
                 app.show_drivers()
             except Exception as error:
                 errors.append(str(error))
@@ -162,8 +185,17 @@ def main():
                 assert len(spoken)==8 and all(spoken)
                 app.rifki.set_installing(True)
                 app.rifki.say('Kurulumda sessiz metin')
+                app.rifki.repeat()
                 assert len(spoken)==8, 'Kurulum sırasında otomatik ses çağrılmamalı'
                 app.rifki.set_installing(False)
+                app.rifki.narration.set_active(False)
+                assert not app.narration_switch.get_active(), 'Aynı otomatik anlatım tercihi paylaşılmalı'
+                app.navigate('styles')
+                assert len(spoken) == 8, 'Rıfkı açık diye kapalı sayfa anlatımı geri açılmamalı'
+                app.rifki.narrate_page('styles', force=True)
+                assert len(spoken) == 9 and spoken[-1] == welcome.welcome_model.page_text('styles', app.context)
+                app.narration_switch.set_active(True)
+                assert app.rifki.narration.get_active()
                 app.rifki.speaker.speak=original_speak
                 app.rifki.ask("diskten açılmıyor")
                 assert app.rifki.action_name == 'boot-report'

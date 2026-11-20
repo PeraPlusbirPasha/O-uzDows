@@ -11,6 +11,7 @@ import gi
 gi.require_version('Gtk', '3.0')
 gi.require_version('Gdk', '3.0')
 from gi.repository import Gdk, Gio, GLib, Gtk
+from narration import NarrationBar
 
 
 def label(value):
@@ -45,6 +46,9 @@ class Culture(Gtk.Application):
                                            ('Heybe', 'backup', self.backup_page), ('İmece Paketi', 'share', self.share_page)]:
             stack.add_titled(factory(), identifier, title)
         box.pack_start(stack, True, True, 0)
+        self.voicebar = NarrationBar(self.window, 'culture')
+        stack.connect('notify::visible-child-name', self.voicebar.refresh)
+        box.pack_start(self.voicebar, False, False, 0)
         self.status = label('Çevrimdışı. Dosyalar kendiliğinden taranmaz; ağda paylaşım servisi açılmaz.')
         box.pack_start(self.status, False, False, 0)
         self.window.add(box)

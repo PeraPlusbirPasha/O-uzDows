@@ -25,6 +25,16 @@
 
 ---
 
+## Kaynak dalında: 1.1 ara güncellemesi
+
+Sol menülü **ayrı canlı / kurulu karşılama**, açık / koyu tema ve özgün **XP esintili Başlat**, **derlenen C / GTK mağaza**, **20 kültür görseli** ve seçilen sesle **10 yeni doğal Rıfkı kaydı** geliştiriliyor. Yeni **Cihaz Merkezi** destek düzeylerini açıklar; EXE / APK açıcı dosyayı önce inceler ve açık onay ister. Wine / Waydroid hazır değilse çalıştırmaz; güvenlik veya evrensel uyumluluk garantisi değildir.
+
+**1.1 henüz Release olarak yayımlanmadı.** `819c883` kaynağının amd64 / i386 geliştirme ISO’ları [başarılı PC çalışmasının Artifacts bölümünde](https://github.com/PeraPlusbirPasha/OguzDows/actions/runs/44791237446) bulunur; geçici çıktılardır ve GitHub oturumu gerekebilir. Yeni tam Xfce sanal makine ölçümünde en yüksek kullanım **amd64 478,4 MB / i386 480,8 MB**; ikisi de 600 MB hedefinin altında. Bu fiziksel cihaz veya KDE/GNOME / Pi sonucu değildir. [1.1 ISO ve ölçüm kanıtı →](docs/V1.1-TEST-KANITI.md)
+
+Aşağıdaki kalıcı indirmeler, vitrin ve ana RAM tablosu **v1.0.0** içindir; etiket / dosyalar korunur. ARM64 / telefon katmanları önyüklenebilir telefon imajı değildir; fiziksel cihaz testleri bekliyor.
+
+[1.1 uygulama kaydı →](docs/V1.1-GELISTIRME.md) · [Cihaz / EXE / APK sınırları →](docs/CIHAZLAR-VE-UYUMLULUK.md)
+
 <a id="indir"></a>
 
 ## Bir USB ile başla
@@ -103,7 +113,7 @@ Her manzaranın sağ altında **OğuzDows logosu** bulunur. 1920×1080 yerel gö
 
 ## Hafiflik, yalnızca bir sıfat değil
 
-**600 MB boşta RAM hedefi**, üretilen ISO içeriğinden hazırlanan test diskinde gerçek **tam Xfce oturumu** açılarak ölçüldü.
+**Yayımlanmış v1.0.0 için 600 MB boşta RAM hedefi**, üretilen ISO içeriğinden hazırlanan test diskinde gerçek **tam Xfce oturumu** açılarak ölçüldü. 1.1 geliştirme sonucu yukarıda ve [ayrı kanıt kaydındadır](docs/V1.1-TEST-KANITI.md).
 
 | İmaj | En yüksek kullanım | 600 MB hedefi |
 | :--- | ---: | :---: |
@@ -140,12 +150,14 @@ Siyah ekranda **güvenli görüntü**, az bellekte **düşük bellek** açılı�
 
 Zero–5 ailesi için ayrı `armhf` / `arm64` SD/USB imajı akışı bulunur. PC ISO’su Pi’ye yazılmaz; Pi’de ilk açılışta kişisel hesap oluşturulur, ortak canlı parola veya parolasız sudo yoktur.
 
-**Bu PC release’inde Pi imajı yoktur; fiziksel Pi açılışı ve performansı henüz doğrulanmadı.** ARMv6 ve 512 MB cihazlar için modern PC performansı vaat edilmez. [Raspberry Pi rehberi →](raspberrypi/README.md)
+**Bu PC release’inde Pi imajı yoktur; fiziksel Pi açılışı ve performansı henüz doğrulanmadı.** Resmî Pi OS/pi-gen kaynaklarıyla mimari karşılaştırma yapıldı: başsız Xfce testi, teknik taban kimliği ve ağ bekleme sırası düzeltildi; ortak özellik / ARM ABI / 20 görsel + 10 doğal kayıt için her sürümde çalışan yapı kapıları eklendi. Yeni tam imaj sonucu ayrıca doğrulanmalıdır; ARMv6 / 512 MB için modern PC hızı vaat edilmez. [Mimari karşılaştırma ve portlama verisi →](docs/ARM-MIMARI-VE-PORTLAMA.md) · [Pi rehberi →](raspberrypi/README.md)
 
 ## Yeni bir sayfa, yeni bir ana sürüm
 
 ```text
 v1.0.0  ·  Ay Yıldız — yayımlandı
+   ↓
+v1.1    ·  Ara güncelleme — geliştirme
    ↓
 v2.0    ·  Bir sonraki ana yayın
    ↓

@@ -15,6 +15,9 @@ import wallpapers
 import boot_report
 import install_status as installer_state
 import profiles
+import welcome_model
+import device_support
+from rifki_speech import Speaker, ready_clip
 from pi_support import current_policy, is_pi, model as pi_model
 
 import gi
@@ -37,7 +40,15 @@ class Welcome(Gtk.Application):
     def __init__(self) -> None:
         super().__init__(application_id="org.oguzdows.Rehber", flags=Gio.ApplicationFlags.HANDLES_COMMAND_LINE)
         state_home = Path(os.environ.get("XDG_STATE_HOME", str(Path.home() / ".local/state")))
-        self.state_file = state_home / "oguzdows/welcome-seen"
+        self.device = device_support.current()
+        self.phone = self.device.get('phone', False)
+        self.pc = self.device.get('arch') in ('amd64', 'i386') and not is_pi()
+        self.context = welcome_model.context(live=is_live() and self.pc, pi=is_pi())
+        self.state_file = state_home / 'oguzdows' / self.context.state_name
+        self.speaker = None
+        self.narration_source = None
+        self.sidebar_rows = {}
+        self.theme_busy = False
         self.window = None
         self.driver_busy = False
         self.driver_eligibility = (False,False)
@@ -68,6 +79,9 @@ class Welcome(Gtk.Application):
             Gio.bus_unwatch_name(self.launcher_watch)
             self.launcher_watch=None
         self.launcher_vanished(None,None)
+        self.cancel_narration()
+        if self.speaker:
+            self.speaker.close()
         Gtk.Application.do_shutdown(self)
 
     def launcher_appeared(self,connection,name,_owner):
@@ -100,12 +114,16 @@ class Welcome(Gtk.Application):
     def set_external_installing(self,value):
         self.external_installing=bool(value)
         busy=self.install_busy or self.external_installing
+        if busy:
+            self.cancel_narration()
+            if self.speaker:
+                self.speaker.stop()
         if self.rifki:
             self.rifki.set_installing(busy)
-        if self.window is not None and not is_pi():
+        if self.window is not None and self.pc:
             self.install_button.set_sensitive(not busy and not self.driver_busy and self.can_install())
             for button,eligible in zip((self.broadcom_button,self.intel_button),self.driver_eligibility):
-                button.set_sensitive(eligible and not busy and not self.driver_busy)
+                button.set_sensitive(eligible and self.pc and not busy and not self.driver_busy)
 
     def do_command_line(self, command_line: Gio.ApplicationCommandLine) -> int:
         args = set(command_line.get_arguments()[1:])
@@ -136,48 +154,185 @@ class Welcome(Gtk.Application):
 
     def build_window(self) -> None:
         self.window = Gtk.ApplicationWindow(application=self)
-        self.window.set_title("OğuzDows Rehberi")
-        self.window.set_icon_name("oguzdows")
-        self.window.get_style_context().add_class("oguzdows-window")
+        self.window.set_title(self.context.title)
+        self.window.set_icon_name('oguzdows')
+        self.window.get_style_context().add_class('oguzdows-window')
         self.window.set_position(Gtk.WindowPosition.CENTER)
         screen = self.window.get_screen()
-        self.window.set_default_size(min(900, screen.get_width() - 32), min(680, screen.get_height() - 64))
-        self.window.set_size_request(520, 360)
-        self.window.connect("delete-event", self.on_close)
-        header = Gtk.HeaderBar(title="OğuzDows", subtitle="Ay Yıldız")
+        self.window.set_default_size(min(400 if self.phone else 980, screen.get_width() - 24), min(700, screen.get_height() - 48))
+        self.window.set_size_request(320 if self.phone else 550, 380)
+        self.window.connect('delete-event', self.on_close)
+        self.window.connect('destroy', self.window_destroyed)
+        self.window.connect('notify::is-active', self.focus_changed)
+        header = Gtk.HeaderBar(title='OğuzDows' if self.phone else 'OğuzDows Karşılayıcı',
+                               subtitle=None if self.phone else self.context.subtitle)
         header.set_show_close_button(True)
         self.window.set_titlebar(header)
-        header.pack_end(label("Canlı oturum" if is_live() else "Senin masaüstün", "pill"))
-        help_button = Gtk.Button(label="Rıfkı’ya sor")
-        help_button.connect("clicked", lambda *_: self.open_assistant())
-        header.pack_start(help_button)
-        body = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
-        body.set_border_width(24)
+        help_button = (Gtk.Button.new_from_icon_name('help-browser-symbolic', Gtk.IconSize.BUTTON)
+                       if self.phone else Gtk.Button(label='Rıfkı’ya sor'))
+        help_button.set_tooltip_text('Rıfkı’ya sor')
+        help_button.get_accessible().set_name('Rıfkı’ya sor')
+        help_button.connect('clicked', lambda *_: self.open_assistant())
+        header.pack_end(help_button)
+        self.speaker = Speaker(GLib.idle_add, self.voice_error)
         self.stack = Gtk.Stack()
-        reduced = not current_policy()["animations"] if is_pi() else light_profile(read_text(Path("/proc/cmdline")), memory_kib())
-        reduced = reduced or not Gtk.Settings.get_default().get_property("gtk-enable-animations")
-        self.reduced = reduced
+        reduced = not current_policy()['animations'] if is_pi() else light_profile(read_text(Path('/proc/cmdline')), memory_kib())
+        self.reduced = reduced or not Gtk.Settings.get_default().get_property('gtk-enable-animations')
         self.stack.set_transition_type(Gtk.StackTransitionType.NONE)
-        self.stack.set_transition_duration(160)
-        switcher = Gtk.StackSwitcher(stack=self.stack)
-        switcher.set_halign(Gtk.Align.CENTER)
-        body.pack_start(switcher, False, False, 0)
-        self.stack.add_titled(self.welcome_page(), "welcome", "Hoş geldin")
-        self.stack.add_titled(self.hardware_page(), "hardware", "Donanım")
-        self.stack.add_titled(self.wallpapers_page(), "wallpapers", "Manzaralar")
-        self.stack.add_titled(self.styles_page(), "styles", "Tarzlar")
-        self.stack.connect("notify::visible-child-name", self.page_changed)
-        self.stack.add_named(self.result_page(), "install-result")
-        body.pack_start(self.stack, True, True, 0)
-        scroll = Gtk.ScrolledWindow()
-        scroll.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
-        scroll.add(body)
-        self.window.add(scroll)
+        root = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+        content = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
+        self.sidebar = Gtk.ListBox()
+        self.sidebar.set_selection_mode(Gtk.SelectionMode.SINGLE)
+        self.sidebar.set_activate_on_single_click(True)
+        self.sidebar.set_size_request(52 if self.phone else 142, -1)
+        self.sidebar.get_style_context().add_class('welcome-sidebar')
+        builders = {'welcome': self.welcome_page, 'styles': self.styles_page,
+                    'appearance': self.appearance_page, 'wallpapers': self.wallpapers_page,
+                    'hardware': self.hardware_page, 'applications': self.applications_page,
+                    'support': self.support_page}
+        for identifier, title, icon in welcome_model.PAGES:
+            row = Gtk.ListBoxRow()
+            row.page_name = identifier
+            line = Gtk.Box(spacing=8)
+            line.set_border_width(11)
+            line.pack_start(Gtk.Image.new_from_icon_name(icon, Gtk.IconSize.MENU), False, False, 0)
+            if not self.phone:
+                line.pack_start(label(title), True, True, 0)
+            row.set_tooltip_text(title)
+            row.get_accessible().set_name(title)
+            row.add(line)
+            self.sidebar.add(row)
+            self.sidebar_rows[identifier] = row
+            page_scroll = Gtk.ScrolledWindow()
+            page_scroll.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
+            page_scroll.set_propagate_natural_width(False)
+            page = builders[identifier]()
+            page.set_border_width(18)
+            page_scroll.add(page)
+            self.stack.add_named(page_scroll, identifier)
+        self.stack.add_named(self.result_page(), 'install-result')
+        self.sidebar.connect('row-selected', self.sidebar_selected)
+        content.pack_start(self.sidebar, False, False, 0)
+        content.pack_start(Gtk.Separator(orientation=Gtk.Orientation.VERTICAL), False, False, 0)
+        content.pack_start(self.stack, True, True, 0)
+        root.pack_start(content, True, True, 0)
+        root.pack_start(Gtk.Separator(), False, False, 0)
+        root.pack_start(self.narration_bar(), False, False, 0)
+        footer = Gtk.Box(spacing=10)
+        footer.set_border_width(10)
+        self.previous_button = Gtk.Button(label='Önceki')
+        self.previous_button.connect('clicked', lambda *_: self.step_page(-1))
+        self.next_button = Gtk.Button(label='Sonraki')
+        self.next_button.connect('clicked', lambda *_: self.step_page(1))
+        footer.pack_start(self.previous_button, True, True, 0)
+        footer.pack_start(self.next_button, True, True, 0)
+        root.pack_start(footer, False, False, 0)
+        self.window.add(root)
+        self.stack.connect('notify::visible-child-name', self.page_changed)
         self.window.show_all()
+        self.sidebar.select_row(self.sidebar_rows['welcome'])
+        self.page_changed()
+
+    def focus_changed(self, window, *_):
+        if not window.is_active() and (self.rifki is None or not self.rifki.get_visible()):
+            self.stop_narration()
+
+    def window_destroyed(self, *_):
+        self.cancel_narration()
+        if self.speaker:
+            self.speaker.close()
+
+    def sidebar_selected(self, _sidebar, row):
+        if row is not None and self.stack.get_visible_child_name() != row.page_name:
+            self.stack.set_visible_child_name(row.page_name)
+
+    def step_page(self, direction):
+        target = welcome_model.adjacent(self.stack.get_visible_child_name(), direction)
+        if target:
+            self.navigate(target)
+
+    def narration_bar(self):
+        bar = Gtk.Box(orientation=Gtk.Orientation.VERTICAL if self.phone else Gtk.Orientation.HORIZONTAL, spacing=8)
+        bar.set_border_width(10)
+        bar.get_style_context().add_class('narration-bar')
+        self.narration_status = label('Rıfkı · Hazır doğal kayıtlar.', 'muted', 48)
+        self.narration_status.set_hexpand(True)
+        bar.pack_start(self.narration_status, True, True, 0)
+        controls = Gtk.Box(spacing=8) if self.phone else bar
+        if self.phone:
+            bar.pack_start(controls, False, False, 0)
+        self.listen_button = Gtk.Button.new_from_icon_name('audio-volume-high-symbolic', Gtk.IconSize.BUTTON)
+        self.listen_button.set_tooltip_text('Bu sayfayı Rıfkı’dan dinle')
+        self.listen_button.get_accessible().set_name('Bu sayfayı dinle')
+        self.listen_button.connect('clicked', lambda *_: self.queue_narration(force=True))
+        controls.pack_start(self.listen_button, False, False, 0)
+        stop = Gtk.Button.new_from_icon_name('media-playback-stop-symbolic', Gtk.IconSize.BUTTON)
+        stop.set_tooltip_text('Sesi hemen durdur')
+        stop.get_accessible().set_name('Sesi durdur')
+        stop.connect('clicked', self.stop_narration)
+        controls.pack_start(stop, False, False, 0)
+        self.narration_switch = Gtk.Switch()
+        self.narration_switch.set_valign(Gtk.Align.CENTER)
+        self.narration_switch.set_active(self.speaker.options.get('welcome_narration', True) is not False)
+        self.narration_switch.set_tooltip_text('Sayfa değişince Rıfkı anlatsın. Bu anahtarla kapatabilirsin; tercihin korunur.')
+        self.narration_switch.get_accessible().set_name('Otomatik sayfa anlatımı')
+        self.narration_switch.connect('notify::active', self.narration_toggled)
+        controls.pack_start(self.narration_switch, False, False, 0)
+        return bar
+
+    def narration_toggled(self, *_):
+        self.speaker.save_option('welcome_narration', self.narration_switch.get_active())
+        if self.rifki:
+            self.rifki.narration.set_active(self.narration_switch.get_active())
+        if self.narration_switch.get_active():
+            self.queue_narration(force=True)
+        else:
+            self.stop_narration()
+
+    def cancel_narration(self):
+        if self.narration_source is not None:
+            GLib.source_remove(self.narration_source)
+            self.narration_source = None
+
+    def stop_narration(self, *_):
+        self.cancel_narration()
+        if self.speaker:
+            self.speaker.stop()
+
+    def voice_error(self, text):
+        if self.window:
+            self.narration_status.set_text(text)
+
+    def queue_narration(self, force=False):
+        self.stop_narration()
+        if self.install_busy or self.external_installing or not self.window:
+            return
+        page = self.stack.get_visible_child_name()
+        words = welcome_model.page_text(page, self.context)
+        if not words:
+            return
+        self.narration_status.set_tooltip_text(words)
+        if not force and not self.narration_switch.get_active():
+            return
+        if not self.speaker.enabled:
+            self.narration_status.set_text('Rıfkı sesi kapalı. Rıfkı ayarlarından açabilirsin.')
+            return
+        if ready_clip(words, self.speaker.assets, self.speaker.clips) is None:
+            self.narration_status.set_text('Bu sayfanın doğal ses kaydı henüz yok; açıklama yazılı yardımda.')
+            return
+        def play():
+            self.narration_source = None
+            if (self.window and self.stack.get_visible_child_name() == page
+                    and not self.install_busy and not self.external_installing):
+                self.speaker.speak(words)
+                self.narration_status.set_text('Rıfkı · ' + dict((x[0], x[1]) for x in welcome_model.PAGES)[page])
+            return GLib.SOURCE_REMOVE
+        # Hızlı gezinmede önceki sayfanın sesi başlamasın; boşta tekrar eden iş yok.
+        self.narration_source = GLib.timeout_add(120, play)
 
     def welcome_page(self) -> Gtk.Box:
         page = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=18)
-        hero = Gtk.Box(spacing=22)
+        hero = Gtk.Box(orientation=Gtk.Orientation.VERTICAL if self.phone else Gtk.Orientation.HORIZONTAL, spacing=22)
         image = Gtk.Image()
         try:
             image.set_from_pixbuf(GdkPixbuf.Pixbuf.new_from_file_at_scale('/usr/share/oguzdows/rifki/idle.png',128,128,True))
@@ -188,7 +343,7 @@ class Welcome(Gtk.Application):
         words = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=9)
         words.pack_start(label("RIFKI · YANINDAYIM", "eyebrow"), False, False, 0)
         words.pack_start(label("OğuzDows'a hoş geldin.", "heading", 28), False, False, 0)
-        words.pack_start(label("Ben Rıfkı. Kurulumdan ilk adımlarına kadar birlikte bakalım.", "muted", 50), False, False, 0)
+        words.pack_start(label(self.context.intro, "muted", 46), False, False, 0)
         hero.pack_start(words, True, True, 0)
         page.pack_start(hero, False, False, 12)
         page.pack_start(label("Nasıl başlamak istersin?", "section-title"), False, False, 0)
@@ -199,7 +354,9 @@ class Welcome(Gtk.Application):
         choices.set_min_children_per_line(1)
         choices.set_max_children_per_line(3)
         choices.set_homogeneous(True)
-        choices.add(self.card("OğuzDows'u keşfet" if is_pi() else "OğuzDows'u dene", "SD/USB üzerindeki kalıcı masaüstünü ve uygulamalarını keşfet." if is_pi() else "Diskine dokunmadan masaüstünü ve uygulamalarını keşfet.", "user-desktop-symbolic", lambda *_: self.window.close(), primary=True))
+        choices.add(self.card("OğuzDows'u dene" if self.context.offers_installer else 'Masaüstüne geç',
+                              'Diskine dokunmadan masaüstünü ve uygulamalarını keşfet.' if self.context.offers_installer else 'Karşılayıcıyı kapat ve kendi masaüstünü kullanmaya başla.',
+                              'user-desktop-symbolic', lambda *_: self.window.close(), primary=True))
         if is_pi():
             self.install_button = self.card("Pi masaüstü ayarları", "Sistem zaten kurulu. Görünüm, ekran, ses ve güç ayarlarını düzenle.", "preferences-system-symbolic", lambda *_: self.launch(["/usr/bin/xfce4-settings-manager"]))
         else:
@@ -207,22 +364,31 @@ class Welcome(Gtk.Application):
             self.install_button.set_sensitive(self.can_install())
             if not is_live():
                 self.install_button.set_tooltip_text("Kurulum canlı OğuzDows USB'sinden başlatılır.")
-        choices.add(self.install_button)
+        if is_pi() or self.context.offers_installer:
+            choices.add(self.install_button)
+        else:
+            # Kurulu sistemde canlı USB kurulum kartı hiç gösterilmez.
+            self.install_button.set_no_show_all(True)
+            choices.add(self.card('Masaüstünü kişiselleştir', 'Tarzını, açık/koyu temanı ve duvar kâğıdını seç.',
+                                  'preferences-desktop-theme-symbolic', lambda *_: self.navigate('styles')))
         choices.add(self.card("Donanımını tanı", "Aygıtları, yüklü firmware'i ve gömülü ek sürücüleri gör.", "preferences-system-symbolic", lambda *_: self.show_drivers()))
         choices.add(self.card('Masaüstü tarzını seç', 'Beş hafif görünüm. Pencere düğmeleri ve panel daima okunaklı.', 'preferences-desktop-theme-symbolic', lambda *_: self.stack.set_visible_child_name('styles')))
         if not is_pi():
-            choices.add(self.card('Güncelleyici ve Mağaza', 'Güncellemeleri, firmware önerilerini ve uygulamaları açık onayla yönet.', 'system-software-update-symbolic', lambda *_: self.launch(['/usr/local/bin/oguzdows-update'])))
+            choices.add(self.card('Uygulamalar ve güncellemeler', 'Mağaza ve Güncelleyici ayrı, anlaşılır düğmelerle.', 'system-software-update-symbolic', lambda *_: self.navigate('applications')))
         choices.add(self.card('İmece araçları', 'Çay Molası · Türkçe Hızlı Yazım · Heybe · Yerel paylaşım paketi.', 'applications-utilities-symbolic', lambda *_: self.launch(['/usr/local/bin/oguzdows-imece'])))
         page.pack_start(choices, False, False, 0)
-        setup_note = (f"{pi_model() or 'Raspberry Pi'} · {current_policy()['profile']} profili. Değişikliklerin SD/USB üzerinde kalıcıdır." if is_pi() else "Kurulum günlüğü: /var/log/oguzdows/installer.log")
+        setup_note = (f"{pi_model() or 'Raspberry Pi'} · {current_policy()['profile']} profili. Değişikliklerin SD/USB üzerinde kalıcıdır."
+                      if is_pi() else ('Kurulum günlüğü: /var/log/oguzdows/installer.log' if self.context.offers_installer
+                                       else 'Görünüm seçimlerin bu hesapta saklanır. Cihazına özel destek düzeyini Cihaz Merkezi’nde inceleyebilirsin.'))
         self.install_status = label(setup_note, "muted", 90)
         page.pack_start(self.install_status, False, False, 0)
         page.pack_start(Gtk.Separator(), False, False, 0)
         page.pack_start(label("Türkçe dil ve Q klavye · İstanbul saat dilimi · Hafif Xfce masaüstü", "muted", 80), False, False, 0)
-        gallery = Gtk.Button(label="Türkiye duvar kâğıtlarını keşfet")
+        gallery = Gtk.Button(label='Duvar kâğıtlarını keşfet' if self.phone else 'Türkiye duvar kâğıtlarını keşfet')
         gallery.connect("clicked", lambda *_: self.stack.set_visible_child_name("wallpapers"))
         page.pack_start(gallery, False, False, 0)
-        self.show_again = Gtk.CheckButton(label="Bir sonraki girişte bu ekranı yeniden göster")
+        self.show_again = Gtk.CheckButton(label='Sonraki girişte yeniden göster' if self.phone else 'Bir sonraki girişte bu ekranı yeniden göster')
+        self.show_again.get_child().set_line_wrap(True)
         page.pack_start(self.show_again, False, False, 0)
         note = "Canlı oturumdaki değişiklikler, kalıcılık ayarlanmadıkça yeniden başlatmada silinir." if is_live() else "Rehbere uygulamalar menüsünden her zaman dönebilirsin."
         page.pack_start(label(note, "muted", 90), False, False, 0)
@@ -249,7 +415,10 @@ class Welcome(Gtk.Application):
         page = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
         page.pack_start(label("Önce tanı, sonra kur.", "section-title"), False, False, 8)
         driver_note = ("Pi çekirdekleri ve DTB'leri, VC4/V3D KMS, kartta varsa Broadcom SDIO Wi-Fi / Bluetooth ve USB ağ firmware'i imajdadır. Platform ve SDIO aygıtları da raporlanır; PC için STA sürücüsü Pi Wi-Fi'ına kurulmaz." if is_pi() else "Intel, AMD/ATI, Nouveau; Intel, Realtek, Atheros, Broadcom, Atmel, ZD1211 ve Libertas firmware paketleri ISO'dadır. Aşağıdaki rapor aygıtın gerçekten hangi sürücüye bağlandığını gösterir.")
+        if not self.pc and not is_pi():
+            driver_note = 'ARM cihazında ekran, güç, modem, ağ ve dokunma sürücüleri cihaz özel çekirdek / DTB / firmware yolundan gelir. Rapor salt okunurdur; PC Broadcom STA veya çekirdek paketi zorlanmaz.'
         page.pack_start(label(driver_note, "muted", 95), False, False, 0)
+        page.pack_start(label(device_support.current()['name'] + ' · ' + device_support.current()['tier'], 'muted', 80), False, False, 0)
         self.report_view = Gtk.TextView(editable=False, cursor_visible=False, monospace=True)
         self.report_view.set_left_margin(12)
         self.report_view.set_top_margin(12)
@@ -282,11 +451,13 @@ class Welcome(Gtk.Application):
         self.intel_button.set_sensitive(False)
         self.intel_button.connect("clicked", lambda *_: self.install_driver("intel-legacy-accept-license"))
         page.pack_start(self.intel_button, False, False, 0)
-        if is_pi():
+        if not self.pc:
             for button in (self.broadcom_button, self.intel_button):
                 button.set_no_show_all(True)
                 button.hide()
-            page.pack_start(label("mini: ARMv6 veya en fazla 768 MiB; light: en fazla 2 GiB; full: daha fazla RAM. LZ4 zram sınırlıdır, SD swap kapalıdır; overclock uygulanmaz. 512 MiB ile modern web/ofis ağırdır. ARMv6 tarayıcısı temel Netsurf'tür (JavaScript yok). Profil: /etc/oguzdows/pi.conf", "muted", 95), False, False, 0)
+            arm_note = ("mini: ARMv6 veya en fazla 768 MiB; light: en fazla 2 GiB; full: daha fazla RAM. LZ4 zram sınırlıdır, SD swap kapalıdır; overclock uygulanmaz. 512 MiB ile modern web/ofis ağırdır. ARMv6 tarayıcısı temel Netsurf'tür (JavaScript yok). Profil: /etc/oguzdows/pi.conf"
+                        if is_pi() else 'Deneysel ARM katmanı bir önyükleme imajı değildir. Ekran, modem, kamera, güç yönetimi ve fiziksel performans cihazda ayrıca sınanmalıdır. Pi çekirdeği veya Pi performans ayarları bu cihaza uygulanmaz.')
+            page.pack_start(label(arm_note, 'muted', 95), False, False, 0)
         else:
             page.pack_start(label("Bu iki ek paket ve gerekli derleme araçları ISO'ya gömülüdür; eşleşen kartlarda internet gerekmez. Lisans ve yönetici onayı istenir. Canlıda onayladığın seçim disk kurulumuna taşınır. Gri düğme: bu sürücüyle eşleşen kart algılanmadı.", "muted", 95), False, False, 0)
         status = Gtk.Box(spacing=10)
@@ -300,7 +471,7 @@ class Welcome(Gtk.Application):
     def wallpapers_page(self) -> Gtk.Box:
         page = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=14)
         page.pack_start(label("Türkiye'nin renkleri masaüstünde.", "section-title"), False, False, 6)
-        page.pack_start(label('Önceki duvar kâğıtlarının tamamı altı yeni Türkiye manzarasıyla değiştirildi. Her birinin sağ altında OğuzDows logosu var. Foto-gerçekçi görseller yapay zekâ üretimidir, gerçek çekim değildir. Tamamı çevrimdışı; arka plan servisi yok.', 'muted', 90), False, False, 0)
+        page.pack_start(label('20 duvar kâğıdı: Türkiye manzaraları, kediler, çay–simit, halk oyunları ve kültür desenleri. 16 görsel yapay zekâ üretimi, 4 görsel özgün çizimdir; gerçek kamera fotoğrafı değildir. Hepsi sağ altta OğuzDows markalı, çevrimdışı ve küçük önizlemelidir.', 'muted', 90), False, False, 0)
         grid = Gtk.FlowBox()
         grid.set_selection_mode(Gtk.SelectionMode.NONE)
         grid.set_min_children_per_line(1)
@@ -313,29 +484,79 @@ class Welcome(Gtk.Application):
         page.pack_start(self.wallpaper_status, False, False, 0)
         return page
 
+    def style_preview(self, identifier):
+        """Yerel GTK kutuları: şema, ekran görüntüsü değil. Python çizici yok."""
+        frame = Gtk.Frame()
+        frame.set_size_request(156, 94)
+        frame.get_style_context().add_class('style-preview')
+        column = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+        frame.add(column)
+        workspace = Gtk.Overlay()
+        workspace.get_style_context().add_class('preview-workspace')
+        workspace.add(Gtk.Box())
+        mini_window = Gtk.Frame()
+        mini_window.get_style_context().add_class('preview-window')
+        mini_window.set_halign(Gtk.Align.CENTER)
+        mini_window.set_valign(Gtk.Align.CENTER)
+        mini_window.set_size_request(78, 42)
+        mini_window.add(Gtk.Label(label='─  □  ×'))
+        workspace.add_overlay(mini_window)
+        panel = Gtk.Box(spacing=8)
+        panel.get_style_context().add_class('preview-panel')
+        start = Gtk.Label(label='Başlat' if identifier == 'oguzdows' else '▦')
+        start.get_style_context().add_class('preview-start')
+        panel.pack_start(start, False, False, 0)
+        panel.pack_end(Gtk.Label(label='···'), False, False, 3)
+        if profiles.PROFILES[identifier]['position'] == 6:
+            column.pack_start(panel, False, False, 0)
+            column.pack_start(workspace, True, True, 0)
+        else:
+            column.pack_start(workspace, True, True, 0)
+            column.pack_start(panel, False, False, 0)
+        return frame
+
     def styles_page(self):
-        page = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=14)
-        page.pack_start(label('Aynı hafif masaüstü, sana göre bir tarz.', 'section-title'), False, False, 0)
-        page.pack_start(label('Bu beş seçenek Xfce görünüm profilidir; gerçek KDE / GNOME veya başka bir işletim sistemi kurmaz. İlk değişiklikte mevcut görünüm ayarların yedeklenir. Opak panel ve belirgin pencere düğmeleri korunur.', 'muted', 85), False, False, 0)
+        page = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
+        page.pack_start(label('Masaüstün, senin tarzın.', 'heading'), False, False, 0)
+        page.pack_start(label('Kartlar şematik önizlemedir. Hepsi aynı hafif Xfce masaüstünü düzenler; başka işletim sistemi kurmaz. İlk ayarlar yedeklenir.', 'muted', 72), False, False, 0)
+        grid = Gtk.FlowBox()
+        grid.set_selection_mode(Gtk.SelectionMode.NONE)
+        grid.set_min_children_per_line(1)
+        grid.set_max_children_per_line(3)
+        grid.set_column_spacing(10)
+        grid.set_row_spacing(10)
+        self.profile_buttons = {}
         self.profile_choice = Gtk.ComboBoxText()
         for identifier, item in profiles.PROFILES.items():
-            self.profile_choice.append(identifier, item['name'] + ' · ' + item['description'])
-        self.profile_choice.set_active_id('oguzdows')
+            self.profile_choice.append(identifier, item['name'])
+            button = Gtk.Button()
+            button.get_style_context().add_class('style-card')
+            content = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
+            content.set_border_width(9)
+            content.pack_start(self.style_preview(identifier), False, False, 0)
+            content.pack_start(label(item['name'], 'card-title'), False, False, 0)
+            button.set_tooltip_text(item['description'])
+            button.get_accessible().set_name(item['name'] + ' tarzını seç')
+            button.add(content)
+            button.connect('clicked', lambda _button, name=identifier: self.profile_choice.set_active_id(name))
+            self.profile_buttons[identifier] = button
+            grid.add(button)
+        page.pack_start(grid, False, False, 0)
+        self.profile_choice.connect('changed', self.profile_selected)
+        self.profile_choice.set_active_id(profiles.selection()[0])
         page.pack_start(self.profile_choice, False, False, 0)
         self.profile_apply = Gtk.Button(label='Seçili tarzı uygula')
+        self.profile_apply.get_style_context().add_class('suggested-action')
         self.profile_apply.connect('clicked', lambda *_: self.change_style(self.profile_choice.get_active_id()))
         page.pack_start(self.profile_apply, False, False, 0)
         self.profile_restore = Gtk.Button(label='İlk görünüm ayarlarıma dön')
         self.profile_restore.connect('clicked', lambda *_: self.change_style(None))
         page.pack_start(self.profile_restore, False, False, 0)
-        self.profile_status = label('Varsayılan: OğuzDows · Yerel hareketli tespih imleci · Bileşik efektler kapalı', 'muted', 85)
+        self.profile_status = label('OğuzDows: XP esintili Başlat ve alt görev çubuğu. Açık/koyu tema bağımsız seçilir.', 'muted', 75)
         page.pack_start(self.profile_status, False, False, 0)
-        page.pack_start(label('Tespih tanesinin parıltısı yerel Xcursor kareleriyle hareket eder; ayrı bir uygulama / katman çalışmaz. Tıklamaları dinlemez. İstersen Fare ayarlarından Adwaita imlecine dönebilirsin.', 'muted', 85), False, False, 0)
-        if is_pi():
-            page.pack_start(label('Pi kaynak profilleri korunur; bu sürümde PC güncelleyicisi veya gerçek KDE / GNOME kurulum düğmeleri Pi’ye taşınmaz.', 'muted', 85), False, False, 0)
-        else:
-            page.pack_start(Gtk.Separator(), False, False, 0)
-            page.pack_start(label('Gerçek KDE / GNOME oturumu ayrıca kurulabilir. Bunlar daha fazla RAM ve disk ister; 600 MB hedefi yalnızca varsayılan Xfce içindir. Kurulum öncesi Güncelleyici paket planını gösterir. Giriş ekranından oturum seçilir.', 'muted', 85), False, False, 0)
+        page.pack_start(label('Eski Whisker menüsü sürümlerinde Başlat yazısı sonraki girişte görünür. Yeni sürümlerde yerel xfconf ayarları uygulanır; panel zorla yeniden başlatılmaz. Windows varlığı, logosu veya ikili dosyası kullanılmaz.', 'muted', 75), False, False, 0)
+        page.pack_start(label('Yerel tespih imleci için ayrı süreç / tıklama dinleyicisi yoktur. Gerçek KDE/GNOME daha fazla kaynak ister ve 600 MB hedefinin dışındadır.', 'muted', 75), False, False, 0)
+        if self.pc:
             row = Gtk.Box(spacing=8)
             for identifier, title in (('kde', 'Gerçek KDE planı…'), ('gnome', 'Gerçek GNOME planı…')):
                 button = Gtk.Button(label=title)
@@ -344,8 +565,99 @@ class Welcome(Gtk.Application):
             page.pack_start(row, False, False, 0)
         return page
 
+    def profile_selected(self, *_):
+        for identifier, button in self.profile_buttons.items():
+            style = button.get_style_context()
+            if identifier == self.profile_choice.get_active_id():
+                style.add_class('selected-style')
+            else:
+                style.remove_class('selected-style')
+
+    def appearance_page(self):
+        page = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=14)
+        page.pack_start(label('Gündüz de senin, gece de.', 'heading'), False, False, 0)
+        page.pack_start(label('Açık veya koyu temayı seç. Tarzın korunur; bu değişiklik yalnızca bu kullanıcıya aittir. Panel, başlıklar ve kapatma düğmeleri opak kalır.', 'muted', 75), False, False, 0)
+        self.theme_buttons = {}
+        row = Gtk.Box(orientation=Gtk.Orientation.VERTICAL if self.phone else Gtk.Orientation.HORIZONTAL, spacing=12, homogeneous=True)
+        for mode, name in profiles.APPEARANCES.items():
+            button = Gtk.Button(label=('☀  ' if mode == 'light' else '☾  ') + name)
+            button.set_size_request(130, 76)
+            button.get_style_context().add_class('style-card')
+            button.connect('clicked', lambda _button, value=mode: self.change_appearance(value))
+            self.theme_buttons[mode] = button
+            row.pack_start(button, True, True, 0)
+        page.pack_start(row, False, False, 0)
+        self.theme_status = label('Tema sistemdeki GTK 3 / Xfce uygulamalarına uygulanır. Kendi temasını kullanan uygulamalar farklı görünebilir; tüm üçüncü taraf pencerelere garanti verilmez.', 'muted', 75)
+        page.pack_start(self.theme_status, False, False, 0)
+        page.pack_start(label('Yazı tipi, ekran ölçeği veya çözünürlük için:', 'section-title'), False, False, 0)
+        for title, command in (('Görünüm ve yazı tipleri', ['/usr/bin/xfce4-appearance-settings']),
+                               ('Ekran ayarları', ['/usr/bin/xfce4-display-settings'])):
+            button = Gtk.Button(label=title)
+            button.connect('clicked', lambda _button, value=command: self.launch(value))
+            page.pack_start(button, False, False, 0)
+        return page
+
+    def change_appearance(self, mode):
+        if self.theme_busy or self.profile_busy:
+            return
+        self.theme_busy = True
+        for button in self.theme_buttons.values():
+            button.set_sensitive(False)
+        self.theme_status.set_text('Tema uygulanıyor…')
+        def work():
+            error = None
+            try:
+                profiles.set_appearance(mode)
+            except (OSError, ValueError, RuntimeError, subprocess.SubprocessError) as failure:
+                error = str(failure)
+            GLib.idle_add(self.appearance_finished, mode, error)
+        threading.Thread(target=work, daemon=True).start()
+
+    def appearance_finished(self, mode, error):
+        self.theme_busy = False
+        for button in self.theme_buttons.values():
+            button.set_sensitive(True)
+        if error:
+            self.theme_status.set_text('Tema değiştirilemedi: ' + error)
+        else:
+            identifier, selected = profiles.selection()
+            Gtk.Settings.get_default().set_property('gtk-theme-name', profiles.theme(identifier, selected))
+            Gtk.Settings.get_default().set_property('gtk-application-prefer-dark-theme', selected == 'dark')
+            self.theme_status.set_text(profiles.APPEARANCES[mode] + ' tema uygulandı. Tarzın ve panel yerleşimin korundu.')
+        return GLib.SOURCE_REMOVE
+
+    def applications_page(self):
+        page = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=14)
+        page.pack_start(label('İhtiyacın olan, elinin altında.', 'heading'), False, False, 0)
+        if not self.pc:
+            page.pack_start(self.card('OğuzDows Mağaza', 'Yerel uygulama seçkisi, cihazının kendi imzalı APT kaynaklarından planlar. ARM64’te isteğe bağlı Flathub.', 'system-software-install-symbolic', lambda *_: self.launch(['/usr/local/bin/oguzdows-store'])), False, False, 0)
+        else:
+            for title, text, icon, command in (
+                    ('OğuzDows Mağaza', 'Uygulamaları keşfet. Mağazayı açmak paket kurmaz.', 'system-software-install-symbolic', ['/usr/local/bin/oguzdows-store']),
+                    ('OğuzDows Güncelleyici', 'Önce planı gör; sonra güncelleme ve firmware işlemlerini onayla.', 'system-software-update-symbolic', ['/usr/local/bin/oguzdows-update'])):
+                page.pack_start(self.card(title, text, icon, lambda _button, value=command: self.launch(value)), False, False, 0)
+        page.pack_start(self.card('EXE / APK uyumluluğu', 'Dosyayı önce incele, sonra açık onay ver. Wine / Waydroid ve donanım koşulları ayrıca gerekir.', 'application-x-executable-symbolic', lambda *_: self.launch(['/usr/local/bin/oguzdows-open', '--manager'])), False, False, 0)
+        page.pack_start(self.card('Cihaz ve ARM merkezi', 'Pi Zero–5, diğer ARM kartları ve deneysel telefon katmanlarının gerçek sınırları.', 'computer-symbolic', lambda *_: self.launch(['/usr/local/bin/oguzdows-device'])), False, False, 0)
+        page.pack_start(self.card('Çay Molası · Heybe · İmece', 'İstek üzerine yerel kültür ve paylaşım araçları.', 'applications-utilities-symbolic', lambda *_: self.launch(['/usr/local/bin/oguzdows-imece'])), False, False, 0)
+        page.pack_start(label('Mağaza, derlenen yerel GTK arayüzüdür. Sistem ve Flathub ayrı kaynaklardır; paketler plan ve açık onay olmadan kurulmaz. Açılışta mağaza servisi veya indirme çalışmaz.', 'muted', 75), False, False, 0)
+        return page
+
+    def support_page(self):
+        page = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=14)
+        page.pack_start(label('Birlikte çözeriz.', 'heading'), False, False, 0)
+        page.pack_start(label('Rıfkı çevrimdışı ve konu sınırlı bir rehberdir. Mikrofon açmaz, yazdığın komutları çalıştırmaz, disk seçmez. Dinle düğmesi hazır doğal kayıtları çalar; kaydı olmayan yeni sayfalar için durum açıkça belirtilir.', 'muted', 75), False, False, 0)
+        for title, action in (('Rıfkı’ya sor', self.open_assistant),
+                              ('Yerel kullanım rehberi', lambda: self.launch(['/usr/bin/xdg-open', '/usr/share/doc/oguzdows/masaustu-ve-bakim.md'])),
+                              ('Donanım raporu', self.show_drivers),
+                              ('Ağ bağlantıları', lambda: self.launch(['/usr/bin/nm-connection-editor']))):
+            button = Gtk.Button(label=title)
+            button.connect('clicked', lambda _button, callback=action: callback())
+            page.pack_start(button, False, False, 0)
+        page.pack_start(label('Sorun bildirirken modelini, ISO sürümünü ve kişisel bilgileri ayıklanmış günlükleri paylaş. Raporlar kendiliğinden gönderilmez. Lisans ve gerekli kaynak atıfları korunur.', 'muted', 75), False, False, 0)
+        return page
+
     def change_style(self, identifier):
-        if self.profile_busy:
+        if self.profile_busy or self.theme_busy:
             return
         self.profile_busy = True
         self.profile_apply.set_sensitive(False)
@@ -415,13 +727,18 @@ class Welcome(Gtk.Application):
             self.populate_wallpapers()
         if page == "hardware" and not self.report_text:
             self.load_report()
-        if self.rifki and page!='install-result':
-            text=None
-            if is_pi() and page=='welcome':
-                text='OğuzDows Pi rehberindesin. Sistem SD veya USB üzerine zaten kuruludur. Masaüstü ayarlarını açabilir, donanım raporunu ve duvar kâğıtlarını inceleyebilirsin. PC disk kurucusu Pi üzerinde çalıştırılmaz.'
-            elif is_pi() and page=='hardware':
-                text='Pi donanım paneli. Platform, SDIO, USB ve ekran sürücüleri raporlanır. PC için Broadcom STA paketi Pi kablosuz kartına kurulmaz. Raporunu yenileyebilir ve kaydedebilirsin.'
-            self.rifki.narrate_page(page,text=text)
+        row = self.sidebar_rows.get(page)
+        if row is not None and self.sidebar.get_selected_row() is not row:
+            self.sidebar.select_row(row)
+        if row is None:
+            self.sidebar.unselect_all()
+        self.previous_button.set_sensitive(welcome_model.adjacent(page, -1) is not None)
+        self.next_button.set_sensitive(welcome_model.adjacent(page, 1) is not None)
+        if self.rifki:
+            self.rifki.current_page = page
+            self.rifki.page_words[page] = welcome_model.page_text(page, self.context)
+        # Tek otomatik anlatım tercihi; yardımcı açık diye kapatılan sesi geri açma.
+        self.queue_narration()
 
     def show_drivers(self):
         self.stack.set_visible_child_name("hardware")
@@ -436,7 +753,7 @@ class Welcome(Gtk.Application):
         def work():
             try:
                 text = report()
-                broadcom, intel = ([], []) if is_pi() else (supported_broadcom(), supported_intel_legacy())
+                broadcom, intel = ([], []) if not self.pc else (supported_broadcom(), supported_intel_legacy())
             except Exception:
                 text, broadcom, intel = "Donanım raporu okunamadı. Yeniden deneyebilirsin.", [], []
             GLib.idle_add(self.report_ready, text, broadcom, intel)
@@ -450,8 +767,8 @@ class Welcome(Gtk.Application):
         self.spinner.stop()
         self.refresh_button.set_sensitive(True)
         self.save_button.set_sensitive(True)
-        self.broadcom_button.set_sensitive(bool(broadcom) and not self.driver_busy and not self.install_busy and not self.external_installing)
-        self.intel_button.set_sensitive(bool(intel) and not self.driver_busy and not self.install_busy and not self.external_installing)
+        self.broadcom_button.set_sensitive(self.pc and bool(broadcom) and not self.driver_busy and not self.install_busy and not self.external_installing)
+        self.intel_button.set_sensitive(self.pc and bool(intel) and not self.driver_busy and not self.install_busy and not self.external_installing)
         for button, devices in ((self.broadcom_button, broadcom), (self.intel_button, intel)):
             button.set_tooltip_text("Algılanan uyumlu aygıt: " + ", ".join(devices) if devices else "Bu ek sürücüyle eşleşen bir kart algılanmadı. Raporundaki PCI/USB kimliğini paylaşabilirsin.")
         self.status.set_text("Rapor hazır. SÜRÜCÜ BAĞLI DEĞİL satırları ayrıca incelenmelidir. Bilgilerin gönderilmedi.")
@@ -470,7 +787,7 @@ class Welcome(Gtk.Application):
         dialog.destroy()
 
     def can_install(self):
-        return is_live() and Path("/usr/local/sbin/oguzdows-installer").is_file()
+        return self.pc and is_live() and Path("/usr/local/sbin/oguzdows-installer").is_file()
 
     def install(self, *_):
         if self.install_busy or self.external_installing or self.driver_busy:
@@ -480,6 +797,7 @@ class Welcome(Gtk.Application):
             self.message("Kurulum canlı USB'den başlatılır.", "Canlı OğuzDows USB'siyle açıldığından emin ol.")
             return GLib.SOURCE_REMOVE
         self.install_busy = True
+        self.stop_narration()
         self.previous_session = installer_state.read_status().get('session')
         self.install_data = {}
         if self.rifki:
@@ -576,16 +894,25 @@ class Welcome(Gtk.Application):
                 'drivers': self.show_drivers,
                 'wallpapers': lambda: self.navigate('wallpapers'),
                 'install': lambda: self.navigate('welcome'),
+                'narration': lambda value: self.narration_switch.set_active(value),
+                'styles': lambda: self.navigate('styles'),
+                'store': lambda: self.launch(['/usr/local/bin/oguzdows-store']),
+                'updates': lambda: self.launch(['/usr/local/bin/oguzdows-update'] if self.pc else ['/usr/local/bin/oguzdows-device']),
+                'compatibility': lambda: self.launch(['/usr/local/bin/oguzdows-open', '--manager']),
+                'culture': lambda: self.launch(['/usr/local/bin/oguzdows-imece']),
+                'devices': lambda: self.launch(['/usr/local/bin/oguzdows-device']),
             }
             try:
                 from rifki import Companion
-                self.rifki = Companion(self,callbacks,reduced=self.reduced,installing=self.install_busy or self.external_installing)
+                self.stop_narration()
+                self.rifki = Companion(self,callbacks,reduced=self.reduced,installing=self.install_busy or self.external_installing, speaker=self.speaker)
             except (ImportError,OSError,GLib.Error):
                 self.message('Rıfkı açılamadı.','Kurulum yardımcısı bağımsızdır; OğuzDows’u kur düğmesini kullanabilirsin.')
                 return
             self.rifki.connect('destroy', self.assistant_closed)
             self.rifki.show_all()
         self.rifki.current_page=self.stack.get_visible_child_name()
+        self.rifki.page_words[self.rifki.current_page] = welcome_model.page_text(self.rifki.current_page, self.context)
         self.rifki.set_keep_above(False)
         self.rifki.present()
         if self.install_data:
@@ -694,7 +1021,7 @@ class Welcome(Gtk.Application):
         dialog.destroy()
 
     def on_close(self, *_):
-        if self.driver_busy or self.install_busy or self.profile_busy:
+        if self.driver_busy or self.install_busy or self.profile_busy or self.theme_busy:
             self.message('Kurucu / ayar işlemi devam ediyor.', 'İşlemi yarıda kesmemek için önce kurucuyu kapat veya sürücü / görünüm işleminin bitmesini bekle.')
             return True
         if self.mark_on_close:
@@ -706,8 +1033,11 @@ class Welcome(Gtk.Application):
                     self.state_file.write_text("OğuzDows\n", encoding="utf-8")
             except OSError:
                 print("OğuzDows karşılama tercihi kaydedilemedi.", file=sys.stderr)
+        self.stop_narration()
         if self.rifki:
             self.rifki.destroy()
+        if self.speaker:
+            self.speaker.close()
         self.window = None
         return False
 

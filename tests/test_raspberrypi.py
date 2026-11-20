@@ -4,6 +4,7 @@ import json
 import os
 import shutil
 import stat
+import struct
 import subprocess
 import tempfile
 import unittest
@@ -113,8 +114,28 @@ class PiConfigurationTests(unittest.TestCase):
         self.assertIn("cpu=arm1176", smoke)
         self.assertIn("cpu=cortex-a53", smoke)
         self.assertIn('"${ROOTFS_DIR}/tmp/oguzdows-qemu-static"', smoke)
-        self.assertIn("gi.require_version", smoke)
-        self.assertIn("xfce4-session --version", smoke)
+        target = (ROOT / 'scripts/pi-runtime-smoke.py').read_text()
+        self.assertIn('gi.require_version', target)
+        self.assertIn("'/usr/bin/xfce4-session', '--version'", target)
+        self.assertIn('xvfb-run', smoke)
+        self.assertIn('pi-build-report.json', smoke)
+
+    def test_binfmt_preparation_uses_packaged_definitions_and_checks_an_empty_chroot(self):
+        script = ROOT / 'scripts/prepare-pi-binfmt.sh'
+        for args, status in ((['--help'], 0), ([], 2), (['amd64'], 2), (['arm64', 'extra'], 2), (['arm; id'], 2)):
+            result = subprocess.run(['bash', str(script), *args], capture_output=True, text=True)
+            self.assertEqual(result.returncode, status, result.stderr)
+        if os.geteuid() != 0:
+            result = subprocess.run(['bash', str(script), 'arm64'], capture_output=True, text=True)
+            self.assertEqual(result.returncode, 1)
+            self.assertIn('root gerektirir', result.stderr)
+        source = script.read_text()
+        self.assertIn('/usr/lib/binfmt.d/qemu-$cpu-static.conf', source)
+        self.assertIn('/usr/lib/systemd/systemd-binfmt "$config"', source)
+        self.assertIn('arch-test -c "$probe" "$arch"', source)
+        self.assertIn('trap cleanup EXIT', source)
+        for forbidden in ('curl ', 'wget ', 'docker ', 'update-binfmts --remove', 'systemctl restart'):
+            self.assertNotIn(forbidden, source)
 
     def test_firstboot_gates_local_and_remote_login_and_never_enables_autologin(self):
         base = ROOT / "raspberrypi/system/etc/systemd/system"
@@ -144,6 +165,11 @@ class PiConfigurationTests(unittest.TestCase):
         steps = str(workflow["jobs"]["image"]["steps"])
         self.assertIn("build-pi.sh", steps)
         self.assertIn("qemu-user-static", steps)
+        tools = next(step['run'] for step in workflow['jobs']['image']['steps']
+                     if step.get('name') == 'Yerel pi-gen ve çapraz ARM çalıştırma araçları')
+        self.assertIn("scripts/ci-run.py --title 'Pi ${{ matrix.arch }} host araçları'", tools)
+        self.assertIn("update-binfmts --display", tools)
+        self.assertIn('bash scripts/prepare-pi-binfmt.sh "$1"', tools)
         self.assertIn(".img.xz.sha256", steps)
         verification = str(workflow["jobs"]["verify"]["steps"])
         self.assertIn("--pi", verification)
@@ -349,10 +375,47 @@ class PiImageValidationTests(unittest.TestCase):
         # Bunlar yalnızca negatif yapısal test verileri; gerçek boot/görsel dosyaları değildir.
         for path in ["boot/firmware/start.elf", "boot/firmware/start4.elf", "boot/firmware/fixup.dat", "boot/firmware/bootcode.bin", "boot/firmware/overlays/vc4-kms-v3d.dtbo", "usr/share/backgrounds/oguzdows/wallpaper.png", "usr/share/oguzdows/wallpapers.json", "usr/share/themes/OguzDows/xfwm4/themerc", *["boot/firmware/" + name for name in config.LOCK[arch]["kernels"] + config.LOCK[arch]["dtbs"] + config.LOCK[arch]["initramfs"]]]:
             write(root, path, "test-verisi")
-        write(root, "boot/firmware/config.txt", "dtoverlay=vc4-kms-v3d\nauto_initramfs=1\n" + ("arm_64bit=1\n" if arch == "arm64" else ""))
-        write(root, "boot/firmware/cmdline.txt", "root=PARTUUID=1234abcd-02 rootwait quiet splash\n")
+        write(root, "boot/firmware/config.txt", "dtoverlay=vc4-kms-v3d\nauto_initramfs=1\ncamera_auto_detect=1\ndisplay_auto_detect=1\ndtparam=audio=on\ndisable_fw_kms_setup=1\narm_boost=1\n" + ("arm_64bit=1\n" if arch == "arm64" else ""))
+        write(root, "boot/firmware/cmdline.txt", "root=PARTUUID=1234abcd-02 rootwait quiet splash init=/usr/lib/raspberrypi-sys-mods/firstboot\n")
+        write(root, 'usr/lib/raspberrypi-sys-mods/firstboot', 'resmî ilk açılış test verisi')
+        write(root, 'etc/init.d/resize2fs_once', 'resmî büyütme test verisi')
         write(root, "etc/fstab", "PARTUUID=1234abcd-01 /boot/firmware vfat defaults 0 2\nPARTUUID=1234abcd-02 / ext4 defaults,noatime 0 1\n")
-        write(root, "usr/lib/os-release", 'NAME="OğuzDows"\n')
+        contract = json.loads((root / 'usr/share/oguzdows/pi-contract.json').read_text())
+        expected = contract['architectures'][arch]
+        write(root, "usr/lib/os-release", f'NAME="OğuzDows"\nID="{expected["os_id"]}"\nVERSION_ID="12"\nVERSION_CODENAME="bookworm"\n')
+        # Galeri / önizlemeler de yalnızca yapısal test verisidir, görüntülenmez.
+        wallpaper_paths = ['/' + name for name in contract['asset_hashes'] if name.endswith('.jpg')]
+        preview = '/usr/share/oguzdows/wallpaper-previews/test.jpg'
+        write(root, preview.removeprefix('/'), 'önizleme test verisi')
+        write(root, 'usr/share/oguzdows/wallpapers.json', json.dumps([{'path': name, 'preview': preview} for name in wallpaper_paths]))
+        for group in contract['features'].values():
+            for name in group['files']:
+                if not (root / name).exists():
+                    write(root, name, 'özellik varlığı test verisi')
+        # Bunlar sahte ELF başlıklarıdır; hiçbir testte çalıştırılmaz.
+        header = bytearray(64)
+        header[:4] = b'\x7fELF'
+        header[4:6] = bytes((expected['elf_class'], 1))
+        struct.pack_into('<H', header, 18, expected['elf_machine'])
+        if arch == 'armhf':
+            struct.pack_into('<I', header, 36, 0x5000400)
+        for name in ('usr/bin/python3', 'usr/lib/oguzdows/oguzdows-store-native'):
+            write(root, name, '').write_bytes(header)
+        report = {'schema': 1, 'arch': arch, 'minimum_cpu': expected['cpu'], 'errors': [],
+                  'scope': 'ARM-qemu-user-with-host-Xvfb', 'source_revision': contract['source_revision'],
+                  'pi_gen_commit': contract['pi_gen_commit'], 'suite': contract['suite'],
+                  'gui': {'gtk_window': True, 'xfce_version': 'xfce4-session test', 'native_store_version': 'OğuzDows test'},
+                  'python_modules': contract['python_modules'],
+                  'abi': {'/' + name: {'bits': 32 if arch == 'armhf' else 64,
+                                      'machine': expected['elf_machine'], 'hard_float': True if arch == 'armhf' else None}
+                          for name in ('usr/bin/python3', 'usr/lib/oguzdows/oguzdows-store-native')},
+                  'packages': {name: {'architecture': arch, 'version': 'test-verisi'} for name in contract['required_packages']},
+                  'physical_boot': False, 'hardware_gpu': False, 'performance_measurement': False,
+                  'real_package_transactions': False, 'real_audio_playback': False,
+                  'feature_presence': {'groups': list(contract['features']), 'asset_hashes': len(contract['asset_hashes']),
+                                       'wallpapers': 20, 'selected_narration': 10,
+                                       'speech_contexts': len(json.loads((root / 'usr/share/oguzdows/rifki/speech.json').read_text()))}}
+        write(root, 'usr/share/oguzdows/pi-build-report.json', json.dumps(report))
         write(root, "etc/passwd", "root:x:0:0:root:/root:/bin/bash\nnobody:x:65534:65534:nobody:/nonexistent:/usr/sbin/nologin\n")
         write(root, "etc/shadow", "root:*:1:0:99999:7:::\n")
         write(root, "etc/sudoers", "%sudo ALL=(ALL:ALL) ALL\n")
@@ -392,6 +455,67 @@ class PiImageValidationTests(unittest.TestCase):
             write(root, "boot/firmware/cmdline.txt", "root=ROOTDEV\n")
             with self.assertRaisesRegex(ValueError, "PARTUUID"):
                 verify.validate(root, "armhf")
+
+    def test_export_rejects_failed_host_only_or_inflated_runtime_receipts(self):
+        with tempfile.TemporaryDirectory() as directory, patch('sys.stdout', io.StringIO()):
+            root = self.fixture(directory, 'arm64')
+            path = root / 'usr/share/oguzdows/pi-build-report.json'
+            original = json.loads(path.read_text())
+            changes = ({'scope': 'host-gui-only'}, {'physical_boot': True}, {'gui': {'gtk_window': False}},
+                       {'errors': ['Hedef GTK başarısız']}, {'minimum_cpu': 'host'}, {'packages': {}},
+                       {'feature_presence': {'groups': []}}, {'source_revision': 'yanlış kaynak'},
+                       {'abi': {}}, {'python_modules': []}, {'schema': 2}, {'gui': None})
+            for change in changes:
+                with self.subTest(change=change):
+                    path.write_text(json.dumps({**original, **change}))
+                    with self.assertRaises(ValueError):
+                        verify.validate(root, 'arm64')
+            path.write_text(json.dumps(original))
+            image = root / next(name for name in json.loads((root / 'usr/share/oguzdows/pi-contract.json').read_text())['asset_hashes'] if name.endswith('.jpg'))
+            image.write_bytes(b'degismis')
+            with self.assertRaisesRegex(ValueError, 'hash'):
+                verify.validate(root, 'arm64')
+
+    def test_export_rechecks_catalog_and_never_imports_the_images_python_module(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = self.fixture(directory, 'arm64')
+            module = root / 'usr/lib/oguzdows/pi_contract.py'
+            original = module.read_bytes()
+            module.write_text('raise RuntimeError("İMAJDAN HOSTTA KOD ÇALIŞTIRILDI")\n')
+            env = {**os.environ, 'PYTHONPATH': '', 'PYTHONDONTWRITEBYTECODE': '1'}
+            # Host yalnızca kendi scripts/pi_contract.py okuyucusunu kullanır.
+            result = subprocess.run(['python3', str(ROOT / 'scripts/verify-pi.py'), '--root', str(root), '--arch', 'arm64'],
+                                    env=env, capture_output=True, text=True, timeout=10)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            # Hedefe kopyalanan incelenmiş verifier + okuyucu da kendi başına bulunabilmeli.
+            module.write_bytes(original)
+            result = subprocess.run(['python3', str(root / 'usr/lib/oguzdows/verify-pi.py'), '--root', str(root), '--arch', 'arm64'],
+                                    env=env, capture_output=True, text=True, timeout=10)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            write(root, 'usr/share/oguzdows/wallpapers.json', '[]')
+            with self.assertRaisesRegex(ValueError, 'duvar kâğıdı'):
+                verify.validate(root, 'arm64')
+
+    def test_official_camera_resize_and_async_network_rules_are_enforced(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = self.fixture(directory)
+            path = root / 'boot/firmware/config.txt'
+            original = path.read_text()
+            for content in (original.replace('camera_auto_detect=1', 'camera_auto_detect=0'), original + 'kernel=kernel8.img\n'):
+                path.write_text(content)
+                with self.assertRaises(ValueError): verify.validate(root, 'armhf')
+            path.write_text(original)
+            commandline = root / 'boot/firmware/cmdline.txt'
+            original = commandline.read_text()
+            commandline.write_text(original.replace(' init=/usr/lib/raspberrypi-sys-mods/firstboot', ''))
+            with self.assertRaisesRegex(ValueError, 'büyütme'):
+                verify.validate(root, 'armhf')
+            commandline.write_text(original)
+            path = root / 'etc/systemd/system/network-online.target.wants/NetworkManager-wait-online.service'
+            path.parent.mkdir(parents=True)
+            path.symlink_to('/lib/systemd/system/NetworkManager-wait-online.service')
+            with self.assertRaisesRegex(ValueError, 'bekleyici'):
+                verify.validate(root, 'armhf')
 
     def test_security_regressions_are_rejected(self):
         cases = [("etc/shadow", "root:$6$password:1:0:9999:7:::\n", "Root"),

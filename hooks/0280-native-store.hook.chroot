@@ -1,0 +1,10 @@
+#!/bin/sh
+# İmaj içinde mimariye uygun derle; hazır x86 ikili dosyasını ARM'e kopyalama.
+set -eu
+/usr/lib/oguzdows/seal-app-store.sh
+chown -R root:root /usr/share/oguzdows/native /usr/share/oguzdows/scripts
+chmod -R go-w /usr/share/oguzdows/native /usr/share/oguzdows/scripts
+/usr/share/oguzdows/scripts/build-native.sh /usr/lib/oguzdows/oguzdows-store-native
+chown root:root /usr/lib/oguzdows/oguzdows-store-native
+chmod 0755 /usr/lib/oguzdows/oguzdows-store-native
+update-desktop-database /usr/share/applications

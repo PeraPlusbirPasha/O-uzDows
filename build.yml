@@ -66,7 +66,8 @@ jobs:
             fonts-dejavu-core adwaita-icon-theme xauth xvfb dbus-x11 pciutils usbutils rfkill \
             calamares x11-utils xfconf xfwm4 libxcursor1 python3-apt python3-xlib \
             gpgv ca-certificates flatpak gnome-software gnome-software-plugin-flatpak libglib2.0-bin \
-            librsvg2-common shared-mime-info iso-codes gdb
+            librsvg2-common shared-mime-info iso-codes gdb \
+            build-essential pkg-config libgtk-3-dev libjson-glib-dev gir1.2-flatpak-1.0
 
       - name: Mağaza varsayılanlarını gerçek şemalarla derle
         run: |
@@ -86,12 +87,51 @@ jobs:
 
       - name: Gerçek GTK arayüzünü aç ve doğrula
         run: |
-          cp -a system/usr/share/themes/OguzDows /usr/share/themes/
+          cp -a system/usr/share/themes/. /usr/share/themes/
           python3 scripts/ci-run.py --title 'Tema görselleri' -- \
             python3 scripts/render-assets.py --root /
           python3 scripts/ci-run.py --title 'GTK arayüz kontrolü' -- \
             xvfb-run -a -s '-screen 0 1024x768x24' dbus-run-session -- \
             python3 tests/smoke-welcome.py --output test-results
+          python3 scripts/ci-run.py --title 'Canlı karşılayıcı GTK kontrolü' -- \
+            xvfb-run -a -s '-screen 0 1024x768x24' dbus-run-session -- \
+            python3 tests/smoke-welcome.py --live --output test-results/live
+
+      - name: Yerel C mağazasını derle ve gerçek GTK ile aç
+        run: |
+          sh scripts/build-native.sh /tmp/oguzdows-store-native
+          sh scripts/build-native.sh /tmp/oguzdows-store-ui-test --test
+          python3 scripts/ci-run.py --title 'Derlenen yerel mağaza' -- \
+            xvfb-run -a -s '-screen 0 1280x900x24' dbus-run-session -- \
+            /tmp/oguzdows-store-ui-test --smoke-test test-results
+
+      - name: EXE / APK onay arayüzü ve deneysel telefon karşılayıcısı
+        run: |
+          for component in compatibility devices; do
+            python3 scripts/ci-run.py --title "Uyumluluk GTK $component" -- \
+              xvfb-run -a -s '-screen 0 1024x768x24' dbus-run-session -- \
+              python3 tests/smoke-compatibility.py --component "$component" --output test-results
+          done
+          for component in compatibility devices; do
+            python3 scripts/ci-run.py --title "360px telefon $component (host)" -- \
+              xvfb-run -a -s '-screen 0 360x800x24' dbus-run-session -- \
+              python3 tests/smoke-compatibility.py --phone --component "$component" --output "test-results/phone-$component"
+          done
+          python3 scripts/ci-run.py --title 'Dar telefon karşılayıcısı (host)' -- \
+            xvfb-run -a -s '-screen 0 480x900x24' dbus-run-session -- \
+            python3 tests/smoke-welcome.py --phone --output test-results/phone
+          python3 scripts/ci-run.py --title '360px telefon karşılayıcısı (host)' -- \
+            xvfb-run -a -s '-screen 0 360x800x24' dbus-run-session -- \
+            python3 tests/smoke-welcome.py --phone --output test-results/phone-narrow
+          python3 scripts/ci-run.py --title 'Dar C mağaza (host)' -- \
+            xvfb-run -a -s '-screen 0 480x900x24' dbus-run-session -- \
+            /tmp/oguzdows-store-ui-test --smoke-test test-results/phone-store
+          python3 scripts/ci-run.py --title '360px C mağaza (host)' -- \
+            xvfb-run -a -s '-screen 0 360x800x24' dbus-run-session -- \
+            /tmp/oguzdows-store-ui-test --smoke-test test-results/phone-store-narrow
+          for device in arm64-uefi pinephone pinephone-pro rockpro64; do
+            python3 scripts/configure-arm.py --device "$device" --output "/tmp/oguzdows-$device"
+          done
 
       - name: Güncelleyici, onay akışı, beş gerçek xfconf tarzı ve İmece
         run: |
@@ -122,6 +162,15 @@ jobs:
               python3 tests/smoke-lightweight.py --component "$component" --output test-results
           done
 
+      - name: Doğal panel kayıtları ve kurulum D-Bus ses kapısı
+        run: |
+          python3 scripts/ci-run.py --title 'Doğal kayıt GTK ve D-Bus' -- \
+            xvfb-run -a -s '-screen 0 1024x768x24' dbus-run-session -- \
+            python3 tests/smoke-narration.py --output test-results
+          python3 scripts/ci-run.py --title '360px anlatım GTK ve D-Bus (host)' -- \
+            xvfb-run -a -s '-screen 0 360x800x24' dbus-run-session -- \
+            python3 tests/smoke-narration.py --phone --output test-results/phone-narration
+
       - name: Gerçek kurucuyu disk işlemi yapmadan aç
         run: |
           python3 scripts/configure.py --arch '${{ matrix.suite == 'trixie' && 'amd64' || 'i386' }}' --output /tmp/oguzdows-smoke
@@ -137,9 +186,9 @@ jobs:
         with:
           name: OguzDows-arayuz-${{ matrix.suite }}
           path: |
-            test-results/*.png
-            test-results/*.log
-            test-results/*.json
+            test-results/**/*.png
+            test-results/**/*.log
+            test-results/**/*.json
           if-no-files-found: warn
           retention-days: 7
 

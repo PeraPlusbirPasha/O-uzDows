@@ -24,7 +24,7 @@ def official_remote(listing):
 
 
 def setup_flathub(execute=run):
-    if execute(['/usr/bin/flatpak', '--default-arch']) != 'x86_64':
+    if execute(['/usr/bin/flatpak', '--default-arch']) not in ('x86_64', 'aarch64'):
         raise ValueError('Bu mimaride Flathub kapsamı doğrulanmadı. Sistem (APT) uygulamaları mağazada kullanılabilir.')
     command = ['/usr/bin/flatpak', '--user', 'remotes', '--columns=name,url,options']
     if not official_remote(execute(command)):
