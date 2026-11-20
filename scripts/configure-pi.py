@@ -3,15 +3,21 @@
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import json
 import shutil
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 LOCK = json.loads((ROOT / "raspberrypi/pi-gen.lock.json").read_text())
+SPEC = importlib.util.spec_from_file_location('pi_shared_source_identity', ROOT / 'scripts/configure.py')
+SHARED = importlib.util.module_from_spec(SPEC)
+SPEC.loader.exec_module(SHARED)
 # Canlı USB hesabı, Calamares ve PCI ek sürücü kurucusu kalıcı Pi'ye taşınmaz.
 PC_ONLY = (
     "etc/default/grub", "etc/default/grub.d",
+    # lsb_release -cs, Pi araçlarına ürün kod adı değil gerçek tabanı söylemeli.
+    "etc/lsb-release",
     "etc/systemd/system/oguzdows-live-setup.service",
     "usr/lib/oguzdows/live-setup.sh", "usr/lib/oguzdows/finish-install.sh",
     "usr/lib/oguzdows/prepare-install.py", "usr/lib/oguzdows/cache-drivers.py",
@@ -83,14 +89,29 @@ def configure(arch: str, output: Path) -> None:
     shutil.copy2(ROOT / 'scripts/build-native.sh', overlay / 'usr/share/oguzdows/scripts/build-native.sh')
     (overlay / 'usr/share/oguzdows/scripts/build-native.sh').chmod(0o755)
     shutil.copy2(ROOT / "scripts/verify-pi.py", overlay / "usr/lib/oguzdows/verify-pi.py")
+    shutil.copy2(ROOT / "scripts/pi_contract.py", overlay / "usr/lib/oguzdows/pi_contract.py")
     write(overlay / "etc/locale.gen", "tr_TR.UTF-8 UTF-8\nen_US.UTF-8 UTF-8\n")
     write(overlay / "etc/default/locale", 'LANG=tr_TR.UTF-8\nLANGUAGE="tr:en"\n')
     write(overlay / "etc/timezone", "Europe/Istanbul\n")
     info = {"platform": "raspberrypi", "arch": arch, "suite": LOCK["suite"],
-            "pi_gen_commit": LOCK[arch]["commit"], "status": "physical-boot-unverified"}
+            "pi_gen_commit": LOCK[arch]["commit"], "status": "physical-boot-unverified",
+            **SHARED.source_identity()}
     for name in ("etc/oguzdows/pi-image.json", "usr/share/oguzdows/build-info.json"):
         write(overlay / name, json.dumps(info, ensure_ascii=False, indent=2) + "\n")
     write(overlay / "usr/share/oguzdows/pi-gen.lock.json", json.dumps(LOCK, indent=2) + "\n")
+    # Her sürümde tüm ortak paketler / ürün varlıkları için hedef mimari kapısı.
+    contract = json.loads((ROOT / 'raspberrypi/feature-contract.json').read_text())
+    contract.update(arch=arch, suite=LOCK['suite'], required_packages=packages_for(arch),
+                    source_revision=info['source_revision'], pi_gen_commit=info['pi_gen_commit'])
+    contract['asset_hashes'] = {
+        'usr/share/backgrounds/oguzdows/' + entry['file']: entry['packaged_sha256']
+        for entry in json.loads((ROOT / 'artwork/landscapes.json').read_text())}
+    contract['asset_hashes'].update({
+        'usr/share/oguzdows/rifki/' + entry['file']: entry['sha256']
+        for entry in json.loads((ROOT / 'artwork/rifki-narration.json').read_text())['clips']})
+    write(overlay / 'usr/share/oguzdows/pi-contract.json', json.dumps(contract, ensure_ascii=False, indent=2) + '\n')
+    shutil.copy2(ROOT / 'scripts/pi-runtime-smoke.py', stage / '00-desktop/files/pi-runtime-smoke.py')
+    shutil.copy2(ROOT / 'scripts/pi_contract.py', stage / '00-desktop/files/pi_contract.py')
     # Sadece güvenli tarayıcı varsayılanları; sandbox/çoklu süreç izolasyonu kapatılmaz.
     policy_path = overlay / "usr/lib/firefox-esr/distribution/policies.json"
     policies = json.loads(policy_path.read_text())

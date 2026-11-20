@@ -1,0 +1,49 @@
+{
+  "schema": 1,
+  "scope": "build-time feature presence and ABI; not physical-device or application transaction proof",
+  "minimum_wallpapers": 20,
+  "minimum_selected_narration": 10,
+  "python_modules": ["hardware", "pi_support", "welcome_model", "profiles", "culture_core", "compat_core", "device_support", "rifki_speech"],
+  "architectures": {
+    "armhf": {"cpu": "arm1176", "elf_class": 1, "elf_machine": 40, "os_id": "raspbian", "base_version_id": "12"},
+    "arm64": {"cpu": "cortex-a53", "elf_class": 2, "elf_machine": 183, "os_id": "debian", "base_version_id": "12"}
+  },
+  "features": {
+    "desktop-start-menu": {
+      "packages": ["xfce4", "xfce4-session", "xfce4-whiskermenu-plugin", "lightdm"],
+      "files": ["usr/share/xsessions/oguzdows.desktop", "usr/lib/oguzdows/session.sh", "etc/skel/.config/xfce4/xfconf/xfce-perchannel-xml/xfce4-panel.xml"]
+    },
+    "welcome-rifki-narration": {
+      "packages": ["python3-gi", "gir1.2-gtk-3.0", "alsa-utils"],
+      "files": ["usr/local/bin/oguzdows-welcome", "usr/local/bin/oguzdows-narrate", "usr/lib/oguzdows/welcome.py", "usr/lib/oguzdows/welcome_model.py", "usr/lib/oguzdows/rifki.py", "usr/lib/oguzdows/rifki_speech.py", "usr/lib/oguzdows/narration.py", "usr/share/oguzdows/rifki/speech.json"]
+    },
+    "independent-light-dark-and-xp": {
+      "packages": ["xfce4-settings", "gtk2-engines-murrine"],
+      "files": ["usr/lib/oguzdows/profiles.py", "usr/share/themes/OguzDows/xfwm4/themerc", "usr/share/themes/OguzDowsLight/xfwm4/themerc", "usr/share/themes/OguzDowsXP/xfwm4/themerc", "usr/share/themes/OguzDowsXPDark/xfwm4/themerc"]
+    },
+    "cultural-wallpapers-and-tools": {
+      "packages": ["python3-pil"],
+      "files": ["usr/share/oguzdows/wallpapers.json", "usr/lib/oguzdows/wallpapers.py", "usr/lib/oguzdows/culture.py", "usr/lib/oguzdows/culture_core.py", "usr/local/bin/oguzdows-imece"]
+    },
+    "native-store": {
+      "packages": ["python3-apt", "libjson-glib-1.0-0"],
+      "files": ["usr/local/bin/oguzdows-store", "usr/lib/oguzdows/oguzdows-store-native", "usr/lib/oguzdows/store_service.py", "usr/lib/oguzdows/app_catalog.py", "usr/local/sbin/oguzdows-maintenance", "usr/share/polkit-1/actions/org.oguzdows.maintenance.policy"]
+    },
+    "device-and-file-inspection": {
+      "packages": ["shared-mime-info"],
+      "files": ["usr/local/bin/oguzdows-device", "usr/local/bin/oguzdows-open", "usr/lib/oguzdows/devices.py", "usr/lib/oguzdows/device_support.py", "usr/lib/oguzdows/compatibility.py", "usr/lib/oguzdows/compat_core.py"]
+    },
+    "web-office-media": {
+      "packages": ["firefox-esr", "firefox-esr-l10n-tr", "netsurf-gtk", "libreoffice-writer", "libreoffice-calc", "libreoffice-impress", "libreoffice-l10n-tr", "vlc"],
+      "files": ["usr/local/bin/oguzdows-browser", "usr/share/oguzdows/start.html", "usr/share/oguzdows/firefox-policies.json"]
+    },
+    "network-bluetooth-audio": {
+      "packages": ["network-manager", "network-manager-gnome", "bluez", "blueman", "pi-bluetooth", "pulseaudio", "pavucontrol", "firmware-brcm80211", "wireless-regdb"],
+      "files": []
+    },
+    "pi-kms-camera-gpio": {
+      "packages": ["raspi-config", "raspi-utils", "raspberrypi-sys-mods", "rpicam-apps-lite", "python3-gpiozero", "python3-rpi-lgpio", "python3-spidev", "python3-smbus2", "python3-libgpiod", "libgl1-mesa-dri", "mesa-vulkan-drivers"],
+      "files": ["boot/firmware/config.txt", "usr/lib/oguzdows/pi-firstboot.py", "usr/lib/oguzdows/pi-tune.py"]
+    }
+  }
+}

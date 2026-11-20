@@ -744,6 +744,11 @@ static gint command_line(GApplication *app, GApplicationCommandLine *line, gpoin
 }
 
 int main(int argc, char **argv) {
+    /* Başsız ABI / bağımlılık raporu; pencere, D-Bus veya paket işçisi açmaz. */
+    if (argc == 2 && !strcmp(argv[1], "--version")) {
+        g_print("OğuzDows Mağaza · GTK %u.%u.%u\n", gtk_get_major_version(), gtk_get_minor_version(), gtk_get_micro_version());
+        return 0;
+    }
     application = gtk_application_new(APP_ID, G_APPLICATION_HANDLES_COMMAND_LINE);
     g_signal_connect(application, "activate", G_CALLBACK(activate), NULL);
     g_signal_connect(application, "command-line", G_CALLBACK(command_line), NULL);

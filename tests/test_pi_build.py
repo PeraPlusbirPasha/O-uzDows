@@ -200,6 +200,23 @@ class PiLogTests(unittest.TestCase):
                 logs.collect('../../outside', build, root / 'bad')
             self.assertFalse((root / 'bad').exists())
 
+    def test_structured_porting_reports_are_copied_complete_or_explicitly_rejected(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            build = root / 'build'
+            source = write(build, 'pi-runtime-report.json', '{"errors": []}')
+            with patch.object(logs, 'MAX_BYTES', 32):
+                report = logs.collect('armhf', build, root / 'out')
+                row = next(row for row in report['logs'] if row['file'] == 'pi-runtime-report.json')
+                self.assertEqual(row['status'], 'copied')
+                self.assertFalse(row['truncated'])
+                self.assertEqual(json.loads((root / 'out/pi-runtime-report.json').read_text()), {'errors': []})
+                source.write_text('x' * 64)
+                report = logs.collect('armhf', build, root / 'too-large')
+                row = next(row for row in report['logs'] if row['file'] == 'pi-runtime-report.json')
+                self.assertEqual(row['status'], 'error')
+                self.assertFalse((root / 'too-large/pi-runtime-report.json').exists())
+
     def test_workflow_uploads_only_the_flat_collection_even_after_a_build_failure(self):
         workflow = yaml.safe_load((ROOT / '.github/workflows/raspberrypi.yml').read_text())
         steps = workflow['jobs']['image']['steps']

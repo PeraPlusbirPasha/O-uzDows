@@ -29,6 +29,8 @@ def candidates(arch):
         (work + '/stage0/rootfs/debootstrap/debootstrap.log', 'stage0-debootstrap.log'),
         (work + '/stage0/rootfs/var/log/bootstrap.log', 'stage0-bootstrap.log'),
         (work + '/stage-oguzdows/rootfs/var/log/apt/term.log', 'desktop-apt.log'),
+        ('pi-upstream-audit.json', 'pi-upstream-audit.json'),
+        ('pi-runtime-report.json', 'pi-runtime-report.json'),
     )
 
 
@@ -56,6 +58,8 @@ def collect(arch, build, output):
                 details = os.fstat(stream.fileno())
                 if not stat.S_ISREG(details.st_mode):
                     raise ValueError('Günlük normal dosya değil.')
+                if name.endswith('.json') and details.st_size > MAX_BYTES:
+                    raise ValueError('Yapı raporu kesilerek geçerli JSON gibi sunulamaz.')
                 offset = max(0, details.st_size - MAX_BYTES)
                 stream.seek(offset)
                 data = stream.read(MAX_BYTES)

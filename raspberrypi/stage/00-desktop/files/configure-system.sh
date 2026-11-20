@@ -12,15 +12,19 @@ systemctl disable dphys-swapfile.service
 systemctl mask dphys-swapfile.service
 rm -f /var/swap
 systemctl disable ssh.service
-systemctl disable NetworkManager-wait-online.service
 systemctl enable NetworkManager.service lightdm.service bluetooth.service zramswap.service \
     oguzdows-pi-tune.service oguzdows-pi-firstboot.service
+# NetworkManager'ın Also= kaydı enable sırasında bekleyiciyi geri açar.
+# Ağı kapatma / maskeleme yok; yalnızca masaüstü açılışını ağla bekletme.
+systemctl disable NetworkManager-wait-online.service
 systemctl set-default graphical.target
 printf '/usr/sbin/lightdm\n' > /etc/X11/default-display-manager
 if [ -z "$(dpkg-divert --list /usr/lib/os-release)" ]; then
-    dpkg-divert --local --add --rename --divert /usr/lib/os-release.upstream /usr/lib/os-release
+    # Essential paket dosyasını rename ile geçici olarak kaybetme.
+    install -m 0644 /usr/lib/os-release /usr/lib/os-release.upstream
+    dpkg-divert --local --add --no-rename --divert /usr/lib/os-release.upstream /usr/lib/os-release
 fi
-install -m 0644 /usr/share/oguzdows/os-release /usr/lib/os-release
+python3 /usr/lib/oguzdows/pi-identity.py
 ln -sfn ../usr/lib/os-release /etc/os-release
 # distribution paket symlink'i yalnızca hedef chroot içinde izlenir.
 chown root:root /usr/share/oguzdows/firefox-policies.json

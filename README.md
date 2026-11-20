@@ -150,7 +150,7 @@ Siyah ekranda **güvenli görüntü**, az bellekte **düşük bellek** açılı�
 
 Zero–5 ailesi için ayrı `armhf` / `arm64` SD/USB imajı akışı bulunur. PC ISO’su Pi’ye yazılmaz; Pi’de ilk açılışta kişisel hesap oluşturulur, ortak canlı parola veya parolasız sudo yoktur.
 
-**Bu PC release’inde Pi imajı yoktur; fiziksel Pi açılışı ve performansı henüz doğrulanmadı.** Önceki 1.1 Pi derlemesinin Firefox paket yolu çakışması ve günlük yükleme hatası için iki mimariyi kapsayan regresyon düzeltmesi eklendi; yeni tam imaj sonucu ayrıca doğrulanmalıdır. ARMv6 ve 512 MB cihazlar için modern PC performansı vaat edilmez. [Raspberry Pi rehberi →](raspberrypi/README.md)
+**Bu PC release’inde Pi imajı yoktur; fiziksel Pi açılışı ve performansı henüz doğrulanmadı.** Resmî Pi OS/pi-gen kaynaklarıyla mimari karşılaştırma yapıldı: başsız Xfce testi, teknik taban kimliği ve ağ bekleme sırası düzeltildi; ortak özellik / ARM ABI / 20 görsel + 10 doğal kayıt için her sürümde çalışan yapı kapıları eklendi. Yeni tam imaj sonucu ayrıca doğrulanmalıdır; ARMv6 / 512 MB için modern PC hızı vaat edilmez. [Mimari karşılaştırma ve portlama verisi →](docs/ARM-MIMARI-VE-PORTLAMA.md) · [Pi rehberi →](raspberrypi/README.md)
 
 ## Yeni bir sayfa, yeni bir ana sürüm
 

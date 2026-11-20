@@ -88,14 +88,14 @@ Pi firmware'i PC GRUB menüsü sunmaz. Boot bölümündeki `cmdline.txt` **tek s
 
 ## Kaynaktan derleme
 
-İzole, root/mount/loop erişimi olan **4 KiB sayfalı Linux** makinesi/VM kullanın. x86_64 üzerinde QEMU kullanıcı emülasyonu mümkündür; bu Pi donanım emülasyonu değildir. 30 GiB boş disk önerilir (betik en az 20 GiB kontrol eder). Her mimari ayrı çalışma dizini kullanır. Pi 5'in varsayılan 16 KiB host kernel'inde armhf derlemesi yapılmaz; 4 KiB build host gerekir.
+İzole, root/mount/loop erişimi olan Linux makinesi/VM kullanın; **yalnızca armhf derleme hostu için 4 KiB sayfa koşulu vardır**. arm64 gereksiz yere bu koşulla kısıtlanmaz; hedef Pi 5 `2712` / 16 KiB çekirdeği korunur. x86_64 üzerinde QEMU kullanıcı emülasyonu mümkündür; bu Pi donanım emülasyonu değildir. 30 GiB boş disk önerilir (betik en az 20 GiB kontrol eder). Her mimari ayrı çalışma dizini kullanır. Pi 5'in 16 KiB host kernel'inde armhf için önce 4 KiB host gerekir.
 
 ```sh
 sudo apt-get update
 sudo apt-get install -y --no-install-recommends \
   quilt parted coreutils qemu-user-static debootstrap zerofree zip dosfstools \
   e2fsprogs libcap2-bin rsync grep udev xz-utils curl xxd file kmod bc gpg pigz \
-  arch-test binfmt-support ca-certificates fdisk git python3
+  arch-test binfmt-support ca-certificates fdisk git python3 xvfb xauth
 # Yalnızca bu izole derleme makinesinde; hedef Pi / günlük bilgisayar için değil:
 sudo scripts/prepare-pi-binfmt.sh armhf
 sudo scripts/prepare-pi-binfmt.sh arm64
@@ -136,7 +136,8 @@ Resmî `RPi-Distro/pi-gen` kaynakları `pi-gen.lock.json` içinde **tam commit +
 
 - Birim/kontrat testleri: iki mimari, PC paket ayrımı, ARMv6/Zero 2 ayrımı, zram sınırları, komut enjeksiyonu reddi, ilk açılışta kesinti/yeniden deneme ve hesap güvenliği.
 - Xvfb üzerindeki gerçek GTK penceresi Pi sayfa dalını **host üzerinde** açar; sahte kurucu/PC STA düğmesi olmadığını ve galeriyi denetler. Bu ARM veya kart ekran testi değildir.
-- Tam derlemede kullanıcı alanı **QEMU ARM1176 (ARMv6)** veya **Cortex-A53 (ARMv8)** altında `/bin/true`, Python/GTK içe aktarımı ve Xfce sürüm sorgusuyla kontrol edilir. Tarayıcı/ofis yük testi değildir.
+- Tam derlemede kullanıcı alanı **QEMU ARM1176 (ARMv6)** veya **Cortex-A53 (ARMv8)** altında `/bin/true`, Python / ürün modülleri, gerçek GTK pencere / Türkçe metin, Xfce ve yerel C mağaza sürümü / ELF ABI ile denetlenir. Xvfb yalnızca hosttadır; hedefe özel XDG / D-Bus oturumu verilir. Bu tam Xfce oturumu, tarayıcı/ofis yükü veya gerçek ses testi değildir.
+- **9 ortak özellik grubu**, ortak paketlerin gerçek sürüm / yerel mimarileri, **20 görsel + 10 seçilmiş doğal kayıt hash'i** ve resmî boot / taban kimliği build ve export'ta tekrar denetlenir. Minimum kaynak profili özellik kaldırmaz. Teknik paket tabanı / kod adı korunur; görünen ürün OğuzDows'tur.
 - Export öncesi ve son ham imajın **salt okunur loop** kontrolünde MBR/FAT/ext4, hizalama, model DTB/çekirdek/initramfs zinciri, çözülmüş PARTUUID, marka ve hesap güvenliği denetlenir. SSH anahtarları/machine-id, ortak kullanıcı ve parolasız sudo bulunması derlemeyi durdurur.
 - Bu kontroller **Pi'nin firmware'den gerçekten açıldığını, VC4/V3D donanım hızlandırmasını, Wi-Fi/Bluetooth/kamera/HAT işlevlerini veya performansı kanıtlamaz.** Bunlar fiziksel test ister.
 
@@ -147,9 +148,9 @@ gh workflow run main.yml --ref CALISTIGINIZ_DAL -f target=raspberrypi -f archite
 # architecture: both, armhf veya arm64
 ```
 
-**Süren işler yeni bir çalıştırmayla iptal edilmez.** Artefaktlar imaj + SHA-256 + paket envanteri + kaynak kilidini taşır. Başarısızlıkta yalnızca bilinen altı günlükten dosya başına son **2 MiB**, kesilme / eksik dosya raporuyla `OguzDows-Pi-gunluk-*` artefaktına alınır. `upload-artifact` rootfs’i taramaz; günlük toplamak için rootfs’te `chmod -R` / `chown -R` yapılmaz.
+**Süren işler yeni bir çalıştırmayla iptal edilmez.** Artefaktlar imaj + SHA-256 + paket envanteri + kaynak kilidini taşır. Her build'de bilinen altı günlükten dosya başına son **2 MiB** ve iki JSON kanıtı (`pi-upstream-audit.json`, `pi-runtime-report.json`) `OguzDows-Pi-gunluk-*` artefaktına alınır; eksik / kesilmiş / reddedilen dosyalar `collection.json` içindedir. JSON kanıtı kesilip geçerli rapor gibi sunulmaz. `upload-artifact` rootfs’i taramaz; günlük toplamak için rootfs’te `chmod -R` / `chown -R` yapılmaz.
 
-[Önceki tam imaj çalışması 44791241701](https://github.com/PeraPlusbirPasha/OguzDows/actions/runs/44791241701), iki mimaride binfmt kapısını geçti fakat Firefox `distribution` yolunun üzerine dizin kopyalama hatasıyla durdu. Pi politikası artık `/usr/share/oguzdows/firefox-policies.json` verisinden **hedef chroot içinde** birleştirilir; paketin bağlantısı ve ilgisiz politika anahtarları korunur. İşlem yalnızca imaj hazırlanırken çalışır; yeni oturum / açılış servisi eklenmez. PC Firefox ayarları değiştirilmez. Gerçek dosya kopyalama / bağlantı / atomik yazım regresyonu geçti; yeni tam imaj sonucu ve fiziksel kart testleri ayrıca gereklidir.
+[Önceki tam imaj çalışması 44791241701](https://github.com/PeraPlusbirPasha/OguzDows/actions/runs/44791241701) Firefox paket yolu çakışmasıyla durdu. `f6d12f0` için [44800915275](https://github.com/PeraPlusbirPasha/OguzDows/actions/runs/44800915275) bu hatayı ve günlük yükleme sorununu iki mimaride geçti; fakat minimum CPU Python/GTK içe aktarımı sonrasında başsız Xfce sürüm sorgusu ekran bulamadığı için **başarısız** oldu. Yeni özel Xvfb/XDG/D-Bus kapısı, taban kimliği ve ağ bekleme sırası resmî kaynaklarla karşılaştırılarak düzeltildi. **Başarılı Pi imajı / fiziksel boot ve ölçülmüş ARM hızlanması henüz yoktur.** Detaylı hata kanıtı, 12 dosya/mimari kaynak denetimi ve sonraki sürümlere taşınan sözleşmeler: **[ARM mimari / portlama kaydı](../docs/ARM-MIMARI-VE-PORTLAMA.md)**.
 
 ### Fiziksel yayın kontrol listesi
 
