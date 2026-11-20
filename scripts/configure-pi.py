@@ -98,7 +98,13 @@ def configure(arch: str, output: Path) -> None:
         "browser.cache.disk.enable": {"Value": False, "Status": "default"},
         "browser.sessionstore.interval": {"Value": 60000, "Status": "default"},
     })
-    write(policy_path, json.dumps(policies, ensure_ascii=False, indent=2) + "\n")
+    # Pi paketi distribution'ı /etc altına bağlı bir symlink olarak getirebilir.
+    # Host cp -a ile bu bağlantının üstüne dizin kopyalama / hostta takip yok.
+    # Politika hedef chroot içinde, mevcut anahtarlar korunarak birleştirilir.
+    write(overlay / 'usr/share/oguzdows/firefox-policies.json', json.dumps(policies, ensure_ascii=False, indent=2) + '\n')
+    policy_path.unlink()
+    policy_path.parent.rmdir()
+    policy_path.parent.parent.rmdir()  # Beklenmeyen ek Firefox dosyasını sessizce silme.
     for name in ("Masaüstü", "İndirilenler", "Şablonlar", "Ortak", "Belgeler", "Müzik", "Resimler", "Videolar"):
         (overlay / "etc/skel" / name).mkdir(parents=True, exist_ok=True)
     shutil.copy2(overlay / "usr/share/applications/oguzdows-welcome.desktop",

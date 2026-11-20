@@ -22,6 +22,10 @@ if [ -z "$(dpkg-divert --list /usr/lib/os-release)" ]; then
 fi
 install -m 0644 /usr/share/oguzdows/os-release /usr/lib/os-release
 ln -sfn ../usr/lib/os-release /etc/os-release
+# distribution paket symlink'i yalnızca hedef chroot içinde izlenir.
+chown root:root /usr/share/oguzdows/firefox-policies.json
+chmod 0644 /usr/share/oguzdows/firefox-policies.json
+python3 /usr/lib/oguzdows/pi-firefox-policy.py
 locale-gen
 update-locale LANG=tr_TR.UTF-8 LANGUAGE=tr:en
 ln -sfn /usr/share/zoneinfo/Europe/Istanbul /etc/localtime

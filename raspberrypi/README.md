@@ -147,7 +147,9 @@ gh workflow run main.yml --ref CALISTIGINIZ_DAL -f target=raspberrypi -f archite
 # architecture: both, armhf veya arm64
 ```
 
-**Süren işler yeni bir çalıştırmayla iptal edilmez.** Artefaktlar imaj + SHA-256 + paket envanteri + kaynak kilidini taşır; başarısızlıkta derleme günlüğü saklanır.
+**Süren işler yeni bir çalıştırmayla iptal edilmez.** Artefaktlar imaj + SHA-256 + paket envanteri + kaynak kilidini taşır. Başarısızlıkta yalnızca bilinen altı günlükten dosya başına son **2 MiB**, kesilme / eksik dosya raporuyla `OguzDows-Pi-gunluk-*` artefaktına alınır. `upload-artifact` rootfs’i taramaz; günlük toplamak için rootfs’te `chmod -R` / `chown -R` yapılmaz.
+
+[Önceki tam imaj çalışması 44791241701](https://github.com/PeraPlusbirPasha/OguzDows/actions/runs/44791241701), iki mimaride binfmt kapısını geçti fakat Firefox `distribution` yolunun üzerine dizin kopyalama hatasıyla durdu. Pi politikası artık `/usr/share/oguzdows/firefox-policies.json` verisinden **hedef chroot içinde** birleştirilir; paketin bağlantısı ve ilgisiz politika anahtarları korunur. İşlem yalnızca imaj hazırlanırken çalışır; yeni oturum / açılış servisi eklenmez. PC Firefox ayarları değiştirilmez. Gerçek dosya kopyalama / bağlantı / atomik yazım regresyonu geçti; yeni tam imaj sonucu ve fiziksel kart testleri ayrıca gereklidir.
 
 ### Fiziksel yayın kontrol listesi
 
