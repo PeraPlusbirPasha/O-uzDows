@@ -171,7 +171,9 @@ class Narration(Gtk.Application):
     def do_activate(self):
         if self.window is None:
             self.window = Gtk.ApplicationWindow(application=self, title='Rıfkı · Ekran rehberi')
-            self.window.set_default_size(560, 350)
+            screen = self.window.get_screen()
+            self.window.set_default_size(min(560, screen.get_width() - 24), min(350, screen.get_height() - 48))
+            self.window.set_size_request(min(320, screen.get_width() - 24), 240)
             self.window.set_icon_name('oguzdows')
             self.window.connect('destroy', lambda *_: setattr(self, 'window', None))
             self.box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=14, margin=18)

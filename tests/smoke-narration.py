@@ -21,12 +21,14 @@ from support import ROOT, load
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--output', type=Path, default=Path('test-results'))
+    parser.add_argument('--phone', action='store_true', help='Dar host ekranı; fiziksel telefon / ses testi değil')
     args = parser.parse_args()
     args.output.mkdir(parents=True, exist_ok=True)
     peer = None
     errors = []
     recorded = []
     state = ['initial']
+    layout = {}
     started = time.monotonic()
     with tempfile.TemporaryDirectory() as temporary:
         os.environ.update(XDG_CONFIG_HOME=temporary, XDG_STATE_HOME=temporary, OGUZDOWS_TESTING='1')
@@ -109,6 +111,10 @@ def main():
                     image = Gdk.pixbuf_get_from_window(native, 0, 0, width, height)
                     assert image is not None
                     image.savev(str(args.output / 'narration.png'), 'png', [], [])
+                    screen = app.window.get_screen()
+                    layout.update(width=width, height=height, screen_width=screen.get_width(), screen_height=screen.get_height())
+                    if args.phone:
+                        assert width <= screen.get_width() and height <= screen.get_height(), 'Anlatım penceresi dar ekranın dışına taşmamalı: ' + str(layout)
                     app.window.destroy()
                     assert bar.closed and bar.speaker.closed
                     state[0] = 'complete'
@@ -142,7 +148,7 @@ def main():
                 if code:
                     errors.append('Test kurucu süreci çıkış kodu: ' + str(code))
     result = {'real_gtk_and_dbus': True, 'real_audio_playback': False, 'real_installer': False,
-              'phase': state[0], 'recorded_requests': len(recorded), 'errors': errors}
+              'phase': state[0], 'recorded_requests': len(recorded), 'layout': layout, 'errors': errors}
     (args.output / 'narration.json').write_text(json.dumps(result, ensure_ascii=False, indent=2) + '\n')
     print('::notice title=Doğal kayıt GTK ve D-Bus::' + json.dumps(result, ensure_ascii=False))
     return 1 if errors else 0

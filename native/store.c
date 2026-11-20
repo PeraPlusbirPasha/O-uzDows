@@ -75,10 +75,24 @@ static GtkWidget *label(const gchar *text, const gchar *css) {
 
 static void status(const gchar *text) { gtk_label_set_text(GTK_LABEL(status_label), text); }
 
+static void fit_message(GtkWidget *dialog) {
+    if (!compact) return;
+    GList *children = gtk_container_get_children(GTK_CONTAINER(gtk_message_dialog_get_message_area(GTK_MESSAGE_DIALOG(dialog))));
+    for (GList *it = children; it; it = it->next) {
+        if (!GTK_IS_LABEL(it->data)) continue;
+        gtk_label_set_line_wrap(GTK_LABEL(it->data), TRUE);
+        gtk_label_set_line_wrap_mode(GTK_LABEL(it->data), PANGO_WRAP_WORD_CHAR);
+        gtk_label_set_max_width_chars(GTK_LABEL(it->data), 24);
+    }
+    g_list_free(children);
+    gtk_window_set_default_size(GTK_WINDOW(dialog), 320, -1);
+}
+
 static void message(const gchar *title, const gchar *text, GtkMessageType type) {
     GtkWidget *dialog = gtk_message_dialog_new(GTK_WINDOW(window), GTK_DIALOG_MODAL | GTK_DIALOG_DESTROY_WITH_PARENT,
         type, GTK_BUTTONS_CLOSE, "%s", title);
     gtk_message_dialog_format_secondary_text(GTK_MESSAGE_DIALOG(dialog), "%s", text);
+    fit_message(dialog);
     gtk_dialog_run(GTK_DIALOG(dialog));
     gtk_widget_destroy(dialog);
 }
@@ -87,6 +101,7 @@ static gboolean confirm(const gchar *title, const gchar *text) {
     GtkWidget *dialog = gtk_message_dialog_new(GTK_WINDOW(window), GTK_DIALOG_MODAL | GTK_DIALOG_DESTROY_WITH_PARENT,
         GTK_MESSAGE_WARNING, GTK_BUTTONS_OK_CANCEL, "%s", title);
     gtk_message_dialog_format_secondary_text(GTK_MESSAGE_DIALOG(dialog), "%s", text);
+    fit_message(dialog);
     gtk_dialog_set_default_response(GTK_DIALOG(dialog), GTK_RESPONSE_CANCEL);
     gboolean approved = gtk_dialog_run(GTK_DIALOG(dialog)) == GTK_RESPONSE_OK;
     gtk_widget_destroy(dialog);
@@ -608,18 +623,26 @@ static void build(void) {
 }
 
 #ifdef OGUZDOWS_STORE_TEST
-static void capture(const gchar *name) {
-    GdkWindow *native = gtk_widget_get_window(window);
-    gint width, height; gtk_window_get_size(GTK_WINDOW(window), &width, &height);
+static void capture_window(GtkWidget *target, const gchar *name) {
+    GdkWindow *native = gtk_widget_get_window(target);
+    gint width, height; gtk_window_get_size(GTK_WINDOW(target), &width, &height);
     GdkPixbuf *image = gdk_pixbuf_get_from_window(native, 0, 0, width, height);
     g_assert_nonnull(image);
     gchar *path = g_build_filename(smoke_directory, name, NULL);
     GError *error = NULL;
     g_assert_true(gdk_pixbuf_save(image, path, "png", &error, NULL));
     g_assert_no_error(error); g_object_unref(image); g_free(path);
+    GdkMonitor *monitor = gdk_display_get_monitor_at_window(gtk_widget_get_display(target), native);
+    g_assert_nonnull(monitor);
+    GdkRectangle workarea; gdk_monitor_get_workarea(monitor, &workarea);
+    g_print("GTK yerleşim %s: %dx%d, çalışma alanı %dx%d\n", name, width, height, workarea.width, workarea.height);
+    g_assert_cmpint(width, <=, workarea.width);
+    g_assert_cmpint(height, <=, workarea.height);
 }
+static void capture(const gchar *name) { capture_window(window, name); }
+
 static gboolean cancel_test_plan(gpointer data) {
-    (void)data;
+    const gchar *image_name = data ? (const gchar *)data : "store-native-confirmation.png";
     GList *windows = gtk_window_list_toplevels();
     gboolean found = FALSE;
     for (GList *it = windows; it; it = it->next) {
@@ -628,6 +651,7 @@ static gboolean cancel_test_plan(gpointer data) {
         GtkWidget *button = gtk_window_get_default_widget(GTK_WINDOW(dialog));
         g_assert_nonnull(button);
         g_assert_cmpint(gtk_dialog_get_response_for_widget(dialog, button), ==, GTK_RESPONSE_CANCEL);
+        capture_window(GTK_WIDGET(dialog), image_name);
         gtk_dialog_response(dialog, GTK_RESPONSE_CANCEL);
         found = TRUE;
     }
@@ -648,8 +672,12 @@ static gboolean smoke(gpointer data) {
         case 2: capture("store-native-detail.png"); view("sources"); break;
         case 3: capture("store-native-sources.png"); view("updates"); break;
         case 4: capture("store-native-updates.png"); view("installed"); break;
-        case 5: capture("store-native-installed.png"); view("discover");
-            gtk_window_resize(GTK_WINDOW(window), 420, 680); break;
+        case 5: {
+            capture("store-native-installed.png"); view("discover");
+            GdkMonitor *monitor = gdk_display_get_monitor_at_window(gtk_widget_get_display(window), gtk_widget_get_window(window));
+            GdkRectangle workarea; gdk_monitor_get_workarea(monitor, &workarea);
+            gtk_window_resize(GTK_WINDOW(window), MIN(420, workarea.width - 24), MIN(680, workarea.height - 48)); break;
+        }
         case 6: {
             gint width, height; gtk_window_get_size(GTK_WINDOW(window), &width, &height);
             (void)height;
@@ -673,9 +701,14 @@ static gboolean smoke(gpointer data) {
             g_assert_false(busy);
             g_assert_nonnull(strstr(gtk_label_get_text(GTK_LABEL(status_label)), "Plan iptal edildi"));
             json_object_unref(plan);
-            g_print("Gerçek GTK: masaüstü / kompakt görünüm, boş sonuç ve varsayılan plan iptali geçti. Paket kurulmadı.\n");
-            g_application_quit(G_APPLICATION(application)); return G_SOURCE_REMOVE;
+            view("sources"); break;
         }
+        case 9:
+            g_timeout_add(100, cancel_test_plan, (gpointer)"store-native-source-confirmation.png");
+            setup_clicked(NULL, NULL);
+            g_assert_false(busy);
+            g_print("Gerçek GTK: ekran sınırları, masaüstü / kompakt görünüm, boş sonuç, plan / kaynak varsayılan iptalleri geçti. Kaynak eklenmedi, paket kurulmadı.\n");
+            g_application_quit(G_APPLICATION(application)); return G_SOURCE_REMOVE;
     }
     return G_SOURCE_CONTINUE;
 }

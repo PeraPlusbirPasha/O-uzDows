@@ -1,6 +1,8 @@
 # OğuzDows · Raspberry Pi portu
 
-Aynı Ay Yıldız kimliği, Türkçe Xfce/X11 masaüstü, net pencere/panel düğmeleri, Plymouth animasyonu, karşılama/donanım merkezi ve altı Türkiye duvar kâğıdı; Pi'ye özgü çekirdek, boot firmware'i ve güvenli ilk açılış ile.
+Aynı Ay Yıldız kimliği, Türkçe Xfce/X11 masaüstü, net pencere/panel düğmeleri, Plymouth animasyonu, Pi'ye özel karşılayıcı, doğal yerel Rıfkı rehberi, cihaz merkezi, yerel C/GTK mağaza ve **20 kültür duvar kâğıdı**; Pi'ye özgü çekirdek, boot firmware'i ve güvenli ilk açılış ile. Galeri 16 AI görsel ve 4 özgün çizimden oluşur; yirmi gerçek fotoğraf iddiası değildir.
+
+Bu sayfa **v1.1 geliştirme tarifini** açıklar. Bu çalışma için doğrulanmış bir Pi imajı henüz yayımlanmadı. Aşağıdaki yazma adımları yalnızca kendi mimariniz için başarıyla üretilmiş, hash'i doğrulanmış imaj varsa uygulanır; `--configure-only` çıktısı imaj değildir.
 
 **Bu bir PC ISO'su değildir.** Doğrudan SD/USB'ye yazılan, değişiklikleri kalıcı tutan iki `.img.xz` tarifi vardır. ARMv6 ile ARM64 aynı dosya gibi ele alınmaz. Yapılandırmanın/testlerin geçmesi, bütün kartların açıldığı veya ölçülmüş yüksek performans elde edildiği anlamına gelmez. Fiziksel kart testleri aşağıdaki tabloda henüz yapılmamıştır.
 
@@ -24,6 +26,8 @@ Aynı Ay Yıldız kimliği, Türkçe Xfce/X11 masaüstü, net pencere/panel dü�
 ### “Aynı özellikler” ve donanım sınırları
 
 Ortak masaüstü/uygulama listesi iki PC imajıyla paylaşılır: Türkçe Firefox ESR, LibreOffice Writer/Calc/Impress, VLC, dosya yöneticisi, ağ/Bluetooth/ses, temalar ve galeri korunur. Pi'ye GPIO/I2C/SPI kitaplıkları ve kamera komut satırı araçları da eklenir. Kamera/HAT arabirimleri kullanıcı istemeden zorla etkinleştirilmez.
+
+Yerel mağaza Pi rootfs'i içinde kendi mimarisine derlenir; PC ikili dosyası kopyalanmaz. Sabit uygulama demetleri yalnızca cihazın mevcut imzalı kaynaklarından planlanır. Genel Pi sistem / çekirdek güncellemeleri kendi paket yöneticisinde kalır; PC güncelleyicisi veya başka dağıtımın temel depoları taşınmaz. İsteğe bağlı kullanıcı Flatpak / Flathub altyapısı yalnızca arm64 tarifindedir; eski Zero / armhf için bu kaynak veya APK çalıştırma vaadi yoktur. Gerçek APT / Flatpak işlemi ve fiziksel kart doğrulaması henüz tamamlanmadı.
 
 **512 MB + tek ARMv6 çekirdeğinde güncel web/ofis, Pi 5 hızında çalışamaz.** Modern Firefox'un ARMv7/NEON gereksinimlerini ARMv6'ya dayatmamak için varsayılan tarayıcı başlatıcısı eski Zero/Pi 1'de **Netsurf GTK** seçer. Bu tarayıcı temel web içindir; **JavaScript ve modern sitelerle tam uyumluluk yoktur**. Yeni kartlarda Firefox açılır. Firefox paketi imajda bulunsa da ARMv6'da doğrudan `firefox-esr` çalıştırmak desteklenmez. Ofis ve video uygulamalarının özellikle 512 MB'da büyük dosya/çoklu sekme/yüksek çözünürlük performansı garanti edilmez. Modern web/ofis için **Pi 4/5 ve en az 2 GB, tercihen 4 GB RAM** önerilir.
 

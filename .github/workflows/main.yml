@@ -126,6 +126,9 @@ jobs:
           python3 scripts/ci-run.py --title 'Dar C mağaza (host)' -- \
             xvfb-run -a -s '-screen 0 480x900x24' dbus-run-session -- \
             /tmp/oguzdows-store-ui-test --smoke-test test-results/phone-store
+          python3 scripts/ci-run.py --title '360px C mağaza (host)' -- \
+            xvfb-run -a -s '-screen 0 360x800x24' dbus-run-session -- \
+            /tmp/oguzdows-store-ui-test --smoke-test test-results/phone-store-narrow
           for device in arm64-uefi pinephone pinephone-pro rockpro64; do
             python3 scripts/configure-arm.py --device "$device" --output "/tmp/oguzdows-$device"
           done
@@ -164,6 +167,9 @@ jobs:
           python3 scripts/ci-run.py --title 'Doğal kayıt GTK ve D-Bus' -- \
             xvfb-run -a -s '-screen 0 1024x768x24' dbus-run-session -- \
             python3 tests/smoke-narration.py --output test-results
+          python3 scripts/ci-run.py --title '360px anlatım GTK ve D-Bus (host)' -- \
+            xvfb-run -a -s '-screen 0 360x800x24' dbus-run-session -- \
+            python3 tests/smoke-narration.py --phone --output test-results/phone-narration
 
       - name: Gerçek kurucuyu disk işlemi yapmadan aç
         run: |

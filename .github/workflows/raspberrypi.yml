@@ -132,14 +132,22 @@ jobs:
           df -h .
       - name: Yerel pi-gen ve çapraz ARM çalıştırma araçları
         run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
-            quilt parted coreutils qemu-user-static debootstrap zerofree zip dosfstools \
-            e2fsprogs libcap2-bin rsync grep udev xz-utils curl xxd file kmod bc gpg pigz \
-            arch-test binfmt-support ca-certificates fdisk git python3
-          sudo update-binfmts --enable qemu-arm
-          sudo update-binfmts --enable qemu-aarch64
-          arch-test '${{ matrix.arch }}'
+          # Araç / binfmt hatası imaj günlüğünden önce oluşabilir. Kuyruk, Azure
+          # günlük indirmesi kapalı olsa da kontrol notundan okunabilsin.
+          sudo python3 scripts/ci-run.py --title 'Pi ${{ matrix.arch }} host araçları' -- \
+            bash -euxo pipefail -c '
+              apt-get update
+              apt-get install -y --no-install-recommends \
+                quilt parted coreutils qemu-user-static debootstrap zerofree zip dosfstools \
+                e2fsprogs libcap2-bin rsync grep udev xz-utils curl xxd file kmod bc gpg pigz \
+                arch-test binfmt-support ca-certificates fdisk git python3
+              update-binfmts --display
+              if [ -d /proc/sys/fs/binfmt_misc ]; then ls -l /proc/sys/fs/binfmt_misc; fi
+              if [ -d /usr/share/binfmts ]; then ls -l /usr/share/binfmts; fi
+              update-binfmts --enable qemu-arm
+              update-binfmts --enable qemu-aarch64
+              arch-test "$1"
+            ' bash '${{ matrix.arch }}'
       - name: Pi imajını derle, minimum ARM CPU ve salt okunur imaj denetimleri
         run: |
           sudo python3 scripts/ci-run.py --title 'Pi ${{ matrix.arch }}' -- \

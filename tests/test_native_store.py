@@ -167,6 +167,9 @@ class FlatpakTransactionTests(unittest.TestCase):
         self.assertIn('GTK_RESPONSE_CANCEL', source)
         self.assertIn('if (busy)', source)
         self.assertIn('STORE_SERVICE "/usr/lib/oguzdows/store_service.py"', source)
+        self.assertIn('g_assert_cmpint(width, <=, workarea.width)', source)
+        self.assertIn('g_assert_cmpint(height, <=, workarea.height)', source)
+        self.assertIn('store-native-source-confirmation.png', source)
 
 
 if __name__ == '__main__':

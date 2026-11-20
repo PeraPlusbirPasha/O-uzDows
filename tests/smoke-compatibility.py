@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
-"""Her GTK uygulaması ayrı süreçte: inceleme / varsayılan iptal / cihaz merkezi."""
+"""Her GTK uygulaması ayrı süreçte: EXE / APK inceleme, varsayılan iptal, cihaz merkezi."""
 import argparse
+import json
 import os
 import tempfile
 from pathlib import Path
@@ -12,7 +13,7 @@ gi.require_version('Gtk', '3.0')
 gi.require_version('Gdk', '3.0')
 from gi.repository import Gdk, GLib, Gtk
 from support import load
-from test_compatibility import pe
+from test_compatibility import apk, pe
 
 
 def main():
@@ -23,6 +24,7 @@ def main():
     args = parser.parse_args()
     args.output.mkdir(parents=True, exist_ok=True)
     errors = []
+    layouts = {}
     with tempfile.TemporaryDirectory() as temporary:
         os.environ.update(XDG_CONFIG_HOME=temporary, XDG_DATA_HOME=temporary, XDG_STATE_HOME=temporary, OGUZDOWS_TESTING='1')
         module = load('compat_gtk_' + args.component, 'system/usr/lib/oguzdows/' + args.component + '.py')
@@ -33,19 +35,25 @@ def main():
         assert app.register(None)
         app.activate()
         loop = GLib.MainLoop()
-        path = Path(temporary) / 'test.exe'
-        path.write_bytes(pe())
+        root = Path(temporary)
+        exe_path, apk_path = root / 'test.exe', root / 'deneme uygulaması.apk'
+        exe_path.write_bytes(pe())
+        apk(apk_path)
+        fixtures = [('exe', exe_path), ('apk', apk_path)]
+        current = [0]
         def capture(name, target=None):
             target = app.window if target is None else target
             native = target.get_window()
             native.process_updates(True)
             width, height = target.get_size()
-            if args.phone:
-                screen_width = target.get_screen().get_width()
-                assert width <= screen_width, f'{args.component}/{name}: pencere {width}px, ekran {screen_width}px; dar ekran dışına taşma'
+            screen = target.get_screen()
+            layouts[name] = dict(width=width, height=height, screen_width=screen.get_width(), screen_height=screen.get_height())
             image = Gdk.pixbuf_get_from_window(native, 0, 0, width, height)
             assert image is not None
+            # Hata durumunda da taşmış pencerenin görüntüsü / boyutları saklanır.
             image.savev(str(args.output / name), 'png', [], [])
+            if args.phone:
+                assert width <= screen.get_width() and height <= screen.get_height(), f'{args.component}/{name}: dar ekran dışına taşma; {layouts[name]}'
         def close():
             app.window.destroy()
             loop.quit()
@@ -57,7 +65,7 @@ def main():
                     return GLib.SOURCE_REMOVE
                 assert app.receipt is None and not app.run_button.get_sensitive()
                 capture('compatibility.png')
-                app.inspect(path)
+                app.inspect(fixtures[0][1])
             except Exception as error:
                 errors.append(str(error)); loop.quit()
             return GLib.SOURCE_REMOVE
@@ -66,20 +74,24 @@ def main():
                 return GLib.SOURCE_REMOVE
             if app.busy:
                 return GLib.SOURCE_CONTINUE
+            kind, path = fixtures[current[0]]
+            suffix = '' if kind == 'exe' else '-apk'
             try:
-                assert app.receipt and app.receipt['kind'] == 'exe'
+                assert app.receipt and app.receipt['kind'] == kind
+                assert app.receipt['name'] == path.name
                 assert not app.ack.get_active() and not app.run_button.get_sensitive()
                 assert app.run_button.get_child().get_line_wrap(), 'Durum düğmesi etiketi yenilenince satır kaydırma korunmalı'
-                capture('compatibility-inspected.png')
+                capture('compatibility' + suffix + '-inspected.png')
                 app.reasons = []  # Yalnızca UI onay iptali; motorlar yok / çağrılmaz.
                 app.ack.set_active(True)
                 assert app.run_button.get_sensitive()
+                assert ('Wine' if kind == 'exe' else 'Waydroid') in app.run_button.get_label()
                 def cancel():
                     for widget in Gtk.Window.list_toplevels():
                         if isinstance(widget, Gtk.MessageDialog):
                             try:
                                 assert widget.get_response_for_widget(widget.get_default_widget()) == Gtk.ResponseType.CANCEL
-                                capture('compatibility-confirmation.png', widget)
+                                capture('compatibility' + suffix + '-confirmation.png', widget)
                             except Exception as error:
                                 errors.append(str(error))
                             finally:
@@ -91,19 +103,33 @@ def main():
                     app.approve()
                     stage.assert_not_called()
                 assert 'Vazgeçildi' in app.status.get_text()
+                current[0] += 1
+                if current[0] < len(fixtures):
+                    app.inspect(fixtures[current[0]][1])
+                    return GLib.SOURCE_CONTINUE
                 close()
             except Exception as error:
-                errors.append(str(error)); loop.quit()
+                errors.append(kind + ': ' + str(error)); loop.quit()
             return GLib.SOURCE_REMOVE
         def timeout():
-            errors.append('Uyumluluk GTK testi zaman aşımı.'); loop.quit(); return GLib.SOURCE_REMOVE
+            errors.append('Uyumluluk GTK testi zaman aşımı.')
+            for widget in Gtk.Window.list_toplevels():
+                if isinstance(widget, Gtk.MessageDialog):
+                    widget.response(Gtk.ResponseType.CANCEL)
+            loop.quit()
+            return GLib.SOURCE_REMOVE
         GLib.timeout_add(300, start)
         GLib.timeout_add(800, inspected)
         GLib.timeout_add_seconds(20, timeout)
-        loop.run()
+        try:
+            loop.run()
+        finally:
+            if app.window is not None:
+                app.window.destroy()
+            (args.output / (args.component + '-layout.json')).write_text(json.dumps(layouts, ensure_ascii=False, indent=2) + '\n')
     if errors:
         raise RuntimeError('\n'.join(errors))
-    print(args.component + ': gerçek GTK geçti; Wine, APK veya paket kurulmadı.')
+    print(args.component + ': gerçek GTK geçti; EXE / APK onayı iptal edildi, Wine, APK veya paket kurulmadı.')
 
 
 if __name__ == '__main__':

@@ -144,6 +144,10 @@ class PiConfigurationTests(unittest.TestCase):
         steps = str(workflow["jobs"]["image"]["steps"])
         self.assertIn("build-pi.sh", steps)
         self.assertIn("qemu-user-static", steps)
+        tools = next(step['run'] for step in workflow['jobs']['image']['steps']
+                     if step.get('name') == 'Yerel pi-gen ve çapraz ARM çalıştırma araçları')
+        self.assertIn("scripts/ci-run.py --title 'Pi ${{ matrix.arch }} host araçları'", tools)
+        self.assertIn("update-binfmts --display", tools)
         self.assertIn(".img.xz.sha256", steps)
         verification = str(workflow["jobs"]["verify"]["steps"])
         self.assertIn("--pi", verification)
