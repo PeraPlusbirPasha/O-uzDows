@@ -32,24 +32,29 @@ class NarrationBar(Gtk.Box):
         self.group = None
         self.signals = []
         self.blocked = True
+        self.gate_ready = False
         self.pending = False
         self.closed = False
+        if window.get_screen().get_width() < 600:
+            self.set_orientation(Gtk.Orientation.VERTICAL)
+        controls = Gtk.Box(spacing=6)
         self.listen_button = Gtk.Button(label='Rıfkı’dan dinle')
         self.listen_button.connect('clicked', self.listen)
-        self.pack_start(self.listen_button, False, False, 0)
+        controls.pack_start(self.listen_button, False, False, 0)
         stop = Gtk.Button.new_from_icon_name('media-playback-stop-symbolic', Gtk.IconSize.BUTTON)
         stop.set_tooltip_text('Sesi durdur')
         stop.get_accessible().set_name('Rıfkı sesini durdur')
         stop.connect('clicked', lambda *_: self.stop())
-        self.pack_start(stop, False, False, 0)
-        self.status = Gtk.Label(label='Doğal yerel kayıt', xalign=0, wrap=True, max_width_chars=36)
-        self.pack_start(self.status, True, True, 0)
+        controls.pack_start(stop, False, False, 0)
         self.sound = Gtk.Switch(active=self.speaker.enabled)
         self.sound.set_valign(Gtk.Align.CENTER)
         self.sound.set_tooltip_text('Doğal kayıt sesini aç / kapat')
         self.sound.get_accessible().set_name('Rıfkı sesi açık')
         self.sound.connect('notify::active', lambda button, _pspec: self.speaker.set_enabled(button.get_active()))
-        self.pack_start(self.sound, False, False, 0)
+        controls.pack_start(self.sound, False, False, 0)
+        self.pack_start(controls, False, False, 0)
+        self.status = Gtk.Label(label='Doğal yerel kayıt', xalign=0, wrap=True, max_width_chars=36)
+        self.pack_start(self.status, True, True, 0)
         self.connect('destroy', self.cleanup)
         window.connect('notify::is-active', self.focus_changed)
         self.watch = Gio.bus_watch_name(Gio.BusType.SESSION, 'org.oguzdows.HafifKurucu',
@@ -77,8 +82,8 @@ class NarrationBar(Gtk.Box):
         if self.closed:
             return
         if self.blocked:
-            self.pending = self.group is None  # İlk D-Bus yanıtını bekle; kurulumda sıraya alma.
-            self.status.set_text('Kurulum kapısı kontrol ediliyor / kurulumda ses durur.')
+            self.pending = not self.gate_ready  # İlk D-Bus yanıtını bekle; kurulumda sıraya alma.
+            self.status.set_text('Kurulum durumu bekleniyor.' if not self.gate_ready else 'Kurulumda ses duraklatıldı.')
             return
         self.pending = False
         text = words(self.key())
@@ -87,8 +92,8 @@ class NarrationBar(Gtk.Box):
         elif ready_clip(text, self.speaker.assets, self.speaker.clips) is None:
             self.status.set_text('Doğal kayıt yok; açıklama yazılı kalır.')
         else:
-            self.speaker.speak(text)
             self.status.set_text('Rıfkı · Ekranın genel kullanım rehberi')
+            self.speaker.speak(text)
 
     def focus_changed(self, window, *_):
         if not window.is_active():
@@ -102,6 +107,7 @@ class NarrationBar(Gtk.Box):
 
     def appeared(self, connection, name, _owner):
         self.disconnect_group()
+        self.gate_ready = False
         self.blocked = True
         self.listen_button.set_sensitive(False)
         self.speaker.stop()
@@ -118,6 +124,7 @@ class NarrationBar(Gtk.Box):
 
     def state_changed(self, _group, name, state):
         if name == 'busy' and state.is_of_type(GLib.VariantType.new('b')):
+            self.gate_ready = True
             self.blocked = state.get_boolean()
             self.listen_button.set_sensitive(not self.blocked and bool(words(self.key())))
             if self.blocked:
@@ -126,12 +133,16 @@ class NarrationBar(Gtk.Box):
             elif self.pending:
                 self.listen()
 
-    def vanished(self, *_):
+    def vanished(self, connection, *_):
         self.disconnect_group()
-        self.blocked = False
+        self.gate_ready = connection is not None
+        self.blocked = not self.gate_ready
         if not self.closed:
-            self.listen_button.set_sensitive(bool(words(self.key())))
-            if self.pending:
+            self.listen_button.set_sensitive(self.gate_ready and bool(words(self.key())))
+            if not self.gate_ready:
+                self.stop()
+                self.status.set_text('Kurulum durumuna ulaşılamadı; rehber yazılı kalır.')
+            elif self.pending:
                 self.listen()
 
     def cleanup(self, *_):

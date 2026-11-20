@@ -7,7 +7,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from rifki_dialogue import HELLO, PANELS
+from rifki_dialogue import PANELS
+from rifki_narration_texts import TEXTS
 
 PAGES = (
     ('welcome', 'Hoş geldin', 'go-home-symbolic'),
@@ -62,15 +63,8 @@ def page_text(page, session):
     if page not in PAGE_IDS:
         return ''
     if page == 'welcome':
-        # Mevcut doğal, genel giriş kaydı; yeni arayüzü yanlış tarif eden eski
-        # 'üst sekmeler' kaydı burada kullanılmaz.
-        return HELLO
+        # Canlı kurulum yönergesi kurulu PC / Pi ilk açılışında çalınmaz.
+        return TEXTS['live' if session.kind == 'live' else 'installed']
     if page == 'hardware' and session.kind == 'pi':
-        return 'Pi donanım paneli. Platform ve SDIO aygıtlarını inceleyebilirsin. PC Broadcom STA paketi Pi kablosuz kartına kurulmaz. Donanım raporun cihazında kalır.'
-    if page in ('hardware', 'wallpapers', 'styles'):
-        return PANELS[page]
-    if page == 'appearance':
-        return 'Açık veya koyu temayı seç. Seçimin yalnızca bu hesaba uygulanır; panel ve pencere düğmeleri opak kalır. İlk görünüm değişikliğinden önce ayarların yedeklenir.'
-    if page == 'applications':
-        return 'Uygulamaları ve güncellemeleri ayrı düğmelerden açabilirsin. Bir düğmeyi açmak paket kurmaz. Ağ, kurulum veya yönetici izni gereken işlem ayrıca bildirilir.'
-    return 'Yardım için Rıfkı’yı açabilir veya yerel kullanım rehberini okuyabilirsin. Donanım raporun kendiliğinden gönderilmez. Kaydı olmayan sesli açıklamalar yazılı kalır.'
+        return TEXTS['hardware-pi']
+    return PANELS[page]

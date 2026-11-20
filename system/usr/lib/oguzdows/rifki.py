@@ -153,7 +153,7 @@ class Companion(Gtk.ApplicationWindow):
         self.action_name=None
         body.pack_start(self.action,False,False,0)
         speech_buttons=Gtk.Box(spacing=6)
-        for title,callback in (('Son mesajı dinle',lambda *_:self.speaker.speak(self.last_message,self.last_cue)),('Sesi durdur',lambda *_:self.speaker.stop())):
+        for title,callback in (('Son mesajı dinle',self.repeat),('Sesi durdur',lambda *_:self.speaker.stop())):
             button=Gtk.Button(label=title)
             button.connect('clicked',callback)
             speech_buttons.pack_start(button,True,True,0)
@@ -169,8 +169,8 @@ class Companion(Gtk.ApplicationWindow):
         self.sound.connect('toggled',lambda b:self.speaker.set_enabled(b.get_active()))
         body.pack_start(self.sound,False,False,0)
         self.narration=Gtk.CheckButton(label='Rehber panel açıklamalarını anlat')
-        self.narration.set_active(self.speaker.options.get('narration',True) is not False)
-        self.narration.connect('toggled',lambda b:self.speaker.save_option('narration',b.get_active()))
+        self.narration.set_active(self.speaker.options.get('welcome_narration', True) is not False)
+        self.narration.connect('toggled', self.narration_changed)
         body.pack_start(self.narration,False,False,0)
         self.motion=Gtk.CheckButton(label='Yalnızca konuşurken hafif ağız hareketi')
         # Önceki pet/auto tercihleri veya RAM miktarı ağır yolu geri açamaz.
@@ -203,6 +203,21 @@ class Companion(Gtk.ApplicationWindow):
     def motion_changed(self,button):
         self.avatar.allow_motion=button.get_active()
         self.avatar.sync()
+
+    def narration_changed(self, button):
+        value = button.get_active()
+        self.speaker.save_option('welcome_narration', value)
+        callback = self.callbacks.get('narration')
+        if callback:
+            callback(value)
+        if not value:
+            self.speaker.stop()
+
+    def repeat(self, *_):
+        if self.installing:
+            self.voice_error('Kurulum sürerken ses duraklatıldı; açıklama yazılı kalır.')
+            return
+        self.speaker.speak(self.last_message, self.last_cue)
 
     def greet(self):
         self.say(HELLO)

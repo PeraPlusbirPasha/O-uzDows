@@ -3,6 +3,7 @@ import unicodedata
 
 from install_status import description
 from rifki_dialogue import LIGHT_NOTE, STAGES
+from rifki_narration_texts import TEXTS
 
 
 def normalize(text):
@@ -33,7 +34,7 @@ def reply(text, status=None):
     elif any(word in query for word in ('surucu', 'driver', 'ekran', 'ses', 'donanim')):
         answer.update(text='Önce donanımın hangi sürücüye bağlandığını okuyalım. Donanım sekmesi algılanan kartları gösterir; ek paketler yalnızca uygun kart ve açık lisans/yönetici onayıyla kurulur.', action='drivers')
     elif any(word in query for word in ('duvar', 'wallpaper', 'manzara')):
-        answer.update(text='Altı foto gerçekçi Türkiye manzarası arasından seçim yapabilirsin. Görseller yapay zekâ üretimidir; gerçek çekim değildir. Her birinin sağ alt köşesinde OğuzDows logosu var. Seçimini galeriden değiştirebilirsin.', action='wallpapers', emotion='happy')
+        answer.update(text=TEXTS['wallpapers'], action='wallpapers', emotion='happy')
     elif any(word in query for word in ('pil', 'sarj', 'nazar')):
         answer.update(text='Nazar boncuğu pil doldukça aşağıdan yukarı görünür. Tam dolunca bütünü görünür. Şimşek şarj olmayı, uyarı işareti düşük pili belirtir; güç yöneticisinin kritik pil koruması değişmez.')
     elif any(word in query for word in ('kur', 'yukle', 'install')):

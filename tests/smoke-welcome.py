@@ -96,8 +96,10 @@ def main():
                     assert not app.broadcom_button.get_visible(), "Pi'de PC STA düğmesi görünmemeli"
                     assert not app.intel_button.get_visible(), "Pi'de PC firmware düğmesi görünmemeli"
                     assert "SD/USB" in app.install_status.get_text()
+                if args.phone:
+                    assert app.window.get_size()[0] <= app.window.get_screen().get_width(), 'Telefon karşılayıcısı ekran dışına taşmamalı'
                 screenshot("welcome.png")
-                app.window.resize(600, 440)
+                app.window.resize(min(400, app.window.get_screen().get_width() - 24) if args.phone else 600, 440)
             except Exception as error:
                 errors.append(str(error))
             return GLib.SOURCE_REMOVE
@@ -128,7 +130,7 @@ def main():
                 assert not app.next_button.get_sensitive()
                 app.navigate('applications')
                 screenshot('applications.png')
-                app.window.resize(900, 600)
+                app.window.resize(min(400, app.window.get_screen().get_width() - 24) if args.phone else 900, 600)
                 app.show_drivers()
             except Exception as error:
                 errors.append(str(error))
@@ -183,8 +185,17 @@ def main():
                 assert len(spoken)==8 and all(spoken)
                 app.rifki.set_installing(True)
                 app.rifki.say('Kurulumda sessiz metin')
+                app.rifki.repeat()
                 assert len(spoken)==8, 'Kurulum sırasında otomatik ses çağrılmamalı'
                 app.rifki.set_installing(False)
+                app.rifki.narration.set_active(False)
+                assert not app.narration_switch.get_active(), 'Aynı otomatik anlatım tercihi paylaşılmalı'
+                app.navigate('styles')
+                assert len(spoken) == 8, 'Rıfkı açık diye kapalı sayfa anlatımı geri açılmamalı'
+                app.rifki.narrate_page('styles', force=True)
+                assert len(spoken) == 9 and spoken[-1] == welcome.welcome_model.page_text('styles', app.context)
+                app.narration_switch.set_active(True)
+                assert app.rifki.narration.get_active()
                 app.rifki.speaker.speak=original_speak
                 app.rifki.ask("diskten açılmıyor")
                 assert app.rifki.action_name == 'boot-report'

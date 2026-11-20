@@ -94,6 +94,15 @@ jobs:
             xvfb-run -a -s '-screen 0 1280x900x24' dbus-run-session -- \
             /tmp/oguzdows-store-ui-test --smoke-test test-results/pi-ui
 
+      - name: Paylaşılan doğal kayıt ve D-Bus kapısı (host)
+        env:
+          GSETTINGS_BACKEND: memory
+          NO_AT_BRIDGE: '1'
+        run: |
+          python3 scripts/ci-run.py --title 'Pi ortak anlatım GTK ve D-Bus (host)' -- \
+            xvfb-run -a -s '-screen 0 1024x768x24' dbus-run-session -- \
+            python3 tests/smoke-narration.py --output test-results/pi-ui
+
       - uses: actions/upload-artifact@v4
         if: always()
         with:

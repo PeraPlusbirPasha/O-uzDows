@@ -25,6 +25,14 @@
 
 ---
 
+## Kaynak dalında: 1.1 ara güncellemesi
+
+Sol menülü **ayrı canlı / kurulu karşılama**, açık / koyu tema ve özgün **XP esintili Başlat**, **derlenen C / GTK mağaza**, **20 kültür görseli** ve seçilen sesle **10 yeni doğal Rıfkı kaydı** geliştiriliyor. Yeni **Cihaz Merkezi** destek düzeylerini açıklar; EXE / APK açıcı dosyayı önce inceler ve açık onay ister. Wine / Waydroid hazır değilse çalıştırmaz; güvenlik veya evrensel uyumluluk garantisi değildir.
+
+**1.1 henüz yayımlanmadı.** Aşağıdaki indirmeler, vitrin ve RAM tablosu **v1.0.0** içindir; etiket / dosyalar korunur. Yeni tam masaüstü ölçümü ve gerçek cihaz testleri ayrı yapılacaktır. ARM64 / telefon katmanları önyüklenebilir telefon imajı değildir.
+
+[1.1 uygulama ve test kaydı →](docs/V1.1-GELISTIRME.md) · [Cihaz / EXE / APK sınırları →](docs/CIHAZLAR-VE-UYUMLULUK.md)
+
 <a id="indir"></a>
 
 ## Bir USB ile başla
@@ -146,6 +154,8 @@ Zero–5 ailesi için ayrı `armhf` / `arm64` SD/USB imajı akışı bulunur. PC
 
 ```text
 v1.0.0  ·  Ay Yıldız — yayımlandı
+   ↓
+v1.1    ·  Ara güncelleme — geliştirme
    ↓
 v2.0    ·  Bir sonraki ana yayın
    ↓

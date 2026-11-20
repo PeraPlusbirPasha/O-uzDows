@@ -115,6 +115,12 @@ jobs:
           python3 scripts/ci-run.py --title 'Dar telefon karşılayıcısı (host)' -- \
             xvfb-run -a -s '-screen 0 480x900x24' dbus-run-session -- \
             python3 tests/smoke-welcome.py --phone --output test-results/phone
+          python3 scripts/ci-run.py --title '360px telefon karşılayıcısı (host)' -- \
+            xvfb-run -a -s '-screen 0 360x800x24' dbus-run-session -- \
+            python3 tests/smoke-welcome.py --phone --output test-results/phone-narrow
+          python3 scripts/ci-run.py --title 'Dar C mağaza (host)' -- \
+            xvfb-run -a -s '-screen 0 480x900x24' dbus-run-session -- \
+            /tmp/oguzdows-store-ui-test --smoke-test test-results/phone-store
           for device in arm64-uefi pinephone pinephone-pro rockpro64; do
             python3 scripts/configure-arm.py --device "$device" --output "/tmp/oguzdows-$device"
           done
@@ -148,6 +154,12 @@ jobs:
               python3 tests/smoke-lightweight.py --component "$component" --output test-results
           done
 
+      - name: Doğal panel kayıtları ve kurulum D-Bus ses kapısı
+        run: |
+          python3 scripts/ci-run.py --title 'Doğal kayıt GTK ve D-Bus' -- \
+            xvfb-run -a -s '-screen 0 1024x768x24' dbus-run-session -- \
+            python3 tests/smoke-narration.py --output test-results
+
       - name: Gerçek kurucuyu disk işlemi yapmadan aç
         run: |
           python3 scripts/configure.py --arch '${{ matrix.suite == 'trixie' && 'amd64' || 'i386' }}' --output /tmp/oguzdows-smoke
@@ -163,9 +175,9 @@ jobs:
         with:
           name: OguzDows-arayuz-${{ matrix.suite }}
           path: |
-            test-results/*.png
-            test-results/*.log
-            test-results/*.json
+            test-results/**/*.png
+            test-results/**/*.log
+            test-results/**/*.json
           if-no-files-found: warn
           retention-days: 7
 
