@@ -168,6 +168,10 @@ class Compatibility(Gtk.Application):
         self.run_button.set_sensitive(available and self.ack.get_active())
         self.run_button.set_label('Onayla · Wine ile aç' if available and self.receipt['kind'] == 'exe' else
                                   'Onayla · APK’yı Waydroid’e kur' if available else 'Hazırlık koşulları tamamlanmadan çalıştırma yok')
+        # Gtk.Button.set_label içteki Gtk.Label'ı yeniden kurabilir. İnceleme /
+        # durum değişince kaybolan wrap, telefon penceresini tekrar genişletmesin.
+        self.run_button.get_child().set_line_wrap(True)
+        self.run_button.get_child().set_max_width_chars(26)
 
     def approve(self, *_):
         if self.busy or not self.receipt or not self.ack.get_active() or getattr(self, 'reasons', []):
@@ -176,6 +180,12 @@ class Compatibility(Gtk.Application):
                                    buttons=Gtk.ButtonsType.OK_CANCEL, text='Bu dosya kendi hesabında açılsın mı?')
         dialog.format_secondary_text('Dosya yeniden doğrulanıp özel çalışma dizinine kopyalanır. Dijital imza / virüs denetimi yapılmadı. Wine ayrı prefix kullansa da ev dosyalarına / ağa erişebilir. İşletim sistemi bu uygulamanın uyumlu veya zararsız olduğunu onaylamaz.')
         dialog.set_default_response(Gtk.ResponseType.CANCEL)
+        if self.window.get_screen().get_width() < 600:
+            for child in dialog.get_message_area().get_children():
+                if isinstance(child, Gtk.Label):
+                    child.set_line_wrap(True)
+                    child.set_max_width_chars(24)
+            dialog.set_default_size(min(360, self.window.get_screen().get_width() - 24), -1)
         approved = dialog.run() == Gtk.ResponseType.OK
         dialog.destroy()
         if not approved:

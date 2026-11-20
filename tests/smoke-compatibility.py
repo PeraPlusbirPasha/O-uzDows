@@ -35,12 +35,14 @@ def main():
         loop = GLib.MainLoop()
         path = Path(temporary) / 'test.exe'
         path.write_bytes(pe())
-        def capture(name):
-            native = app.window.get_window()
+        def capture(name, target=None):
+            target = app.window if target is None else target
+            native = target.get_window()
             native.process_updates(True)
-            width, height = app.window.get_size()
+            width, height = target.get_size()
             if args.phone:
-                assert width <= app.window.get_screen().get_width(), 'Uyumluluk / cihaz merkezi dar ekranın dışına taşmamalı'
+                screen_width = target.get_screen().get_width()
+                assert width <= screen_width, f'{args.component}/{name}: pencere {width}px, ekran {screen_width}px; dar ekran dışına taşma'
             image = Gdk.pixbuf_get_from_window(native, 0, 0, width, height)
             assert image is not None
             image.savev(str(args.output / name), 'png', [], [])
@@ -67,6 +69,7 @@ def main():
             try:
                 assert app.receipt and app.receipt['kind'] == 'exe'
                 assert not app.ack.get_active() and not app.run_button.get_sensitive()
+                assert app.run_button.get_child().get_line_wrap(), 'Durum düğmesi etiketi yenilenince satır kaydırma korunmalı'
                 capture('compatibility-inspected.png')
                 app.reasons = []  # Yalnızca UI onay iptali; motorlar yok / çağrılmaz.
                 app.ack.set_active(True)
@@ -76,6 +79,7 @@ def main():
                         if isinstance(widget, Gtk.MessageDialog):
                             try:
                                 assert widget.get_response_for_widget(widget.get_default_widget()) == Gtk.ResponseType.CANCEL
+                                capture('compatibility-confirmation.png', widget)
                             except Exception as error:
                                 errors.append(str(error))
                             finally:
