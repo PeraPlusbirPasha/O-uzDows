@@ -68,7 +68,7 @@ jobs:
           python3 scripts/ci-run.py --title 'Pi birim ve kaynak kontrolleri' -- \
             python3 -W error::ResourceWarning -m unittest discover -s tests -p 'test_*.py' -v
           python3 scripts/ci-run.py --title 'Pi kabuk betikleri' -- \
-            shellcheck build-pi.sh scripts/verify-pi-image.sh raspberrypi/export-check.sh \
+            shellcheck build-pi.sh scripts/prepare-pi-binfmt.sh scripts/verify-pi-image.sh raspberrypi/export-check.sh \
             raspberrypi/stage/prerun.sh raspberrypi/stage/00-desktop/*-run.sh \
             raspberrypi/stage/00-desktop/files/configure-system.sh
           python3 scripts/ci-run.py --title 'Pi armhf yapılandırma' -- \
@@ -144,9 +144,7 @@ jobs:
               update-binfmts --display
               if [ -d /proc/sys/fs/binfmt_misc ]; then ls -l /proc/sys/fs/binfmt_misc; fi
               if [ -d /usr/share/binfmts ]; then ls -l /usr/share/binfmts; fi
-              update-binfmts --enable qemu-arm
-              update-binfmts --enable qemu-aarch64
-              arch-test "$1"
+              bash scripts/prepare-pi-binfmt.sh "$1"
             ' bash '${{ matrix.arch }}'
       - name: Pi imajını derle, minimum ARM CPU ve salt okunur imaj denetimleri
         run: |

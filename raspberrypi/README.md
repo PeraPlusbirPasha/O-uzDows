@@ -96,14 +96,15 @@ sudo apt-get install -y --no-install-recommends \
   quilt parted coreutils qemu-user-static debootstrap zerofree zip dosfstools \
   e2fsprogs libcap2-bin rsync grep udev xz-utils curl xxd file kmod bc gpg pigz \
   arch-test binfmt-support ca-certificates fdisk git python3
-sudo update-binfmts --enable qemu-arm
-sudo update-binfmts --enable qemu-aarch64
-arch-test armhf
-arch-test arm64
+# Yalnızca bu izole derleme makinesinde; hedef Pi / günlük bilgisayar için değil:
+sudo scripts/prepare-pi-binfmt.sh armhf
+sudo scripts/prepare-pi-binfmt.sh arm64
 
 sudo ./build-pi.sh armhf
 sudo ./build-pi.sh arm64
 ```
+
+`prepare-pi-binfmt.sh` yalnızca kurulu QEMU paketinin sistem tanımını kullanır. Yeni hostlarda `systemd` / `binfmt.d`, eski paketlerde `binfmt-support` kaydı seçilir; `update-binfmts` veri tabanında görünmeme tek başına QEMU yok demek değildir. Host yürütmesine ek olarak yeni, boş ve özel bir chroot içinde `arch-test` çalıştırılır; böylece yalnızca hostta çalışan ama debootstrap içinde kaybolan bir yorumlayıcı hazır sayılmaz. Bu betik hedef imaja eklenmez; **hedef Pi'de veya başka build işleriyle paylaşılan makinede çalıştırmayın**. Bu kapının geçmesi fiziksel ARM / Pi boot kanıtı değildir.
 
 Tam derleme Raspberry Pi OS/Raspbian paket sunucularına erişim ister. Ağ kısıtlı geliştirme ortamında sadece yapılandırma ve testler çalışabilir; GitHub Actions bu yüzden ayrı tam imaj işleri sunar.
 

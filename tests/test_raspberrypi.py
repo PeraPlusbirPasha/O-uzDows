@@ -116,6 +116,23 @@ class PiConfigurationTests(unittest.TestCase):
         self.assertIn("gi.require_version", smoke)
         self.assertIn("xfce4-session --version", smoke)
 
+    def test_binfmt_preparation_uses_packaged_definitions_and_checks_an_empty_chroot(self):
+        script = ROOT / 'scripts/prepare-pi-binfmt.sh'
+        for args, status in ((['--help'], 0), ([], 2), (['amd64'], 2), (['arm64', 'extra'], 2), (['arm; id'], 2)):
+            result = subprocess.run(['bash', str(script), *args], capture_output=True, text=True)
+            self.assertEqual(result.returncode, status, result.stderr)
+        if os.geteuid() != 0:
+            result = subprocess.run(['bash', str(script), 'arm64'], capture_output=True, text=True)
+            self.assertEqual(result.returncode, 1)
+            self.assertIn('root gerektirir', result.stderr)
+        source = script.read_text()
+        self.assertIn('/usr/lib/binfmt.d/qemu-$cpu-static.conf', source)
+        self.assertIn('/usr/lib/systemd/systemd-binfmt "$config"', source)
+        self.assertIn('arch-test -c "$probe" "$arch"', source)
+        self.assertIn('trap cleanup EXIT', source)
+        for forbidden in ('curl ', 'wget ', 'docker ', 'update-binfmts --remove', 'systemctl restart'):
+            self.assertNotIn(forbidden, source)
+
     def test_firstboot_gates_local_and_remote_login_and_never_enables_autologin(self):
         base = ROOT / "raspberrypi/system/etc/systemd/system"
         for service in ("lightdm", "ssh"):
@@ -148,6 +165,7 @@ class PiConfigurationTests(unittest.TestCase):
                      if step.get('name') == 'Yerel pi-gen ve çapraz ARM çalıştırma araçları')
         self.assertIn("scripts/ci-run.py --title 'Pi ${{ matrix.arch }} host araçları'", tools)
         self.assertIn("update-binfmts --display", tools)
+        self.assertIn('bash scripts/prepare-pi-binfmt.sh "$1"', tools)
         self.assertIn(".img.xz.sha256", steps)
         verification = str(workflow["jobs"]["verify"]["steps"])
         self.assertIn("--pi", verification)
