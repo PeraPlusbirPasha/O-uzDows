@@ -13,3 +13,6 @@ chown root:root /usr/local/sbin/oguzdows-maintenance \
     /usr/share/polkit-1/actions/org.oguzdows.maintenance.policy
 chmod 0755 /usr/local/sbin/oguzdows-maintenance
 chmod 0644 /usr/share/polkit-1/actions/org.oguzdows.maintenance.policy
+# Kimlik, yetkili köken / mimari kapısının girdisidir; normal kullanıcı yazamaz.
+chown root:root /usr/share/oguzdows/build-info.json
+chmod 0644 /usr/share/oguzdows/build-info.json

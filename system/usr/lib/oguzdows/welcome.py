@@ -163,6 +163,7 @@ class Welcome(Gtk.Application):
         self.window.set_size_request(320 if self.phone else 550, 380)
         self.window.connect('delete-event', self.on_close)
         self.window.connect('destroy', self.window_destroyed)
+        self.window.connect('notify::is-active', self.focus_changed)
         header = Gtk.HeaderBar(title='OğuzDows Karşılayıcı', subtitle=self.context.subtitle)
         header.set_show_close_button(True)
         self.window.set_titlebar(header)
@@ -226,6 +227,10 @@ class Welcome(Gtk.Application):
         self.window.show_all()
         self.sidebar.select_row(self.sidebar_rows['welcome'])
         self.page_changed()
+
+    def focus_changed(self, window, *_):
+        if not window.is_active() and (self.rifki is None or not self.rifki.get_visible()):
+            self.stop_narration()
 
     def window_destroyed(self, *_):
         self.cancel_narration()
@@ -767,7 +772,7 @@ class Welcome(Gtk.Application):
         dialog.destroy()
 
     def can_install(self):
-        return is_live() and Path("/usr/local/sbin/oguzdows-installer").is_file()
+        return self.pc and is_live() and Path("/usr/local/sbin/oguzdows-installer").is_file()
 
     def install(self, *_):
         if self.install_busy or self.external_installing or self.driver_busy:

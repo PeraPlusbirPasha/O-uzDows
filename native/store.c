@@ -113,6 +113,15 @@ static void open_advanced(GtkButton *button, gpointer data) {
     else g_object_unref(process);
 }
 
+static void narrate(GtkButton *button, gpointer data) {
+    (void)button; (void)data;
+    const gchar *argv[] = {"/usr/local/bin/oguzdows-narrate", "store", NULL};
+    GError *error = NULL;
+    GSubprocess *process = g_subprocess_newv(argv, G_SUBPROCESS_FLAGS_NONE, &error);
+    if (!process) { status(error->message); g_error_free(error); }
+    else g_object_unref(process);
+}
+
 static void app_card(App *app) {
     GtkWidget *button = gtk_button_new();
     gtk_style_context_add_class(gtk_widget_get_style_context(button), "app-card");
@@ -410,6 +419,9 @@ static void build(void) {
     gtk_header_bar_set_subtitle(GTK_HEADER_BAR(header), "Keşfet · İncele · Onayla");
     gtk_header_bar_set_show_close_button(GTK_HEADER_BAR(header), TRUE);
     gtk_window_set_titlebar(GTK_WINDOW(window), header);
+    GtkWidget *voice = gtk_button_new_with_label("Rıfkı’dan dinle");
+    g_signal_connect(voice, "clicked", G_CALLBACK(narrate), NULL);
+    gtk_header_bar_pack_end(GTK_HEADER_BAR(header), voice);
     GtkWidget *root = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0);
     content = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 0);
     gtk_box_pack_start(GTK_BOX(root), content, TRUE, TRUE, 0);

@@ -118,7 +118,7 @@ def desktop_contract(root):
                'usr/local/sbin/oguzdows-maintenance', 'usr/lib/oguzdows/maintenance.py',
                'usr/lib/oguzdows/hardware.py', 'usr/lib/oguzdows/pi_support.py',
                'usr/lib/oguzdows/app_catalog.py', 'usr/lib/oguzdows/store_service.py',
-               'usr/lib/oguzdows/oguzdows-store-native',
+               'usr/lib/oguzdows/oguzdows-store-native', 'usr/share/oguzdows/build-info.json',
                'usr/share/polkit-1/actions/org.oguzdows.maintenance.policy',
                'etc/apt/preferences.d/oguzdows-pardus', 'etc/apt/sources.list.d/oguzdows-pardus.sources',
                'usr/share/keyrings/oguzdows-pardus.asc')

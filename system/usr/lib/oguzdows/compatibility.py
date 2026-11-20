@@ -14,6 +14,7 @@ import gi
 
 gi.require_version('Gtk', '3.0')
 from gi.repository import Gio, GLib, Gtk
+from narration import NarrationBar
 
 
 class Compatibility(Gtk.Application):
@@ -87,6 +88,8 @@ class Compatibility(Gtk.Application):
             button.connect('clicked', lambda _button, value=command: self.launch_program(value))
             row.pack_start(button, True, True, 0)
         box.pack_start(row, False, False, 0)
+        self.voicebar = NarrationBar(self.window, 'compatibility')
+        box.pack_start(self.voicebar, False, False, 0)
         self.status = Gtk.Label(label='Hazır. Otomatik kurulum / indirme / yönetici isteği yok.', wrap=True, xalign=0, max_width_chars=80)
         box.pack_start(self.status, False, False, 0)
         outer = Gtk.ScrolledWindow()

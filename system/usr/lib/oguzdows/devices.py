@@ -10,6 +10,7 @@ import gi
 
 gi.require_version('Gtk', '3.0')
 from gi.repository import Gio, Gtk
+from narration import NarrationBar
 
 
 class Devices(Gtk.Application):
@@ -47,6 +48,8 @@ class Devices(Gtk.Application):
             scroll = Gtk.ScrolledWindow(min_content_height=160)
             scroll.add(text)
             box.pack_start(scroll, True, True, 0)
+            self.voicebar = NarrationBar(self.window, 'compatibility')
+            box.pack_start(self.voicebar, False, False, 0)
             self.status = Gtk.Label(xalign=0, wrap=True)
             box.pack_start(self.status, False, False, 0)
             outer = Gtk.ScrolledWindow()

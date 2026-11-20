@@ -101,6 +101,7 @@ class Companion(Gtk.ApplicationWindow):
         self.installing=bool(installing)
         self.current_page='welcome'
         self.last_panel=''
+        self.page_words={}
         self.last_message=''
         self.last_cue=None
         self.status_data={}
@@ -256,7 +257,9 @@ class Companion(Gtk.ApplicationWindow):
 
     def narrate_page(self,name,force=False,text=None):
         self.current_page=name
-        words=text or PANELS.get(name)
+        if text:
+            self.page_words[name]=text
+        words=text or self.page_words.get(name) or PANELS.get(name)
         if not words or (not force and (not self.narration.get_active() or self.last_panel==name)):
             return
         self.last_panel=name

@@ -14,6 +14,7 @@ import gi
 
 gi.require_version('Gtk', '3.0')
 from gi.repository import Gio, GLib, Gtk
+from narration import NarrationBar
 
 HELPER = ['/usr/bin/pkexec', '/usr/local/sbin/oguzdows-maintenance']
 
@@ -68,6 +69,9 @@ class Updater(Gtk.Application):
         self.stack.add_titled(self.drivers_page(), 'drivers', 'Sürücüler')
         self.stack.add_titled(self.sources_page(), 'sources', 'Depolar ve Mağaza')
         box.pack_start(self.stack, True, True, 0)
+        self.voicebar = NarrationBar(self.window, lambda: 'hardware' if self.stack.get_visible_child_name() == 'drivers' else 'store' if self.stack.get_visible_child_name() == 'sources' else 'applications')
+        self.stack.connect('notify::visible-child-name', self.voicebar.refresh)
+        box.pack_start(self.voicebar, False, False, 0)
         self.status = text('Hazır. Henüz ağ isteği yapılmadı.', 'muted')
         box.pack_start(self.status, False, False, 0)
         scroll = Gtk.ScrolledWindow()

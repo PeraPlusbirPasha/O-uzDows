@@ -107,9 +107,11 @@ jobs:
 
       - name: EXE / APK onay arayüzü ve deneysel telefon karşılayıcısı
         run: |
-          python3 scripts/ci-run.py --title 'Uyumluluk GTK kontrolü' -- \
-            xvfb-run -a -s '-screen 0 1024x768x24' dbus-run-session -- \
-            python3 tests/smoke-compatibility.py --output test-results
+          for component in compatibility devices; do
+            python3 scripts/ci-run.py --title "Uyumluluk GTK $component" -- \
+              xvfb-run -a -s '-screen 0 1024x768x24' dbus-run-session -- \
+              python3 tests/smoke-compatibility.py --component "$component" --output test-results
+          done
           python3 scripts/ci-run.py --title 'Dar telefon karşılayıcısı (host)' -- \
             xvfb-run -a -s '-screen 0 480x900x24' dbus-run-session -- \
             python3 tests/smoke-welcome.py --phone --output test-results/phone
