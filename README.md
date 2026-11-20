@@ -29,9 +29,11 @@
 
 Sol menülü **ayrı canlı / kurulu karşılama**, açık / koyu tema ve özgün **XP esintili Başlat**, **derlenen C / GTK mağaza**, **20 kültür görseli** ve seçilen sesle **10 yeni doğal Rıfkı kaydı** geliştiriliyor. Yeni **Cihaz Merkezi** destek düzeylerini açıklar; EXE / APK açıcı dosyayı önce inceler ve açık onay ister. Wine / Waydroid hazır değilse çalıştırmaz; güvenlik veya evrensel uyumluluk garantisi değildir.
 
-**1.1 henüz yayımlanmadı.** Aşağıdaki indirmeler, vitrin ve RAM tablosu **v1.0.0** içindir; etiket / dosyalar korunur. Yeni tam masaüstü ölçümü ve gerçek cihaz testleri ayrı yapılacaktır. ARM64 / telefon katmanları önyüklenebilir telefon imajı değildir.
+**1.1 henüz Release olarak yayımlanmadı.** `819c883` kaynağının amd64 / i386 geliştirme ISO’ları [başarılı PC çalışmasının Artifacts bölümünde](https://github.com/PeraPlusbirPasha/OguzDows/actions/runs/44791237446) bulunur; geçici çıktılardır ve GitHub oturumu gerekebilir. Yeni tam Xfce sanal makine ölçümünde en yüksek kullanım **amd64 478,4 MB / i386 480,8 MB**; ikisi de 600 MB hedefinin altında. Bu fiziksel cihaz veya KDE/GNOME / Pi sonucu değildir. [1.1 ISO ve ölçüm kanıtı →](docs/V1.1-TEST-KANITI.md)
 
-[1.1 uygulama ve test kaydı →](docs/V1.1-GELISTIRME.md) · [Cihaz / EXE / APK sınırları →](docs/CIHAZLAR-VE-UYUMLULUK.md)
+Aşağıdaki kalıcı indirmeler, vitrin ve ana RAM tablosu **v1.0.0** içindir; etiket / dosyalar korunur. ARM64 / telefon katmanları önyüklenebilir telefon imajı değildir; fiziksel cihaz testleri bekliyor.
+
+[1.1 uygulama kaydı →](docs/V1.1-GELISTIRME.md) · [Cihaz / EXE / APK sınırları →](docs/CIHAZLAR-VE-UYUMLULUK.md)
 
 <a id="indir"></a>
 
@@ -111,7 +113,7 @@ Her manzaranın sağ altında **OğuzDows logosu** bulunur. 1920×1080 yerel gö
 
 ## Hafiflik, yalnızca bir sıfat değil
 
-**600 MB boşta RAM hedefi**, üretilen ISO içeriğinden hazırlanan test diskinde gerçek **tam Xfce oturumu** açılarak ölçüldü.
+**Yayımlanmış v1.0.0 için 600 MB boşta RAM hedefi**, üretilen ISO içeriğinden hazırlanan test diskinde gerçek **tam Xfce oturumu** açılarak ölçüldü. 1.1 geliştirme sonucu yukarıda ve [ayrı kanıt kaydındadır](docs/V1.1-TEST-KANITI.md).
 
 | İmaj | En yüksek kullanım | 600 MB hedefi |
 | :--- | ---: | :---: |
