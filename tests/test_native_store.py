@@ -45,7 +45,8 @@ class CatalogTests(unittest.TestCase):
         self.assertFalse(result['apps'][12]['installed'])
         self.assertTrue(all(command[0] in ('/usr/bin/dpkg-query', '/usr/bin/flatpak') for command in calls))
         self.assertFalse(any(word in command for command in calls for word in ('install', 'update', 'remote-add', 'search')))
-        self.assertFalse(service.catalogue(execute, {'arch': 'arm64', 'platform': 'raspberrypi', 'suite': 'bookworm'})['supports_apt'])
+        self.assertTrue(service.catalogue(execute, {'arch': 'arm64', 'platform': 'raspberrypi', 'suite': 'bookworm'})['supports_apt'])
+        self.assertFalse(service.catalogue(execute, {'arch': 'arm64', 'platform': 'unknown', 'suite': 'unknown'})['supports_apt'])
 
     def test_command_is_argv_not_shell_and_large_or_failed_output_is_not_success(self):
         with patch.object(service.subprocess, 'run', return_value=subprocess.CompletedProcess([], 0, 'ok', '')) as run:

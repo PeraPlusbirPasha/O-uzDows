@@ -47,6 +47,15 @@ pavucontrol
 
 # Yerel OğuzDows arayüzü ve çevrimdışı tema üretimi
 python3
+python3-apt
+# Mağaza imaj aşamasında C / GTK olarak derlenir; oturumda derleyici çalışmaz.
+build-essential
+pkg-config
+libgtk-3-dev
+libjson-glib-dev
+libjson-glib-1.0-0
+desktop-file-utils
+shared-mime-info
 python3-gi
 gir1.2-gtk-3.0
 libgtk-3-bin

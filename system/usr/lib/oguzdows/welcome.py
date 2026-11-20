@@ -16,6 +16,7 @@ import boot_report
 import install_status as installer_state
 import profiles
 import welcome_model
+import device_support
 from rifki_speech import Speaker, ready_clip
 from pi_support import current_policy, is_pi, model as pi_model
 
@@ -39,7 +40,10 @@ class Welcome(Gtk.Application):
     def __init__(self) -> None:
         super().__init__(application_id="org.oguzdows.Rehber", flags=Gio.ApplicationFlags.HANDLES_COMMAND_LINE)
         state_home = Path(os.environ.get("XDG_STATE_HOME", str(Path.home() / ".local/state")))
-        self.context = welcome_model.context(live=is_live(), pi=is_pi())
+        self.device = device_support.current()
+        self.phone = self.device.get('phone', False)
+        self.pc = self.device.get('arch') in ('amd64', 'i386') and not is_pi()
+        self.context = welcome_model.context(live=is_live() and self.pc, pi=is_pi())
         self.state_file = state_home / 'oguzdows' / self.context.state_name
         self.speaker = None
         self.narration_source = None
@@ -116,10 +120,10 @@ class Welcome(Gtk.Application):
                 self.speaker.stop()
         if self.rifki:
             self.rifki.set_installing(busy)
-        if self.window is not None and not is_pi():
+        if self.window is not None and self.pc:
             self.install_button.set_sensitive(not busy and not self.driver_busy and self.can_install())
             for button,eligible in zip((self.broadcom_button,self.intel_button),self.driver_eligibility):
-                button.set_sensitive(eligible and not busy and not self.driver_busy)
+                button.set_sensitive(eligible and self.pc and not busy and not self.driver_busy)
 
     def do_command_line(self, command_line: Gio.ApplicationCommandLine) -> int:
         args = set(command_line.get_arguments()[1:])
@@ -155,8 +159,8 @@ class Welcome(Gtk.Application):
         self.window.get_style_context().add_class('oguzdows-window')
         self.window.set_position(Gtk.WindowPosition.CENTER)
         screen = self.window.get_screen()
-        self.window.set_default_size(min(980, screen.get_width() - 24), min(700, screen.get_height() - 48))
-        self.window.set_size_request(550, 380)
+        self.window.set_default_size(min(400 if self.phone else 980, screen.get_width() - 24), min(700, screen.get_height() - 48))
+        self.window.set_size_request(320 if self.phone else 550, 380)
         self.window.connect('delete-event', self.on_close)
         self.window.connect('destroy', self.window_destroyed)
         header = Gtk.HeaderBar(title='OğuzDows Karşılayıcı', subtitle=self.context.subtitle)
@@ -175,7 +179,7 @@ class Welcome(Gtk.Application):
         self.sidebar = Gtk.ListBox()
         self.sidebar.set_selection_mode(Gtk.SelectionMode.SINGLE)
         self.sidebar.set_activate_on_single_click(True)
-        self.sidebar.set_size_request(142, -1)
+        self.sidebar.set_size_request(52 if self.phone else 142, -1)
         self.sidebar.get_style_context().add_class('welcome-sidebar')
         builders = {'welcome': self.welcome_page, 'styles': self.styles_page,
                     'appearance': self.appearance_page, 'wallpapers': self.wallpapers_page,
@@ -187,7 +191,9 @@ class Welcome(Gtk.Application):
             line = Gtk.Box(spacing=8)
             line.set_border_width(11)
             line.pack_start(Gtk.Image.new_from_icon_name(icon, Gtk.IconSize.MENU), False, False, 0)
-            line.pack_start(label(title), True, True, 0)
+            if not self.phone:
+                line.pack_start(label(title), True, True, 0)
+            row.set_tooltip_text(title)
             row.add(line)
             self.sidebar.add(row)
             self.sidebar_rows[identifier] = row
@@ -311,7 +317,7 @@ class Welcome(Gtk.Application):
 
     def welcome_page(self) -> Gtk.Box:
         page = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=18)
-        hero = Gtk.Box(spacing=22)
+        hero = Gtk.Box(orientation=Gtk.Orientation.VERTICAL if self.phone else Gtk.Orientation.HORIZONTAL, spacing=22)
         image = Gtk.Image()
         try:
             image.set_from_pixbuf(GdkPixbuf.Pixbuf.new_from_file_at_scale('/usr/share/oguzdows/rifki/idle.png',128,128,True))
@@ -391,7 +397,10 @@ class Welcome(Gtk.Application):
         page = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
         page.pack_start(label("Önce tanı, sonra kur.", "section-title"), False, False, 8)
         driver_note = ("Pi çekirdekleri ve DTB'leri, VC4/V3D KMS, kartta varsa Broadcom SDIO Wi-Fi / Bluetooth ve USB ağ firmware'i imajdadır. Platform ve SDIO aygıtları da raporlanır; PC için STA sürücüsü Pi Wi-Fi'ına kurulmaz." if is_pi() else "Intel, AMD/ATI, Nouveau; Intel, Realtek, Atheros, Broadcom, Atmel, ZD1211 ve Libertas firmware paketleri ISO'dadır. Aşağıdaki rapor aygıtın gerçekten hangi sürücüye bağlandığını gösterir.")
+        if not self.pc and not is_pi():
+            driver_note = 'ARM cihazında ekran, güç, modem, ağ ve dokunma sürücüleri cihaz özel çekirdek / DTB / firmware yolundan gelir. Rapor salt okunurdur; PC Broadcom STA veya çekirdek paketi zorlanmaz.'
         page.pack_start(label(driver_note, "muted", 95), False, False, 0)
+        page.pack_start(label(device_support.current()['name'] + ' · ' + device_support.current()['tier'], 'muted', 80), False, False, 0)
         self.report_view = Gtk.TextView(editable=False, cursor_visible=False, monospace=True)
         self.report_view.set_left_margin(12)
         self.report_view.set_top_margin(12)
@@ -424,7 +433,7 @@ class Welcome(Gtk.Application):
         self.intel_button.set_sensitive(False)
         self.intel_button.connect("clicked", lambda *_: self.install_driver("intel-legacy-accept-license"))
         page.pack_start(self.intel_button, False, False, 0)
-        if is_pi():
+        if not self.pc:
             for button in (self.broadcom_button, self.intel_button):
                 button.set_no_show_all(True)
                 button.hide()
@@ -442,7 +451,7 @@ class Welcome(Gtk.Application):
     def wallpapers_page(self) -> Gtk.Box:
         page = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=14)
         page.pack_start(label("Türkiye'nin renkleri masaüstünde.", "section-title"), False, False, 6)
-        page.pack_start(label('Önceki duvar kâğıtlarının tamamı altı yeni Türkiye manzarasıyla değiştirildi. Her birinin sağ altında OğuzDows logosu var. Foto-gerçekçi görseller yapay zekâ üretimidir, gerçek çekim değildir. Tamamı çevrimdışı; arka plan servisi yok.', 'muted', 90), False, False, 0)
+        page.pack_start(label('20 duvar kâğıdı: Türkiye manzaraları, kediler, çay–simit, halk oyunları ve kültür desenleri. 16 görsel yapay zekâ üretimi, 4 görsel özgün çizimdir; gerçek kamera fotoğrafı değildir. Hepsi sağ altta OğuzDows markalı, çevrimdışı ve küçük önizlemelidir.', 'muted', 90), False, False, 0)
         grid = Gtk.FlowBox()
         grid.set_selection_mode(Gtk.SelectionMode.NONE)
         grid.set_min_children_per_line(1)
@@ -527,7 +536,7 @@ class Welcome(Gtk.Application):
         page.pack_start(self.profile_status, False, False, 0)
         page.pack_start(label('Eski Whisker menüsü sürümlerinde Başlat yazısı sonraki girişte görünür. Yeni sürümlerde yerel xfconf ayarları uygulanır; panel zorla yeniden başlatılmaz. Windows varlığı, logosu veya ikili dosyası kullanılmaz.', 'muted', 75), False, False, 0)
         page.pack_start(label('Yerel tespih imleci için ayrı süreç / tıklama dinleyicisi yoktur. Gerçek KDE/GNOME daha fazla kaynak ister ve 600 MB hedefinin dışındadır.', 'muted', 75), False, False, 0)
-        if not is_pi():
+        if self.pc:
             row = Gtk.Box(spacing=8)
             for identifier, title in (('kde', 'Gerçek KDE planı…'), ('gnome', 'Gerçek GNOME planı…')):
                 button = Gtk.Button(label=title)
@@ -549,7 +558,7 @@ class Welcome(Gtk.Application):
         page.pack_start(label('Gündüz de senin, gece de.', 'heading'), False, False, 0)
         page.pack_start(label('Açık veya koyu temayı seç. Tarzın korunur; bu değişiklik yalnızca bu kullanıcıya aittir. Panel, başlıklar ve kapatma düğmeleri opak kalır.', 'muted', 75), False, False, 0)
         self.theme_buttons = {}
-        row = Gtk.Box(spacing=12, homogeneous=True)
+        row = Gtk.Box(orientation=Gtk.Orientation.VERTICAL if self.phone else Gtk.Orientation.HORIZONTAL, spacing=12, homogeneous=True)
         for mode, name in profiles.APPEARANCES.items():
             button = Gtk.Button(label=('☀  ' if mode == 'light' else '☾  ') + name)
             button.set_size_request(130, 76)
@@ -600,13 +609,15 @@ class Welcome(Gtk.Application):
     def applications_page(self):
         page = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=14)
         page.pack_start(label('İhtiyacın olan, elinin altında.', 'heading'), False, False, 0)
-        if is_pi():
-            page.pack_start(label('Pi kaynak ve mimari sınırları korunur. PC mağazası / gerçek masaüstü kurulum planları bu aşamada Pi’ye taşınmaz.', 'muted', 75), False, False, 0)
+        if not self.pc:
+            page.pack_start(self.card('OğuzDows Mağaza', 'Yerel uygulama seçkisi, cihazının kendi imzalı APT kaynaklarından planlar. ARM64’te isteğe bağlı Flathub.', 'system-software-install-symbolic', lambda *_: self.launch(['/usr/local/bin/oguzdows-store'])), False, False, 0)
         else:
             for title, text, icon, command in (
                     ('OğuzDows Mağaza', 'Uygulamaları keşfet. Mağazayı açmak paket kurmaz.', 'system-software-install-symbolic', ['/usr/local/bin/oguzdows-store']),
                     ('OğuzDows Güncelleyici', 'Önce planı gör; sonra güncelleme ve firmware işlemlerini onayla.', 'system-software-update-symbolic', ['/usr/local/bin/oguzdows-update'])):
                 page.pack_start(self.card(title, text, icon, lambda _button, value=command: self.launch(value)), False, False, 0)
+        page.pack_start(self.card('EXE / APK uyumluluğu', 'Dosyayı önce incele, sonra açık onay ver. Wine / Waydroid ve donanım koşulları ayrıca gerekir.', 'application-x-executable-symbolic', lambda *_: self.launch(['/usr/local/bin/oguzdows-open', '--manager'])), False, False, 0)
+        page.pack_start(self.card('Cihaz ve ARM merkezi', 'Pi Zero–5, diğer ARM kartları ve deneysel telefon katmanlarının gerçek sınırları.', 'computer-symbolic', lambda *_: self.launch(['/usr/local/bin/oguzdows-device'])), False, False, 0)
         page.pack_start(self.card('Çay Molası · Heybe · İmece', 'İstek üzerine yerel kültür ve paylaşım araçları.', 'applications-utilities-symbolic', lambda *_: self.launch(['/usr/local/bin/oguzdows-imece'])), False, False, 0)
         page.pack_start(label('Mağaza, derlenen yerel GTK arayüzüdür. Sistem ve Flathub ayrı kaynaklardır; paketler plan ve açık onay olmadan kurulmaz. Açılışta mağaza servisi veya indirme çalışmaz.', 'muted', 75), False, False, 0)
         return page
@@ -722,7 +733,7 @@ class Welcome(Gtk.Application):
         def work():
             try:
                 text = report()
-                broadcom, intel = ([], []) if is_pi() else (supported_broadcom(), supported_intel_legacy())
+                broadcom, intel = ([], []) if not self.pc else (supported_broadcom(), supported_intel_legacy())
             except Exception:
                 text, broadcom, intel = "Donanım raporu okunamadı. Yeniden deneyebilirsin.", [], []
             GLib.idle_add(self.report_ready, text, broadcom, intel)
@@ -736,8 +747,8 @@ class Welcome(Gtk.Application):
         self.spinner.stop()
         self.refresh_button.set_sensitive(True)
         self.save_button.set_sensitive(True)
-        self.broadcom_button.set_sensitive(bool(broadcom) and not self.driver_busy and not self.install_busy and not self.external_installing)
-        self.intel_button.set_sensitive(bool(intel) and not self.driver_busy and not self.install_busy and not self.external_installing)
+        self.broadcom_button.set_sensitive(self.pc and bool(broadcom) and not self.driver_busy and not self.install_busy and not self.external_installing)
+        self.intel_button.set_sensitive(self.pc and bool(intel) and not self.driver_busy and not self.install_busy and not self.external_installing)
         for button, devices in ((self.broadcom_button, broadcom), (self.intel_button, intel)):
             button.set_tooltip_text("Algılanan uyumlu aygıt: " + ", ".join(devices) if devices else "Bu ek sürücüyle eşleşen bir kart algılanmadı. Raporundaki PCI/USB kimliğini paylaşabilirsin.")
         self.status.set_text("Rapor hazır. SÜRÜCÜ BAĞLI DEĞİL satırları ayrıca incelenmelidir. Bilgilerin gönderilmedi.")

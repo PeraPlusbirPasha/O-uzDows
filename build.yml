@@ -105,6 +105,18 @@ jobs:
             xvfb-run -a -s '-screen 0 1280x900x24' dbus-run-session -- \
             /tmp/oguzdows-store-ui-test --smoke-test test-results
 
+      - name: EXE / APK onay arayüzü ve deneysel telefon karşılayıcısı
+        run: |
+          python3 scripts/ci-run.py --title 'Uyumluluk GTK kontrolü' -- \
+            xvfb-run -a -s '-screen 0 1024x768x24' dbus-run-session -- \
+            python3 tests/smoke-compatibility.py --output test-results
+          python3 scripts/ci-run.py --title 'Dar telefon karşılayıcısı (host)' -- \
+            xvfb-run -a -s '-screen 0 480x900x24' dbus-run-session -- \
+            python3 tests/smoke-welcome.py --phone --output test-results/phone
+          for device in arm64-uefi pinephone pinephone-pro rockpro64; do
+            python3 scripts/configure-arm.py --device "$device" --output "/tmp/oguzdows-$device"
+          done
+
       - name: Güncelleyici, onay akışı, beş gerçek xfconf tarzı ve İmece
         run: |
           for component in updater culture store; do

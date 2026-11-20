@@ -72,11 +72,16 @@ def catalogue(execute=command, info=None):
     info = image_info() if info is None else info
     installed = dpkg_installed(execute)
     flatpaks = installed_flatpaks(execute)
-    supported = info.get('platform') != 'raspberrypi' and (info.get('arch'), info.get('suite')) in (('amd64', 'trixie'), ('i386', 'bookworm'))
+    pc_supported = info.get('platform') != 'raspberrypi' and (info.get('arch'), info.get('suite')) in (('amd64', 'trixie'), ('i386', 'bookworm'))
+    pi_supported = info.get('platform') == 'raspberrypi' and info.get('arch') in ('armhf', 'arm64') and info.get('suite') == 'bookworm'
+    arm_supported = (info.get('platform') == 'arm' and info.get('arch') == 'arm64' and info.get('suite') == 'trixie'
+                     and info.get('device_profile') in ('arm64-uefi', 'pinephone', 'pinephone-pro', 'rockpro64'))
+    supported = pc_supported or pi_supported or arm_supported
     return {'apps': [{**item, 'packages': list(item['packages']),
                       'installed': all(name in installed for name in item['packages']),
                       'flatpak_installed': item['flatpak'] in flatpaks} for item in app_catalog.APPS],
-            'categories': list(app_catalog.CATEGORIES), 'supports_apt': supported,
+            'categories': list(app_catalog.CATEGORIES), 'supports_apt': supported, 'supports_updates': pc_supported,
+            'supports_advanced': Path('/usr/lib/oguzdows/store.py').is_file(),
             'arch': info.get('arch', 'bilinmiyor'), 'flatpak_arch': flatpak_arch(execute),
             'remote_ready': remote_ready(execute),
             'message': 'Yerel katalog hazır. Henüz ağ isteği veya paket işlemi yapılmadı.'}

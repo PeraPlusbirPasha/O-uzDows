@@ -25,3 +25,11 @@ Paketlenen 1920×1080 JPEG dosyaları `system/usr/share/backgrounds/oguzdows/` a
 ## Yerel tespih imleci
 
 `scripts/render-assets.py` özgün, küçük boncuk/tane-vurgusu karelerini ve Xcursor v1 dosyalarını çevrimdışı üretir. 24/32/48 px; normal/bağlantı/bekleme için 10 kare, yazı için sabit kare; diğer roller Adwaita'dan miras alınır. Ayrı runtime çizici, masaüstü katmanı veya tıklama izleme servisi yoktur. Format/boyut/hotspot/alpha testleri ve CI içinde gerçek libXcursor okuyucusu kullanılır.
+
+## 1.1 kültür koleksiyonu — toplam 20
+
+İlk altı manzara korunur. **İstanbul Kedisi, Van Kedisi, Çay ve Simit, Halay, Horon, Zeybek, Kilim, Ebru, Lale, Nazar** bu proje için üretilmiş 10 yeni yapay zekâ görselidir. Kültürel esintili görseller birebir belgesel / etnografik doğruluk veya bir insan fotoğrafı iddiası taşımaz. Gerçek bir dans grubunun ya da stok fotoğraf sanatçısının eseri gibi sunulmaz.
+
+**Vapur, Safranbolu, Pamukkale Terasları, Anadolu Gecesi** ise `scripts/draw-culture-wallpapers.py` içindeki özgün, deterministik Pillow çizimleridir; yapay zekâ görüntüsü veya kamera fotoğrafı olarak etiketlenmez. Çizim kaynağı sürüm kontrolündedir. 10 model görseli sınırı nedeniyle bu dört eserin tasarımı kodla yapılmıştır.
+
+Toplam **16 AI görsel + 4 özgün çizim**, 1920×1080 JPEG. Paketlenmiş yirmi dosya toplamı yaklaşık 11,3 MB; çalışma zamanında yalnızca kullanıcı seçtiği masaüstü ve galeriye girdiğinde 320×180 önizlemeler yüklenir. Ham geliştirme PNG'leri ve araç önbellekleri imaja / Git'e girmez. Hepsi bir kez sağ altta ay-yıldız / OğuzDows işaretiyle markalanır; SHA-256 ve köken kayıtları `landscapes.json` içinde tutulur. Bir logo lisans / telif yükümlülüğünü ortadan kaldırmaz.

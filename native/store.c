@@ -27,7 +27,7 @@ static GtkWidget *detail_text, *source_combo, *install_button, *detail_icon;
 static GtkWidget *remote_button, *source_status;
 static GPtrArray *apps;
 static gchar *selected_id, *query_folded;
-static gboolean busy, installed_only, supports_apt, remote_available, filling_sources;
+static gboolean busy, installed_only, supports_apt, supports_updates, remote_available, advanced_available, filling_sources;
 static gchar *current_source;
 static const gchar *initial_page = "discover";
 #ifdef OGUZDOWS_STORE_TEST
@@ -105,6 +105,7 @@ static gboolean closing(GtkWidget *widget, GdkEvent *event, gpointer data) {
 
 static void open_advanced(GtkButton *button, gpointer data) {
     (void)button; (void)data;
+    if (!advanced_available) { message("Gelişmiş merkez", "Bu cihazda ek GNOME paket merkezi yok. Yerel mağaza sabit uygulama planlarını kendi cihaz kaynağından sunar. Sistem kapsamı / paket kaldırma için cihazının paket yöneticisini kullan.", GTK_MESSAGE_INFO); return; }
     const gchar *argv[] = {"/usr/bin/python3", "-I", "/usr/lib/oguzdows/store.py", NULL};
     GError *error = NULL;
     GSubprocess *process = g_subprocess_newv(argv, G_SUBPROCESS_FLAGS_NONE, &error);
@@ -179,10 +180,12 @@ static void show_catalog(JsonObject *root) {
     clear_apps();
     if (json_object_has_member(root, "supports_apt")) {
         supports_apt = bool_member(root, "supports_apt");
+        supports_updates = bool_member(root, "supports_updates");
+        advanced_available = bool_member(root, "supports_advanced");
         remote_available = bool_member(root, "remote_ready");
         const gchar *arch = string_member(root, "flatpak_arch");
         gchar *text = g_strdup_printf("Sistem paketi planı: %s\nFlatpak mimarisi: %s\nFlathub kullanıcı kaynağı: %s\n\nSistem temel depoları değiştirilmez. Flathub uygulama kaynağıdır; bir başka dağıtımın çekirdeği / libc deposu değildir.",
-            supports_apt ? "bu OğuzDows PC tabanında kullanılabilir" : "bu cihazda otomatik kurulum sunulmuyor", *arch ? arch : "yok",
+            supports_apt ? "bu OğuzDows cihaz tabanında kullanılabilir" : "bu cihazda otomatik kurulum sunulmuyor", *arch ? arch : "yok",
             remote_available ? "hazır" : "henüz eklenmedi / doğrulanamadı");
         gtk_label_set_text(GTK_LABEL(source_status), text); g_free(text);
     }
@@ -331,7 +334,7 @@ static void updates_clicked(GtkButton *button, gpointer data) {
     const gchar *source = data;
     g_free(selected_id); selected_id = g_strdup("@updates");
     g_free(current_source); current_source = g_strdup(source);
-    if (!strcmp(source, "system") && !supports_apt) { status("Bu cihazda otomatik APT işlemi sunulmuyor. Cihazına ait paket yöneticisini kullan."); return; }
+    if (!strcmp(source, "system") && !supports_updates) { status("Bu cihazda genel sistem güncellemesi cihazının paket yöneticisindendir. Mağazadaki sabit uygulama planları ayrı sunulur."); return; }
     run_service(PLAN, "plan", selected_id, source, NULL);
 }
 

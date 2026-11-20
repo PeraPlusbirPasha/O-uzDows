@@ -21,15 +21,14 @@ PC_ONLY = (
     "usr/local/sbin/oguzdows-driver-helper", "usr/share/applications/oguzdows-install.desktop",
     "usr/share/polkit-1/actions/org.oguzdows.install.policy",
     "usr/share/polkit-1/actions/org.oguzdows.drivers.policy",
-    # PC tabanına sınırlandırılmış bakım / mağaza, ARMv6 ve Pi apt kaynaklarıyla
-    # karıştırılmaz. Görünüm profilleri, tespih ve çevrimdışı İmece ortaktır.
-    "usr/lib/oguzdows/maintenance.py", "usr/lib/oguzdows/updater.py",
-    "usr/lib/oguzdows/store.py", "usr/lib/oguzdows/store_core.py", "usr/lib/oguzdows/store_lifecycle.py", "usr/lib/oguzdows/memory_probe.py",
-    "usr/local/sbin/oguzdows-maintenance", "usr/local/bin/oguzdows-update",
-    "usr/local/bin/oguzdows-store", "usr/local/bin/oguzdows-memory-report",
-    "usr/share/applications/oguzdows-update.desktop", "usr/share/applications/oguzdows-store.desktop",
+    # PC güncelleyici / Pardus / gelişmiş GNOME merkezi taşınmaz. Yerel C
+    # mağazası yalnızca app: demetlerini Pi imzalı tabanında ayrıca doğrular.
+    "usr/lib/oguzdows/updater.py",
+    "usr/lib/oguzdows/store.py", "usr/lib/oguzdows/store_lifecycle.py", "usr/lib/oguzdows/memory_probe.py",
+    "usr/local/bin/oguzdows-update",
+    "usr/local/bin/oguzdows-memory-report",
+    "usr/share/applications/oguzdows-update.desktop",
     "usr/local/share/applications/org.gnome.Software.desktop",
-    "usr/share/polkit-1/actions/org.oguzdows.maintenance.policy",
     "etc/apt/sources.list.d/oguzdows-pardus.sources", "etc/apt/preferences.d/oguzdows-pardus",
     "usr/share/keyrings/oguzdows-pardus.asc",
     "usr/share/glib-2.0/schemas/90_oguzdows-store.gschema.override",
@@ -42,13 +41,15 @@ def write(path: Path, text: str) -> None:
     path.write_text(text, encoding="utf-8")
 
 
-def packages_for() -> list[str]:
+def packages_for(arch='armhf') -> list[str]:
     packages = []
     for name in ("common", "raspberrypi"):
         for line in (ROOT / "packages" / (name + ".list")).read_text().splitlines():
             package = line.partition("#")[0].strip()
             if package and package not in packages:
                 packages.append(package)
+    if arch == 'arm64':
+        packages.extend(['flatpak', 'gir1.2-flatpak-1.0', 'xdg-desktop-portal', 'xdg-desktop-portal-gtk'])
     return packages
 
 
@@ -75,7 +76,12 @@ def configure(arch: str, output: Path) -> None:
     documentation = overlay / "usr/share/doc/oguzdows"
     documentation.mkdir(parents=True, exist_ok=True)
     shutil.copy2(ROOT / "docs/MASAUSTU-VE-BAKIM.md", documentation / "masaustu-ve-bakim.md")
+    shutil.copy2(ROOT / "docs/CIHAZLAR-VE-UYUMLULUK.md", documentation / "cihazlar-ve-uyumluluk.md")
     shutil.copy2(ROOT / "scripts/render-assets.py", overlay / "usr/lib/oguzdows/render-assets.py")
+    shutil.copytree(ROOT / 'native', overlay / 'usr/share/oguzdows/native')
+    (overlay / 'usr/share/oguzdows/scripts').mkdir(parents=True, exist_ok=True)
+    shutil.copy2(ROOT / 'scripts/build-native.sh', overlay / 'usr/share/oguzdows/scripts/build-native.sh')
+    (overlay / 'usr/share/oguzdows/scripts/build-native.sh').chmod(0o755)
     shutil.copy2(ROOT / "scripts/verify-pi.py", overlay / "usr/lib/oguzdows/verify-pi.py")
     write(overlay / "etc/locale.gen", "tr_TR.UTF-8 UTF-8\nen_US.UTF-8 UTF-8\n")
     write(overlay / "etc/default/locale", 'LANG=tr_TR.UTF-8\nLANGUAGE="tr:en"\n')
@@ -102,7 +108,7 @@ def configure(arch: str, output: Path) -> None:
             if path.is_file() and path.suffix in ("", ".py", ".sh"):
                 path.chmod(0o755)
     (overlay / "etc/skel/Masaüstü/oguzdows-welcome.desktop").chmod(0o755)
-    write(stage / "00-desktop/00-packages-nr", "\n".join(packages_for()) + "\n")
+    write(stage / "00-desktop/00-packages-nr", "\n".join(packages_for(arch)) + "\n")
     write(stage / "EXPORT_IMAGE", 'IMG_SUFFIX=""\n')
     # FIRST_USER_PASS bilerek yok. Resmî rename aşaması ayrı SKIP ile devre dışı;
     # kilitli derleme hesabı silinir, Türkçe yerel kurulum servisi gerçek hesabı açar.

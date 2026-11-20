@@ -26,6 +26,9 @@ locale-gen
 update-locale LANG=tr_TR.UTF-8 LANGUAGE=tr:en
 ln -sfn /usr/share/zoneinfo/Europe/Istanbul /etc/localtime
 python3 /usr/lib/oguzdows/render-assets.py --root /
+/usr/lib/oguzdows/seal-app-store.sh
+/usr/share/oguzdows/scripts/build-native.sh /usr/lib/oguzdows/oguzdows-store-native
+update-desktop-database /usr/share/applications
 install -d /usr/share/icons/hicolor/scalable/apps
 install -m 0644 /usr/share/oguzdows/assets/oguzdows.svg /usr/share/icons/hicolor/scalable/apps/oguzdows.svg
 gtk-update-icon-cache -f -t /usr/share/icons/hicolor

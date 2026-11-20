@@ -63,6 +63,24 @@ def build_info(path=Path('/usr/share/oguzdows/build-info.json')):
     return data
 
 
+def build_store_info(path=Path('/usr/share/oguzdows/build-info.json')):
+    """Yalnızca sabit mağaza app: istekleri için ayrı ARM tabanı sözleşmesi.
+
+    Genel bakım / sürücü / masaüstü / depo işlemlerinin PC sınırı genişletilmez.
+    """
+    try:
+        data = json.loads(path.read_text())
+    except (OSError, ValueError):
+        raise MaintenanceError('Mağaza için imaj kimliği okunamadı.')
+    if isinstance(data, dict):
+        if data.get('platform') == 'raspberrypi' and data.get('arch') in ('armhf', 'arm64') and data.get('suite') == 'bookworm':
+            return data
+        if (data.get('platform') == 'arm' and data.get('arch') == 'arm64' and data.get('suite') == 'trixie'
+                and data.get('device_profile') in ('arm64-uefi', 'pinephone', 'pinephone-pro', 'rockpro64')):
+            return data
+    return build_info(path)
+
+
 def driver_suggestions(sysfs=Path('/sys/bus'), suite='trixie'):
     found = {}
     for bus in ('pci', 'usb'):
@@ -91,7 +109,13 @@ def request_packages(request, info, suggestions=None):
     if request == 'upgrade':
         return None
     if request.startswith('app:'):
-        return app_catalog.packages(request[4:])
+        identifier = request[4:]
+        if info.get('arch') not in ('amd64', 'i386') and identifier == 'wine':
+            raise MaintenanceError('Windows Wine demeti yalnızca x86 PC içindir. ARM emülasyonu varsayılmadı.')
+        try:
+            return app_catalog.packages(identifier)
+        except ValueError as error:
+            raise MaintenanceError(str(error)) from error
     if request.startswith('desktop:') and request[8:] in DESKTOPS:
         if info['arch'] != 'amd64':
             raise MaintenanceError('Gerçek KDE/GNOME kurulumu bu sürümde yalnızca amd64 için sunulur.')
@@ -145,10 +169,16 @@ def verify_origins(changes, cache, request, info):
             raise MaintenanceError('Bu mimari için doğrulanmayan paket: ' + name)
         trusted = [origin for origin in candidate.origins if origin.trusted]
         debian = any(origin.origin == 'Debian' and origin.codename in allowed_suites for origin in trusted)
+        # Pi uygulamaları kendi imzası doğrulanmış mevcut pi-gen kaynaklarını
+        # kullanır. Başka dağıtım kaynağı eklenmez; PC kuralı değişmez.
+        pi = (info.get('platform') == 'raspberrypi' and request.startswith('app:')
+              and info['suite'] == 'bookworm' and info['arch'] in ('armhf', 'arm64')
+              and any(origin.origin in ('Raspbian', 'Raspberry Pi Foundation')
+                      and origin.codename in allowed_suites for origin in trusted))
         pardus = (info['arch'] == 'amd64' and info['suite'] == 'trixie'
                   and name.split(':')[0] in PARDUS_APPS
                   and any(origin.origin == 'Pardus' and origin.codename == 'yirmibes' for origin in trusted))
-        if not debian and not (pardus and (request == 'upgrade' or request.startswith('pardus:'))):
+        if not debian and not pi and not (pardus and (request == 'upgrade' or request.startswith('pardus:'))):
             raise MaintenanceError('Paketin imzalı kaynağı / taban sürümü izinli değil: ' + name
                                    + '. Ubuntu/Kali/Pardus temel sistem paketleri karıştırılmadı.')
 

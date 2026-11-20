@@ -61,7 +61,8 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends python3-pil python3-yaml shellcheck \
-            fonts-dejavu-core python3-gi gir1.2-gtk-3.0 xvfb xauth dbus-x11
+            fonts-dejavu-core python3-gi gir1.2-gtk-3.0 xvfb xauth dbus-x11 \
+            build-essential pkg-config libgtk-3-dev libjson-glib-dev
       - name: Birim / kaynak / hesap güvenliği testleri
         run: |
           python3 scripts/ci-run.py --title 'Pi birim ve kaynak kontrolleri' -- \
@@ -85,6 +86,14 @@ jobs:
           python3 scripts/ci-run.py --title 'Pi GTK görünümü' -- \
             xvfb-run -a -s '-screen 0 1024x768x24' dbus-run-session -- \
             python3 tests/smoke-welcome.py --pi --output test-results/pi-ui
+      - name: Paylaşılan yerel mağazayı host üzerinde derle (ARM boot testi değil)
+        run: |
+          sh scripts/build-native.sh /tmp/oguzdows-store-native
+          sh scripts/build-native.sh /tmp/oguzdows-store-ui-test --test
+          python3 scripts/ci-run.py --title 'Pi ortak C / GTK mağaza (host)' -- \
+            xvfb-run -a -s '-screen 0 1280x900x24' dbus-run-session -- \
+            /tmp/oguzdows-store-ui-test --smoke-test test-results/pi-ui
+
       - uses: actions/upload-artifact@v4
         if: always()
         with:

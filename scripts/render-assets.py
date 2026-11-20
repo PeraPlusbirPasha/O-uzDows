@@ -87,6 +87,20 @@ def render_wallpapers(root: Path) -> None:
         ("oludeniz-kiyisi", "Ölüdeniz · Turkuaz Kıyı"),
         ("tuz-golu-aksami", "Tuz Gölü · Akşam Aynası"),
         ("ani-kisi", "Ani · Kış Sessizliği"),
+        ('istanbul-kedisi', 'İstanbul Kedisi · Kıyıda'),
+        ('van-kedisi', 'Van Kedisi · Mavi ve Kehribar'),
+        ('cay-simit', 'Çay ve Simit · Bir Mola'),
+        ('halay', 'Halay · Yan Yana'),
+        ('horon', 'Horon · Yayla Sevinci'),
+        ('zeybek', 'Zeybek · Ege Rüzgârı'),
+        ('kilim', 'Kilim · Anadolu İzi'),
+        ('ebru', 'Ebru · Suyun Hafızası'),
+        ('lale', 'Lale · Sade Bahar'),
+        ('nazar', 'Nazar · Mavi Cam'),
+        ('vapur', 'Vapur · Kıyı Çizgileri'),
+        ('safranbolu', 'Safranbolu · Ahşap ve Taş'),
+        ('pamukkale-teraslari', 'Pamukkale · Turkuaz Katlar'),
+        ('anadolu-gecesi', 'Anadolu Gecesi · Ev Işıkları'),
     )
     for identifier, name in gallery:
         relative = "usr/share/backgrounds/oguzdows/" + identifier + ".jpg"
@@ -106,7 +120,7 @@ def render_wallpapers(root: Path) -> None:
                 # Pi / eski ayarlar bu yolu kullanır; içerik yeni manzaradır.
                 save(image.copy(), root, "/usr/share/backgrounds/oguzdows/wallpaper.png")
         entries.append({"id": identifier, "name": name, "path": "/" + relative,
-                        "preview": preview, "origin": "AI-generated", "logo": "bottom-right"})
+                        "preview": preview, "origin": "Original illustration" if identifier in ("vapur", "safranbolu", "pamukkale-teraslari", "anadolu-gecesi") else "AI-generated", "logo": "bottom-right"})
     target = root / "usr/share/oguzdows/wallpapers.json"
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(json.dumps(entries, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")

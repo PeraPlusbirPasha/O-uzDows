@@ -21,6 +21,7 @@ from support import ROOT, load
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output", type=Path, default=Path("test-results"))
+    parser.add_argument("--phone", action="store_true", help="Deneysel dar telefon karşılayıcısı; fiziksel cihaz testi değil")
     parser.add_argument("--live", action="store_true", help="Canlı PC karşılayıcısını denetle")
     parser.add_argument("--pi", action="store_true", help="Pi sayfa dalını host GTK üzerinde denetle; kart taklidi değildir")
     args = parser.parse_args()
@@ -56,6 +57,8 @@ def main():
         notify_provider.load_from_path(str(ROOT / "system/usr/share/themes/OguzDows/xfce-notify-4.0/gtk.css"))
         welcome = load("oguzdows_welcome_smoke", "system/usr/lib/oguzdows/welcome.py")
         welcome.is_live = lambda: args.live
+        if args.phone:
+            welcome.device_support.current = lambda: {'id': 'pinephone', 'arch': 'arm64', 'phone': True, 'name': 'PinePhone · host UI', 'tier': 'Deneysel'}
         if args.pi:
             welcome.is_pi = lambda: True
             welcome.pi_model = lambda: "Raspberry Pi · arayüz kontrolü (host)"
@@ -104,7 +107,7 @@ def main():
                 screenshot("welcome-small.png")
                 assert len(app.wallpaper_buttons)==0, 'Galeri başlangıçta yüklenmemeli'
                 app.stack.set_visible_child_name("wallpapers")
-                assert len(app.wallpaper_buttons)==6, 'Yeni altı manzara yalnızca galeri açılınca yüklenmeli'
+                assert len(app.wallpaper_buttons)==20, 'Yirmi görsel yalnızca galeri açılınca yüklenmeli'
             except Exception as error:
                 errors.append(str(error))
             return GLib.SOURCE_REMOVE

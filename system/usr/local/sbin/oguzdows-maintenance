@@ -56,7 +56,8 @@ def main():
     descriptor = None
     lists_descriptor = None
     try:
-        info = core.build_info()
+        app_request = args[0] in ('plan', 'apply') and args[1].startswith('app:')
+        info = core.build_store_info() if app_request else core.build_info()
         architecture = subprocess.check_output(['/usr/bin/dpkg', '--print-architecture'], env=core.ENV, text=True).strip()
         if architecture != info['arch']:
             raise core.MaintenanceError('Çalışan mimari ile imaj kimliği eşleşmiyor; paketler değiştirilmedi.')
