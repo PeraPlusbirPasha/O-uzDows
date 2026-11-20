@@ -257,7 +257,10 @@ class Companion(Gtk.ApplicationWindow):
             cue=self.result_cue(self.status_data)
         self.say(answer['text'],cue)
         self.action_name=answer['action']
-        names={'boot-report':'Salt-okunur açılış raporu','network':'Ağ bağlantıları','drivers':'Donanım sekmesi','wallpapers':'Duvar kâğıtları','install':'Kurulum ekranı'}
+        names={'boot-report':'Salt-okunur açılış raporu','network':'Ağ bağlantıları','drivers':'Donanım sekmesi',
+               'wallpapers':'Duvar kâğıtları','install':'Karşılayıcı', 'styles':'Tasarım ve tema',
+               'store':'OğuzDows Mağaza', 'updates':'Güncelleme / cihaz rehberi',
+               'compatibility':'EXE / APK inceleme ekranı', 'culture':'İmece araçları', 'devices':'Cihaz Merkezi'}
         if self.action_name in self.callbacks:
             self.action.set_label(names[self.action_name])
             self.action.show()

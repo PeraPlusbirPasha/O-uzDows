@@ -19,12 +19,16 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--output', type=Path, default=Path('test-results'))
     parser.add_argument('--component', choices=('compatibility', 'devices'), default='compatibility')
+    parser.add_argument('--phone', action='store_true', help='Dar host ekranı / telefon yerleşimi; fiziksel cihaz testi değil')
     args = parser.parse_args()
     args.output.mkdir(parents=True, exist_ok=True)
     errors = []
     with tempfile.TemporaryDirectory() as temporary:
         os.environ.update(XDG_CONFIG_HOME=temporary, XDG_DATA_HOME=temporary, XDG_STATE_HOME=temporary, OGUZDOWS_TESTING='1')
         module = load('compat_gtk_' + args.component, 'system/usr/lib/oguzdows/' + args.component + '.py')
+        if args.phone:
+            profile = module.device_support.get('pinephone')
+            module.device_support.current = lambda *_args, **_kwargs: profile
         app = module.Compatibility() if args.component == 'compatibility' else module.Devices()
         assert app.register(None)
         app.activate()
@@ -35,6 +39,8 @@ def main():
             native = app.window.get_window()
             native.process_updates(True)
             width, height = app.window.get_size()
+            if args.phone:
+                assert width <= app.window.get_screen().get_width(), 'Uyumluluk / cihaz merkezi dar ekranın dışına taşmamalı'
             image = Gdk.pixbuf_get_from_window(native, 0, 0, width, height)
             assert image is not None
             image.savev(str(args.output / name), 'png', [], [])

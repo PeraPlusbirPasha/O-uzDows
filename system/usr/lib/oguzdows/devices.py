@@ -26,7 +26,8 @@ class Devices(Gtk.Application):
             self.window.set_default_size(min(760, screen.get_width() - 24), min(620, screen.get_height() - 48))
             self.window.set_size_request(320, 350)
             self.window.connect('destroy', lambda *_: setattr(self, 'window', None))
-            header = Gtk.HeaderBar(title='Aynı masaüstü. Cihazına uygun yol.', show_close_button=True)
+            header = Gtk.HeaderBar(title='Cihaz Merkezi' if screen.get_width() < 600 else 'Aynı masaüstü. Cihazına uygun yol.',
+                                   show_close_button=True)
             self.window.set_titlebar(header)
             box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12, margin=20)
             report = Gtk.Label(label=device_support.summary(), xalign=0, wrap=True, max_width_chars=85)
@@ -40,6 +41,8 @@ class Devices(Gtk.Application):
                                    ('Dokunmatik ekran klavyesi (kuruluysa)', ['/usr/bin/onboard']),
                                    ('Cihaz ve uyumluluk rehberi', ['/usr/bin/xdg-open', '/usr/share/doc/oguzdows/cihazlar-ve-uyumluluk.md'])):
                 button = Gtk.Button(label=title)
+                button.get_child().set_line_wrap(True)
+                button.get_child().set_max_width_chars(28)
                 button.connect('clicked', lambda _button, value=command: self.launch(value))
                 box.pack_start(button, False, False, 0)
             detail = '\n\n'.join(item['name'] + '\n' + item['tier'] + '\n' + item['boot'] for item in device_support.PROFILES.values())

@@ -130,7 +130,10 @@ def main():
                     send('quit')
                 except (BrokenPipeError, OSError):
                     pass
-                peer.stdin.close()
+                try:
+                    peer.stdin.close()
+                except BrokenPipeError:
+                    pass  # Test kurucusu quit'i işleyip boruyu zaten kapatmış olabilir.
                 try:
                     code = peer.wait(timeout=3)
                 except subprocess.TimeoutExpired:

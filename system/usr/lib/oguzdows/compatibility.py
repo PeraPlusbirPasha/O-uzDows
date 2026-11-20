@@ -50,12 +50,14 @@ class Compatibility(Gtk.Application):
     def build(self):
         self.window = Gtk.ApplicationWindow(application=self, title='OğuzDows Uyumluluk')
         self.window.set_icon_name('oguzdows')
-        self.window.set_default_size(740, 640)
-        phone = device_support.current()['phone']
+        screen = self.window.get_screen()
+        phone = device_support.current()['phone'] or screen.get_width() < 600
+        self.window.set_default_size(min(740, screen.get_width() - 24), min(640, screen.get_height() - 48))
         self.window.set_size_request(320 if phone else 460, 350)
         self.window.connect('delete-event', self.close_requested)
         self.window.connect('destroy', lambda *_: setattr(self, 'window', None))
-        header = Gtk.HeaderBar(title='Önce tanı. Sonra karar ver.', subtitle='EXE · Wine  /  APK · Waydroid')
+        header = Gtk.HeaderBar(title='Uyumluluk' if phone else 'Önce tanı. Sonra karar ver.',
+                               subtitle='EXE / APK' if phone else 'EXE · Wine  /  APK · Waydroid')
         header.set_show_close_button(True)
         self.window.set_titlebar(header)
         box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12, margin=20)
@@ -77,6 +79,8 @@ class Compatibility(Gtk.Application):
         self.ack.connect('toggled', self.update_action)
         box.pack_start(self.ack, False, False, 0)
         self.run_button = Gtk.Button(label='İncelemeden çalıştırma yok')
+        self.run_button.get_child().set_line_wrap(True)
+        self.run_button.get_child().set_max_width_chars(26 if phone else 50)
         self.run_button.set_sensitive(False)
         self.run_button.get_style_context().add_class('suggested-action')
         self.run_button.connect('clicked', self.approve)

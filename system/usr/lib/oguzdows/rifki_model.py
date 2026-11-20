@@ -15,6 +15,18 @@ def reply(text, status=None):
     answer = {'text': '', 'clip': None, 'action': None, 'emotion': 'listening'}
     if any(word in query for word in ('sudo ', 'mkfs', 'grub-install', 'rm -', '/dev/')):
         answer.update(text='Yazdığın komutu çalıştırmam. Yanlış diske yazmak verilerini silebilir. Önce salt-okunur açılış raporunu alalım.', action='boot-report')
+    elif any(word in query for word in ('apk', '.exe', 'wine', 'waydroid', 'uyumluluk')):
+        answer.update(text=TEXTS['compatibility'], action='compatibility')
+    elif any(word in query for word in ('imece', 'heybe', 'yedek', 'hizli yazim', 'cay molasi')):
+        answer.update(text=TEXTS['culture'], action='culture')
+    elif any(word in query for word in ('magaza', 'flathub', 'flatpak', 'uygulama')):
+        answer.update(text=TEXTS['store'], action='store')
+    elif any(word in query for word in ('tema', 'koyu', 'tasarim', 'tarz', 'baslat menusu')):
+        answer.update(text=TEXTS['appearance'], action='styles')
+    elif any(word in query for word in ('guncelle', 'paket plani')):
+        answer.update(text=TEXTS['applications'], action='updates')
+    elif any(word in query for word in ('raspberry', 'pinephone', 'telefon', 'arm64', 'cihaz merkezi')):
+        answer.update(text=TEXTS['compatibility'], action='devices')
     elif any(word in query for word in ('zipla','kuyru','tuy','cay','oyna')):
         answer.update(text=LIGHT_NOTE)
     elif any(word in query for word in ('boot', 'grub', 'bios', 'uefi', 'acilm', 'acilis', 'baslamiyor')):

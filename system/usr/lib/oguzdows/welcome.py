@@ -895,6 +895,12 @@ class Welcome(Gtk.Application):
                 'wallpapers': lambda: self.navigate('wallpapers'),
                 'install': lambda: self.navigate('welcome'),
                 'narration': lambda value: self.narration_switch.set_active(value),
+                'styles': lambda: self.navigate('styles'),
+                'store': lambda: self.launch(['/usr/local/bin/oguzdows-store']),
+                'updates': lambda: self.launch(['/usr/local/bin/oguzdows-update'] if self.pc else ['/usr/local/bin/oguzdows-device']),
+                'compatibility': lambda: self.launch(['/usr/local/bin/oguzdows-open', '--manager']),
+                'culture': lambda: self.launch(['/usr/local/bin/oguzdows-imece']),
+                'devices': lambda: self.launch(['/usr/local/bin/oguzdows-device']),
             }
             try:
                 from rifki import Companion

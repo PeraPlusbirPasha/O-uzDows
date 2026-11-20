@@ -70,6 +70,24 @@ class NarrationV11Tests(unittest.TestCase):
         for text in ('Dosya başarıyla kuruldu', 'Sürücü hatası 1234', '/home/örnek/gizli.apk'):
             self.assertIsNone(speech.ready_clip(text, ASSETS))
 
+    def test_new_questions_only_offer_fixed_windows_and_use_exact_recordings(self):
+        tasks = {'APK kurmak istiyorum': ('compatibility', 'compatibility'),
+                 'dosya.exe': ('compatibility', 'compatibility'),
+                 'Mağaza': ('store', 'store'), 'Flatpak': ('store', 'store'),
+                 'koyu tema': ('styles', 'appearance'), 'tasarım': ('styles', 'appearance'),
+                 'güncellemeler': ('updates', 'applications'),
+                 'Çay Molası': ('culture', 'culture'), 'Heybe yedek': ('culture', 'culture'),
+                 'PinePhone': ('devices', 'compatibility')}
+        for question, (action, topic) in tasks.items():
+            with self.subTest(question=question):
+                answer = model.reply(question)
+                self.assertEqual(answer['action'], action)
+                self.assertEqual(answer['text'], texts.TEXTS[topic])
+                self.assertIsNotNone(speech.ready_clip(answer['text'], ASSETS))
+                self.assertNotIn('command', answer)
+        for question in ('sudo wine dosya.exe', 'mkfs /dev/test APK', 'rm -rf /dev/test mağaza'):
+            self.assertEqual(model.reply(question)['action'], 'boot-report')
+
     def sources(self, root):
         source = root / 'source'
         source.mkdir()
