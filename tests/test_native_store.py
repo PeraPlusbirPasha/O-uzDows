@@ -1,7 +1,12 @@
 import copy
+import ctypes.util
 import json
+import os
+import shutil
 import subprocess
+import tempfile
 import unittest
+from pathlib import Path
 from types import SimpleNamespace as NS
 from unittest.mock import Mock, patch
 
@@ -87,6 +92,36 @@ class CatalogTests(unittest.TestCase):
         execute.assert_not_called()
         with self.assertRaises(ValueError):
             service.dispatch(['remove', 'libc6', 'system'])
+
+
+class NativeVersionTests(unittest.TestCase):
+    @unittest.skipUnless(shutil.which('cc') and ctypes.util.find_library('glib-2.0'), 'C derleyicisi / GLib çalışma kütüphanesi yok')
+    def test_headless_version_initializes_utf8_before_gtk_locale_setup(self):
+        # Üretim C fast-path'i derlenir; GLib gerçektir, yalnızca üç GTK sürüm
+        # getter'ı sabittir. Bu tam GTK frontend derlemesi / ekran testi değildir.
+        source = (ROOT / 'native/store.c').read_text()
+        branch = source.split('int main(int argc, char **argv) {', 1)[1].split('    application =', 1)[0]
+        header = '''#include <locale.h>
+#include <string.h>
+extern void g_print(const char *, ...);
+static unsigned int gtk_get_major_version(void) { return 3; }
+static unsigned int gtk_get_minor_version(void) { return 24; }
+static unsigned int gtk_get_micro_version(void) { return 0; }
+int main(int argc, char **argv) {
+'''
+        glib = ctypes.util.find_library('glib-2.0')
+        library = glib if '/' in glib else '-l:' + glib
+        with tempfile.TemporaryDirectory() as temporary:
+            for label, code, correct in (('product', branch, True), ('old-c-locale', branch.replace('setlocale(LC_ALL, "");', ''), False)):
+                binary = Path(temporary) / label
+                result = subprocess.run(['cc', '-std=c11', '-Wall', '-Wextra', '-Werror', '-x', 'c', '-', '-o', str(binary), library],
+                                        input=header + code + 'return 99; }\n', capture_output=True, text=True, timeout=20)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                # DISPLAY / DBUS_SESSION_BUS_ADDRESS yok; C programı LANG'i kendi başlatmalı.
+                result = subprocess.run([str(binary), '--version'], env={'PATH': os.environ['PATH'], 'LANG': 'C.UTF-8'},
+                                        capture_output=True, text=True, encoding='utf-8', timeout=5)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertEqual('OğuzDows Mağaza · GTK 3.24.0' in result.stdout, correct, result.stdout)
 
 
 class FlatpakTransactionTests(unittest.TestCase):

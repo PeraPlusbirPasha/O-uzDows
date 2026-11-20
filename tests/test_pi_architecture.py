@@ -112,6 +112,17 @@ class PiAbiAndFeatureTests(unittest.TestCase):
         for flag in ('-march=native', '-mcpu=native', '-mfpu=neon'):
             self.assertNotIn(flag, source)
 
+    def test_version_gate_stays_strict_and_retains_the_actual_failure_output(self):
+        valid = 'OğuzDows Mağaza · GTK 3.24.0'
+        self.assertEqual(runtime.version_output('xfce4-session test\nEk bilgi', valid)['native_store_version'], valid)
+        for xfce, native in (('', valid), ('xfce4-session test', 'O?uzDows Ma?aza ? GTK'), ('xfce4-session test', '')):
+            with self.subTest(xfce=xfce, native=native), self.assertRaises(ValueError) as caught:
+                runtime.version_output(xfce, native)
+            self.assertIn(native, str(caught.exception))
+        with self.assertRaises(ValueError) as caught:
+            runtime.version_output('x' * 5000, 'y' * 5000)
+        self.assertLess(len(str(caught.exception)), 700)
+
     def test_foreign_extra_package_is_not_confused_with_native_or_all_packages(self):
         data = 'python3\tarm64\t3.11\tinstalled\npython3\tarmhf\t3.11\tinstalled\nfonts\tall\t1.0\tinstalled\n'
         result = runtime.package_versions(data, ['python3', 'fonts'], 'armhf')

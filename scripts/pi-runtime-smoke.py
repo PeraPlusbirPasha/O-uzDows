@@ -46,6 +46,14 @@ def command(argv):
     return subprocess.run(argv, check=True, capture_output=True, text=True, timeout=90).stdout.strip()
 
 
+def version_output(xfce, native):
+    versions = {'xfce_version': xfce.splitlines()[0][:240] if xfce else '',
+                'native_store_version': native.splitlines()[0][:240] if native else ''}
+    if 'xfce4-session' not in versions['xfce_version'] or 'OğuzDows' not in versions['native_store_version']:
+        raise ValueError('Xfce / yerel mağaza sürüm yanıtı geçersiz: ' + json.dumps(versions, ensure_ascii=False))
+    return versions
+
+
 def gui_check(prefix, native_store):
     # GI geç içe aktarılır: kaynak / ABI regresyonları GTK'sız hostta da çalışır.
     import gi
@@ -70,10 +78,8 @@ def gui_check(prefix, native_store):
             raise ValueError('Gerçek GTK pencere / Türkçe yazı düzeni oluşmadı.')
         xfce = command([*prefix, '/usr/bin/xfce4-session', '--version'])
         native = command([*prefix, str(native_store), '--version'])
-        if 'xfce4-session' not in xfce or 'OğuzDows' not in native:
-            raise ValueError('Xfce / yerel mağaza sürüm yanıtı geçersiz.')
         return {'gtk_window': True, 'gtk_version': [Gtk.get_major_version(), Gtk.get_minor_version(), Gtk.get_micro_version()],
-                'xfce_version': xfce.splitlines()[0], 'native_store_version': native.splitlines()[0]}
+                **version_output(xfce, native)}
     finally:
         window.destroy()
 

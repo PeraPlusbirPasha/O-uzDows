@@ -4,6 +4,7 @@
  */
 #include <gtk/gtk.h>
 #include <json-glib/json-glib.h>
+#include <locale.h>
 #include <string.h>
 
 #ifndef STORE_SERVICE
@@ -746,6 +747,8 @@ static gint command_line(GApplication *app, GApplicationCommandLine *line, gpoin
 int main(int argc, char **argv) {
     /* Başsız ABI / bağımlılık raporu; pencere, D-Bus veya paket işçisi açmaz. */
     if (argc == 2 && !strcmp(argv[1], "--version")) {
+        /* GTK henüz locale başlatmadı; g_print C locale'inde Türkçeyi bozar. */
+        setlocale(LC_ALL, "");
         g_print("OğuzDows Mağaza · GTK %u.%u.%u\n", gtk_get_major_version(), gtk_get_minor_version(), gtk_get_micro_version());
         return 0;
     }

@@ -26,6 +26,12 @@ Yeni kapı host **Xvfb** ekranını yalnızca X soketi ve özel Xauthority ile h
 
 Xvfb / xauth **build host araçlarıdır**; hedef uygulama listesinden özellik çıkarmak veya hedefe yeni boşta daemon eklemek için kullanılmaz. QEMU / test dosyaları ve soket bağlantısı hata halinde de temizlenir. Asıl hata kodu saklanır; başarılı testten sonra temizliğin bozulması da build'i başarısız yapar. Bash `EXIT` kapanışında yalnızca `return` bunu sağlamadığından açık `exit` ve gerçek stage betiğiyle hata enjeksiyon testi vardır. `QEMU_CPU`, hedef çocuk işlemlere de minimum CPU'yu taşır. Resmî `on_chroot` işlevinin `mount | grep -q` kontrolleri, yeni `pipefail` ayarı yüzünden SIGPIPE'ı “bağlı değil” sanmasın diye kendi upstream kabuk davranışı içinde çağrılır.
 
+### Host kapısının yakaladığı Türkçe CLI çıktısı hatası
+
+`fea3915` için [44814981635](https://github.com/PeraPlusbirPasha/OguzDows/actions/runs/44814981635) ve [Pi PR 44814919820](https://github.com/PeraPlusbirPasha/OguzDows/actions/runs/44814919820), yerel mağazanın gerçek C/GTK derleme ve pencere smokundan sonra yeni sürüm yanıtı denetiminde **başarısız** oldu. İmaj işleri bu host kapısı nedeniyle otomatik atlandı; işler iptal edilmedi veya yeniden başlatılmadı. Aynı kaynağın [PC PR 44814919805](https://github.com/PeraPlusbirPasha/OguzDows/actions/runs/44814919805) kontrolü başarılıydı.
+
+C programı GTK'ye girmeden `--version` döndürdüğü için locale hâlâ `C` idi: `LANG=C.UTF-8` tek başına C programında `setlocale` çağırmaz. Gerçek GLib ile tekrar üretimde çıktı `O?uzDows Ma?aza ? GTK`; açık `setlocale(LC_ALL, "")` sonrasında `OğuzDows Mağaza · GTK` oldu. Başsız yol artık locale'i kendisi başlatır; sürüm testi gevşetilmez. İki regresyon üretim C fast-path'ini gerçek GLib'e bağlayarak eski/yeni davranışı karşılaştırır ve bozuk sürüm metninin reddedilip sınırlı ayrıntıyla raporlandığını sınar. Bu mikrotestte yalnızca üç GTK sürüm getter'ı sabittir; tam GTK frontend / ARM derleme veya fiziksel ekran testi diye sunulmaz. Hedef GUI kontrolü hata halinde artık iki gerçek sürüm satırını da rapora koyar.
+
 ## 2. İncelenen resmî kaynaklar
 
 Tam tar arşivleri indirildi, mevcut kilitteki SHA-256 ile doğrulandı; iki ağaçta 12 kritik dosya ayrıca karşılaştırıldı. Kilitler sessizce güncellenmedi.
@@ -79,7 +85,7 @@ Bunlar gereksiz açılış beklemesi / hatalı uyarlama / CI I/O düzeltmeleridi
 
 Tam build'in `OguzDows-Pi-gunluk-*` artefaktına üretilen **`pi-upstream-audit.json`**, **`pi-runtime-report.json`**, `collection.json` ve mevcut günlükler alınır; erken hata nedeniyle oluşmayan raporlar açıkça **missing** kaydedilir. Başarılı hedef raporu imajda `/usr/share/oguzdows/pi-build-report.json` olarak da kalır. API erişimi için kısa sonuç kontrol notuna yazılır. Raporda fiziksel boot / GPU hızlandırma / performans / gerçek ses / paket işlemleri **false** olarak ayrı işaretlenir; yapılmayan test başarıya çevrilmez. CI artefaktlarının saklaması **7 gündür**, kalıcı Release arşivi değildir. İleride ARM yayını yapılırken bu raporlar, kaynak sözleşmesi ve imaj hash'i o sürümün kalıcı yayın kanıtıyla birlikte arşivlenmelidir.
 
-Bu değişikliğin yerel kontrolü: **321 test / 6 bağımlılık atlaması, 17,835 sn** (`ResourceWarning` ölümcül); pyflakes / shellcheck / workflow eşliği / diff ve iki gerçek kaynakta **12 dosya/mimari** audit geçti. Bu sandbox'ta GI / Xvfb / GTK geliştirme paketleri yoktur: yeni yerel C derlemesi ve gerçek grafik kapısı burada çalıştırılmış sayılmaz; tam CI / ARM imaj sonucu ayrıca kaydedilir.
+Bu değişikliğin yerel kontrolü: **323 test / 6 bağımlılık atlaması, 17,500 sn** (`ResourceWarning` ölümcül); pyflakes / shellcheck / workflow eşliği / diff ve iki gerçek kaynakta **12 dosya/mimari** audit geçti. Bu sandbox'ta GI / Xvfb / GTK geliştirme paketleri yoktur: tam yerel C/GTK mağaza derlemesi ve gerçek grafik kapısı burada çalıştırılmış sayılmaz; yukarıdaki dar C/GLib mikrotesti ayrı tutulur. Tam CI / ARM imaj sonucu ayrıca kaydedilir.
 
 ### Sonraki sürüm kontrol sırası
 
