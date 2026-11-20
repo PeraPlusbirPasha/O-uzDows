@@ -608,7 +608,7 @@ class Welcome(Gtk.Application):
                     ('OğuzDows Güncelleyici', 'Önce planı gör; sonra güncelleme ve firmware işlemlerini onayla.', 'system-software-update-symbolic', ['/usr/local/bin/oguzdows-update'])):
                 page.pack_start(self.card(title, text, icon, lambda _button, value=command: self.launch(value)), False, False, 0)
         page.pack_start(self.card('Çay Molası · Heybe · İmece', 'İstek üzerine yerel kültür ve paylaşım araçları.', 'applications-utilities-symbolic', lambda *_: self.launch(['/usr/local/bin/oguzdows-imece'])), False, False, 0)
-        page.pack_start(label('1.1 için yeni yerel mağaza ayrı bir geliştirme aşamasıdır. Bu düğme, henüz geliştirilmemiş yeni mağaza varmış gibi davranmaz; kurulu sürümü açar.', 'muted', 75), False, False, 0)
+        page.pack_start(label('Mağaza, derlenen yerel GTK arayüzüdür. Sistem ve Flathub ayrı kaynaklardır; paketler plan ve açık onay olmadan kurulmaz. Açılışta mağaza servisi veya indirme çalışmaz.', 'muted', 75), False, False, 0)
         return page
 
     def support_page(self):

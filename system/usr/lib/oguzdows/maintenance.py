@@ -13,6 +13,8 @@ from datetime import datetime, timezone
 from email.utils import parsedate_to_datetime
 from pathlib import Path
 
+import app_catalog
+
 ENV = {'PATH': '/usr/sbin:/usr/bin:/sbin:/bin', 'LC_ALL': 'C.UTF-8',
        'LANG': 'C.UTF-8', 'HOME': '/root', 'DEBIAN_FRONTEND': 'noninteractive'}
 APT = ['/usr/bin/apt-get', '-o', 'Dpkg::Lock::Timeout=60', '-o', 'Acquire::Retries=1',
@@ -88,6 +90,8 @@ def driver_suggestions(sysfs=Path('/sys/bus'), suite='trixie'):
 def request_packages(request, info, suggestions=None):
     if request == 'upgrade':
         return None
+    if request.startswith('app:'):
+        return app_catalog.packages(request[4:])
     if request.startswith('desktop:') and request[8:] in DESKTOPS:
         if info['arch'] != 'amd64':
             raise MaintenanceError('Gerçek KDE/GNOME kurulumu bu sürümde yalnızca amd64 için sunulur.')

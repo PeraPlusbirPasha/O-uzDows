@@ -16,9 +16,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from maintenance import memory_report
 
 DESKTOP = frozenset(('xfce4-session', 'xfwm4', 'xfce4-panel', 'xfdesktop'))
-BUSY = frozenset(('firefox', 'firefox-esr', 'soffice.bin', 'vlc', 'gnome-software',
+BUSY = frozenset(('firefox', 'firefox-esr', 'soffice.bin', 'vlc', 'gnome-software', 'oguzdows-store-native', 'oguzdows-store-native'[:15],
                   'packagekitd', 'apt-get', 'dpkg', 'calamares'))
-PANELS = frozenset(('welcome.py', 'updater.py', 'culture.py', 'store.py', 'rifki.py', 'install_launcher.py'))
+PANELS = frozenset(('welcome.py', 'updater.py', 'culture.py', 'store.py', 'store_service.py', 'compatibility.py', 'rifki.py', 'install_launcher.py'))
 
 
 def snapshot(uid=None, proc=Path('/proc'), sysfs=Path('/sys')):
